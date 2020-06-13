@@ -145,7 +145,7 @@ static inline int pf_turns(const struct pf_parameter *param, int cost)
   } else if (param->move_rate <= 0) {
     return FC_INFINITY; /* This unit cannot move by itself. */
   } else {
-    return (cost - 1) / param->move_rate;
+    return cost / param->move_rate;
   }
 }
 
@@ -671,7 +671,10 @@ static bool pf_normal_map_iterate(struct pf_map *pfm)
         /* action move cost depends on action and unit type. */
         if (node1->action == PF_ACTION_ATTACK
             && (utype_has_flag(params->utype, UTYF_ONEATTACK)
-                || uclass_has_flag(utype_class(params->utype), UCF_MISSILE))) {
+                || utype_can_do_action(params->utype,
+                                       ACTION_SUICIDE_ATTACK))) {
+          /* Assume that the attack will be a suicide attack even if a
+           * regular attack may be legal. */
           cost = params->move_rate;
         } else {
           cost = SINGLE_MOVE;
@@ -1565,8 +1568,10 @@ static bool pf_danger_map_iterate(struct pf_map *pfm)
           /* action move cost depends on action and unit type. */
           if (node1->action == PF_ACTION_ATTACK
               && (utype_has_flag(params->utype, UTYF_ONEATTACK)
-                  || uclass_has_flag(utype_class(params->utype),
-                                     UCF_MISSILE))) {
+                  || utype_can_do_action(params->utype,
+                                         ACTION_SUICIDE_ATTACK))) {
+            /* Assume that the attack will be a suicide attack even if a
+             * regular attack may be legal. */
             cost = params->move_rate;
           } else {
             cost = SINGLE_MOVE;
@@ -1958,10 +1963,10 @@ struct pf_fuel_node {
                                  * FIXME: this is right only for units with
                                  * constant move costs! */
   unsigned short extra_tile;    /* EC */
-  unsigned char cost_to_here[DIR8_MAGIC_MAX]; /* Step cost[dir to here] */
+  unsigned short cost_to_here[DIR8_MAGIC_MAX]; /* Step cost[dir to here] */
 
   /* Segment leading across the danger area back to the nearest safe node:
-   * need to remeber costs and stuff. */
+   * need to remember costs and stuff. */
   struct pf_fuel_pos *pos;
   /* Optimal segment to follow to get there (when node is processed). */
   struct pf_fuel_pos *segment;
@@ -2280,9 +2285,12 @@ pf_fuel_finalize_position_base(const struct pf_parameter *param,
   int move_rate = param->move_rate;
 
   pos->turn = pf_turns(param, cost);
-  if (move_rate > 0) {
-    pos->fuel_left = (moves_left - 1) / move_rate + 1;
-    pos->moves_left = (moves_left - 1) % move_rate + 1;
+  if (move_rate > 0 && param->start_tile != pos->tile) {
+    pos->fuel_left = moves_left / move_rate;
+    pos->moves_left = moves_left % move_rate;
+  } else if (param->start_tile == pos->tile) {
+    pos->fuel_left = param->fuel_left_initially;
+    pos->moves_left = param->moves_left_initially;
   } else {
     pos->fuel_left = param->fuel_left_initially;
     pos->moves_left = moves_left;
@@ -2551,7 +2559,7 @@ static inline bool
 pf_fuel_map_attack_is_possible(const struct pf_parameter *param,
                                int moves_left, int moves_left_req)
 {
-  if (uclass_has_flag(utype_class(param->utype), UCF_MISSILE)) {
+  if (utype_can_do_action(param->utype, ACTION_SUICIDE_ATTACK)) {
     /* Case missile */
     return TRUE;
   } else if (utype_has_flag(param->utype, UTYF_ONEATTACK)) {
@@ -2705,8 +2713,10 @@ static bool pf_fuel_map_iterate(struct pf_map *pfm)
             /* action move cost depends on action and unit type. */
             if (node1->action == PF_ACTION_ATTACK
                 && (utype_has_flag(params->utype, UTYF_ONEATTACK)
-                    || uclass_has_flag(utype_class(params->utype),
-                                       UCF_MISSILE))) {
+                    || utype_can_do_action(params->utype,
+                                           ACTION_SUICIDE_ATTACK))) {
+              /* Assume that the attack will be a suicide attack even if a
+               * regular attack may be legal. */
               cost = params->move_rate;
             } else {
               cost = SINGLE_MOVE;
@@ -2717,15 +2727,23 @@ static bool pf_fuel_map_iterate(struct pf_map *pfm)
             cost = params->get_MC(tile, scope, tile1, node1->move_scope,
                                   params);
           }
+
+          if (cost == FC_INFINITY) {
+            /* tile_move_cost_ptrs() uses FC_INFINITY to flag that all
+             * movement is spent, e.g., when disembarking from transport. */
+            cost = params->move_rate;
+          }
+
 #ifdef PF_DEBUG
           fc_assert(1 << (8 * sizeof(node1->cost_to_here[dir])) > cost + 2);
           fc_assert(0 < cost + 2);
-#endif
+#endif /* PF_DEBUG */
+
           node1->cost_to_here[dir] = cost + 2;
           if (cost == PF_IMPOSSIBLE_MC) {
             continue;
           }
-        } else if (cost == PF_IMPOSSIBLE_MC - 2) {
+        } else if (cost == PF_IMPOSSIBLE_MC + 2) {
           continue;
         } else {
           cost -= 2;
@@ -2736,7 +2754,7 @@ static bool pf_fuel_map_iterate(struct pf_map *pfm)
 
         moves_left = loc_moves_left - cost;
         if (moves_left < node1->moves_left_req
-            && (!uclass_has_flag(utype_class(params->utype), UCF_MISSILE)
+            && (!utype_can_do_action(params->utype, ACTION_SUICIDE_ATTACK)
                 || 0 > moves_left)) {
           /* We don't have enough moves left, but missiles
            * can do suicidal attacks. */
@@ -2784,7 +2802,8 @@ static bool pf_fuel_map_iterate(struct pf_map *pfm)
         /* Step 1: We test if this route is the best to this tile, by a
          * direct way, not taking in account waiting. */
 
-        if (NS_INIT == node1->status || cost_of_path < old_cost_of_path) {
+        if (NS_INIT == node1->status
+            || (node1->status == NS_NEW && cost_of_path < old_cost_of_path)) {
           /* We are reaching this node for the first time, or we found a
            * better route to 'tile1', or we would have more moves lefts
            * at previous position. Let's register 'tindex1' to the
@@ -2894,6 +2913,7 @@ static bool pf_fuel_map_iterate(struct pf_map *pfm)
     } else {
 #ifdef PF_DEBUG
       bool success = map_index_pq_remove(pffm->queue, &tindex);
+
       fc_assert(TRUE == success);
 #else
       map_index_pq_remove(pffm->queue, &tindex);
@@ -2903,9 +2923,10 @@ static bool pf_fuel_map_iterate(struct pf_map *pfm)
       tile = index_to_tile(params->map, tindex);
       pfm->tile = tile;
       node = pffm->lattice + tindex;
+
 #ifdef PF_DEBUG
       fc_assert(NS_PROCESSED != node->status);
-#endif
+#endif /* PF_DEBUG */
 
       if (NS_WAITING != node->status && !pf_fuel_node_dangerous(node)) {
         /* Node status step C. and D. */
@@ -3197,7 +3218,6 @@ struct pf_path *pf_map_path(struct pf_map *pfm, struct tile *ptile)
     const struct pf_position *pos = &path->positions[0];
 
     fc_assert(path->length >= 1);
-    fc_assert(pos->turn == 0);
     fc_assert(pos->tile == param->start_tile);
     fc_assert(pos->moves_left == param->moves_left_initially);
     fc_assert(pos->fuel_left == param->fuel_left_initially);

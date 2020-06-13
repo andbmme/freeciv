@@ -63,25 +63,25 @@ struct intel_dialog {
 static struct dialog_list *dialog_list;
 static struct intel_dialog *create_intel_dialog(struct player *p);
 
-/****************************************************************
+/**********************************************************************//**
   Allocate intelligence dialog
-*****************************************************************/
+**************************************************************************/
 void intel_dialog_init(void)
 {
   dialog_list = dialog_list_new();
 }
 
-/****************************************************************
+/**********************************************************************//**
   Free intelligence dialog
-*****************************************************************/
+**************************************************************************/
 void intel_dialog_done(void)
 {
   dialog_list_destroy(dialog_list);
 }
 
-/****************************************************************
+/**********************************************************************//**
   Get intelligence dialog towards given player
-*****************************************************************/
+**************************************************************************/
 static struct intel_dialog *get_intel_dialog(struct player *pplayer)
 {
   dialog_list_iterate(dialog_list, pdialog) {
@@ -93,12 +93,12 @@ static struct intel_dialog *get_intel_dialog(struct player *pplayer)
   return NULL;
 }
 
-/****************************************************************
+/**********************************************************************//**
   User interacted with the intelligence dialog window
-*****************************************************************/
+**************************************************************************/
 static int intel_window_dlg_callback(struct widget *pWindow)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     struct intel_dialog *pSelectedDialog = get_intel_dialog(pWindow->data.player);
 
     move_window_group(pSelectedDialog->pdialog->pBeginWidgetList, pWindow);
@@ -107,21 +107,21 @@ static int intel_window_dlg_callback(struct widget *pWindow)
   return -1;
 }
 
-/****************************************************************
+/**********************************************************************//**
   User interacted with tech widget
-*****************************************************************/
+**************************************************************************/
 static int tech_callback(struct widget *pWidget)
 {
   /* get tech help - PORT ME */
   return -1;
 }
 
-/****************************************************************
+/**********************************************************************//**
   User interacted with spaceship widget
-*****************************************************************/
+**************************************************************************/
 static int spaceship_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     struct player *pPlayer = pWidget->data.player;
 
     popdown_intel_dialog(pPlayer);
@@ -131,12 +131,12 @@ static int spaceship_callback(struct widget *pWidget)
   return -1;
 }
 
-/****************************************************************
+/**********************************************************************//**
   User interacted with intelligence dialog close button
-*****************************************************************/
+**************************************************************************/
 static int exit_intel_dlg_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     popdown_intel_dialog(pWidget->data.player);
     flush_dirty();
   }
@@ -144,7 +144,7 @@ static int exit_intel_dlg_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Close an intelligence dialog towards given player.
 **************************************************************************/
 void close_intel_dialog(struct player *p)
@@ -152,7 +152,7 @@ void close_intel_dialog(struct player *p)
   popdown_intel_dialog(p);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create an intelligence dialog towards given player.
 **************************************************************************/
 static struct intel_dialog *create_intel_dialog(struct player *pPlayer)
@@ -171,7 +171,7 @@ static struct intel_dialog *create_intel_dialog(struct player *pPlayer)
   return pdialog;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Popup an intelligence dialog for the given player.
 **************************************************************************/
 void popup_intel_dialog(struct player *p)
@@ -189,7 +189,7 @@ void popup_intel_dialog(struct player *p)
   update_intel_dialog(p);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Popdown an intelligence dialog for the given player.
 **************************************************************************/
 void popdown_intel_dialog(struct player *p)
@@ -208,7 +208,7 @@ void popdown_intel_dialog(struct player *p)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Popdown all intelligence dialogs
 **************************************************************************/
 void popdown_intel_dialogs(void)
@@ -218,10 +218,10 @@ void popdown_intel_dialogs(void)
   } dialog_list_iterate_end;
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Update the intelligence dialog for the given player.  This is called by
   the core client code when that player's information changes.
-****************************************************************************/
+**************************************************************************/
 void update_intel_dialog(struct player *p)
 {
   const struct research *mresearch, *presearch;
@@ -328,20 +328,22 @@ void update_intel_dialog(struct player *p)
                   _("Ruler: %s  Government: %s\n"
                     "Capital: %s  Gold: %d\n"
                     "Tax: %d%% Science: %d%% Luxury: %d%%\n"
-                    "Researching: unknown"),
+                    "Researching: unknown\n"
+                    "Culture: %d"),
                   ruler_title_for_player(p, plr_buf, sizeof(plr_buf)),
                   government_name_for_player(p),
                   /* TRANS: "unknown" location */
                   NULL != pCapital ? city_name_get(pCapital) : _("(unknown)"),
                   p->economic.gold, p->economic.tax,
-                  p->economic.science, p->economic.luxury);
+                  p->economic.science, p->economic.luxury, p->client.culture);
       break;
     default:
       fc_snprintf(cBuf, sizeof(cBuf),
                   _("Ruler: %s  Government: %s\n"
                     "Capital: %s  Gold: %d\n"
                     "Tax: %d%% Science: %d%% Luxury: %d%%\n"
-                    "Researching: %s(%d/%d)"),
+                    "Researching: %s(%d/%d)\n"
+                    "Culture: %d"),
                   ruler_title_for_player(p, plr_buf, sizeof(plr_buf)),
                   government_name_for_player(p),
                   /* TRANS: "unknown" location */
@@ -351,7 +353,7 @@ void update_intel_dialog(struct player *p)
                   research_advance_name_translation(research,
                                                     research->researching),
                   research->bulbs_researched,
-                  research->client.researching_cost);
+                  research->client.researching_cost, p->client.culture);
       break;
     };
 

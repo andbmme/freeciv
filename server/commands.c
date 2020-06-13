@@ -93,11 +93,13 @@ static struct command commands[] = {
              "list ignored users\n"
              "list map image definitions\n"
              "list players\n"
+             "list rulesets\n"
              "list scenarios\n"
              "list nationsets\n"
              "list teams\n"
              "list votes\n"),
    N_("Show a list of various things."),
+   /* TRANS: don't translate text in '' */
    N_("Show a list of:\n"
       " - the player colors,\n"
       " - connections to the server,\n"
@@ -105,6 +107,7 @@ static struct command commands[] = {
       " - your ignore list,\n"
       " - the list of defined map images,\n"
       " - the list of the players in the game,\n"
+      " - the available rulesets (for 'read' command),\n"
       " - the available scenarios,\n"
       " - the available nation sets in this ruleset,\n"
       " - the teams of players or\n"
@@ -332,9 +335,8 @@ static struct command commands[] = {
       "game begins. Until then the player will be known by a name derived "
       "from its type.\n"
       "The 'ai type' parameter can be used to select which AI module will be "
-      "used for the created player. This requires that Freeciv has been "
-      "compiled with loadable AI module support and that the respective module "
-      "has been loaded.\n"
+      "used for the created player. This requires that the respective module "
+      "has been loaded or built in to the server.\n"
       "If the game has already started, the new player will have no units or "
       "cities; also, if no free player slots are available, the slot of a "
       "dead player can be reused (removing all record of that player from the "
@@ -514,6 +516,17 @@ static struct command commands[] = {
       "To list the player colors, use 'list colors'."), NULL,
    CMD_ECHO_NONE, VCF_NONE, 0
   },
+  {"playernation", ALLOW_ADMIN,
+   /* TRANS: translate text between <> and [] only */
+   N_("playernation <player-name> [nation] [is-male] [leader] [style]"),
+   N_("Define the nation of a player."),
+   N_("This command sets the nation, leader name, style, and gender of a "
+      "specific player.\nThe gender parameter should be 1 if male, "
+      "otherwise 0. Omitting any of the player settings will reset the "
+      "player to defaults.\n"
+      "This command may not be used once the game has started."), NULL,
+   CMD_ECHO_NONE, VCF_NONE, 0
+  },
   {"endgame",	ALLOW_ADMIN,
    /* no translatable parameters */
    SYN_ORIG_("endgame"),
@@ -597,8 +610,8 @@ static struct command commands[] = {
    CMD_ECHO_ALL, VCF_NONE, 50
   },
   {"default",	ALLOW_CTRL,
-   /* no translatable parameters */
-   SYN_ORIG_("default <option name>"),
+   /* TRANS: translate text between <> only */
+   N_("default <option name>"),
    N_("Set option to its default value"),
    N_("Reset the option to its default value. If the default ever changes "
       "in a future version, the option's value will follow that change."),
@@ -700,7 +713,7 @@ static struct command commands[] = {
 };
 
 
-/**************************************************************************
+/**********************************************************************//**
   Return command by its number.
 **************************************************************************/
 const struct command *command_by_number(int i)
@@ -709,7 +722,7 @@ const struct command *command_by_number(int i)
   return &commands[i];
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return name of the command
 **************************************************************************/
 const char *command_name(const struct command *pcommand)
@@ -717,7 +730,7 @@ const char *command_name(const struct command *pcommand)
   return pcommand->name;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return name of the command by commands number.
 **************************************************************************/
 const char *command_name_by_number(int i)
@@ -725,7 +738,7 @@ const char *command_name_by_number(int i)
   return command_by_number(i)->name;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns the synopsis text of the command (translated).
 **************************************************************************/
 const char *command_synopsis(const struct command *pcommand)
@@ -733,7 +746,7 @@ const char *command_synopsis(const struct command *pcommand)
   return SYN_TRANS_(pcommand->synopsis);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns the short help text of the command (translated).
 **************************************************************************/
 const char *command_short_help(const struct command *pcommand)
@@ -741,7 +754,7 @@ const char *command_short_help(const struct command *pcommand)
   return _(pcommand->short_help);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns the extra help text of the command (translated).
   The caller must free this string.
 **************************************************************************/
@@ -757,23 +770,23 @@ char *command_extra_help(const struct command *pcommand)
   }
 }
 
-/**************************************************************************
-  ...
+/**********************************************************************//**
+  What is the permissions level required for running the command?
 **************************************************************************/
 enum cmdlevel command_level(const struct command *pcommand)
 {
   return pcommand->level;
 }
 
-/****************************************************************************
-  Retrurns the flag of the command to notify the users about its usage.
-****************************************************************************/
+/**********************************************************************//**
+  Returns the flag of the command to notify the users about its usage.
+**************************************************************************/
 enum cmd_echo command_echo(const struct command *pcommand)
 {
   return pcommand->echo;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns a bit-wise combination of all vote flags set for this command.
 **************************************************************************/
 int command_vote_flags(const struct command *pcommand)
@@ -781,7 +794,7 @@ int command_vote_flags(const struct command *pcommand)
   return pcommand ? pcommand->vote_flags : 0;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns the vote percent required for this command to pass in a vote.
 **************************************************************************/
 int command_vote_percent(const struct command *pcommand)

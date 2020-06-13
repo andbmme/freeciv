@@ -49,24 +49,24 @@
 /* ====================================================================== */
 static struct ADVANCED_DLG  *pFind_City_Dlg = NULL;
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with find city dialog window.
 **************************************************************************/
 static int find_city_window_dlg_callback(struct widget *pWindow)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     move_window_group(pFind_City_Dlg->pBeginWidgetList, pWindow);
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Close find city dialog.
 **************************************************************************/
 static int exit_find_city_dlg_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     int orginal_x = pWidget->data.cont->id0;
     int orginal_y = pWidget->data.cont->id1;
 
@@ -80,12 +80,12 @@ static int exit_find_city_dlg_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User has selected city to find.
 **************************************************************************/
 static int find_city_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     struct city *pCity = pWidget->data.city;
 
     if (pCity) {
@@ -100,7 +100,7 @@ static int find_city_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Popdown a dialog to ask for a city to find.
 **************************************************************************/
 void popdown_find_dialog(void)
@@ -114,7 +114,7 @@ void popdown_find_dialog(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Popup a dialog to ask for a city to find.
 **************************************************************************/
 void popup_find_dialog(void)

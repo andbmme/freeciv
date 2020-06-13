@@ -56,7 +56,7 @@ static void real_info_city_report_dialog_update(void);
 
 /* ==================================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Close city report dialog.
 **************************************************************************/
 void city_report_dialog_popdown(void)
@@ -72,72 +72,72 @@ void city_report_dialog_popdown(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with cityreport window.
 **************************************************************************/
 static int city_report_windows_callback(struct widget *pWindow)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     move_window_group(pCityRep->pBeginWidgetList, pWindow);
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with city report close button.
 **************************************************************************/
 static int exit_city_report_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     city_report_dialog_popdown();
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with city button on city report.
 **************************************************************************/
 static int popup_citydlg_from_city_report_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     popup_city_dialog(pWidget->data.city);
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with worklist button on city report.
 **************************************************************************/
 static int popup_worklist_from_city_report_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     popup_worklist_editor(pWidget->data.city, NULL);
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with city production button on city report.
 **************************************************************************/
 static int popup_buy_production_from_city_report_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     popup_hurry_production_dialog(pWidget->data.city, NULL);
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with cma button on city report.
 **************************************************************************/
 static int popup_cma_from_city_report_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     struct city *pCity = game_city_by_number(MAX_ID - pWidget->ID);
 
     /* state is changed before enter this function */
@@ -153,12 +153,12 @@ static int popup_cma_from_city_report_callback(struct widget *pWidget)
 }
 
 #if 0
-/**************************************************************************
+/**********************************************************************//**
   User interacted with information report button.
 **************************************************************************/
 static int info_city_report_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     set_wstate(pWidget, FC_WS_NORMAL);
     selected_widget = NULL;
     widget_redraw(pWidget);
@@ -172,7 +172,7 @@ static int info_city_report_callback(struct widget *pWidget)
 
 #define COL	17
 
-/**************************************************************************
+/**********************************************************************//**
   Rebuild the city info report.
 **************************************************************************/
 static void real_info_city_report_dialog_update(void)
@@ -529,21 +529,21 @@ static void real_info_city_report_dialog_update(void)
 
     /* ----------- */
     if (VUT_UTYPE == pCity->production.kind) {
-      struct unit_type *pUnitType = pCity->production.value.utype;
+      const struct unit_type *punittype = pCity->production.value.utype;
 
-      pLogo = ResizeSurfaceBox(get_unittype_surface(pUnitType, direction8_invalid()),
+      pLogo = ResizeSurfaceBox(get_unittype_surface(punittype, direction8_invalid()),
                                adj_size(36), adj_size(24), 1,
                                TRUE, TRUE);
-      togrow = utype_build_shield_cost(pUnitType);
-      pName = utype_name_translation(pUnitType);
+      togrow = utype_build_shield_cost(pCity, punittype);
+      pName = utype_name_translation(punittype);
     } else {
-      struct impr_type *pImprove = pCity->production.value.building;
+      const struct impr_type *pimprove = pCity->production.value.building;
 
       pLogo = ResizeSurfaceBox(get_building_surface(pCity->production.value.building),
                                adj_size(36), adj_size(24), 1,
                                TRUE, TRUE);
-      togrow = impr_build_shield_cost(pImprove);
-      pName = improvement_name_translation(pImprove);
+      togrow = impr_build_shield_cost(pCity, pimprove);
+      pName = improvement_name_translation(pimprove);
     }
 
     if (!worklist_is_empty(&(pCity->worklist))) {
@@ -947,8 +947,8 @@ static void real_info_city_report_dialog_update(void)
   flush_dirty();
 }
 
-/**************************************************************************
-  Update city information in city report. 
+/**********************************************************************//**
+  Update city information in city report.
 **************************************************************************/
 static struct widget *real_city_report_dialog_update_city(struct widget *pWidget,
                                                           struct city *pCity)
@@ -1064,19 +1064,19 @@ static struct widget *real_city_report_dialog_update_city(struct widget *pWidget
 
   /* change production */
   if (VUT_UTYPE == pCity->production.kind) {
-    struct unit_type *pUnitType = pCity->production.value.utype;
+    const struct unit_type *punittype = pCity->production.value.utype;
 
-    pLogo = ResizeSurface(get_unittype_surface(pUnitType, direction8_invalid()),
+    pLogo = ResizeSurface(get_unittype_surface(punittype, direction8_invalid()),
                           adj_size(36), adj_size(24), 1);
-    togrow = utype_build_shield_cost(pUnitType);
-    pName = utype_name_translation(pUnitType);
+    togrow = utype_build_shield_cost(pCity, punittype);
+    pName = utype_name_translation(punittype);
   } else {
-    struct impr_type *pImprove = pCity->production.value.building;
+    const struct impr_type *pimprove = pCity->production.value.building;
 
     pLogo = ResizeSurface(get_building_surface(pCity->production.value.building),
                           adj_size(36), adj_size(24), 1);
-    togrow = impr_build_shield_cost(pImprove);
-    pName = improvement_name_translation(pImprove);
+    togrow = impr_build_shield_cost(pCity, pimprove);
+    pName = improvement_name_translation(pimprove);
   }
 
   if (!worklist_is_empty(&(pCity->worklist))) {
@@ -1112,7 +1112,7 @@ static struct widget *real_city_report_dialog_update_city(struct widget *pWidget
 
 /* ======================================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Check if city report is open.
 **************************************************************************/
 bool is_city_report_open(void)
@@ -1120,7 +1120,7 @@ bool is_city_report_open(void)
   return (pCityRep != NULL);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Pop up or brings forward the city report dialog.  It may or may not
   be modal.
 **************************************************************************/
@@ -1131,10 +1131,10 @@ void city_report_dialog_popup(bool make_modal)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update (refresh) the entire city report dialog.
 **************************************************************************/
-void real_city_report_dialog_update(void)
+void real_city_report_dialog_update(void *unused)
 {
   if (pCityRep) {
     struct widget *pWidget;
@@ -1176,7 +1176,7 @@ void real_city_report_dialog_update(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update the city report dialog for a single city.
 **************************************************************************/
 void real_city_report_update_city(struct city *pCity)
@@ -1203,19 +1203,19 @@ void real_city_report_update_city(struct city *pCity)
   }
 }
 
-/****************************************************************
- After a selection rectangle is defined, make the cities that
- are hilited on the canvas exclusively hilited in the
- City List window.
-*****************************************************************/
+/**********************************************************************//**
+  After a selection rectangle is defined, make the cities that
+  are hilited on the canvas exclusively hilited in the
+  City List window.
+**************************************************************************/
 void hilite_cities_from_canvas(void)
 {
   log_debug("hilite_cities_from_canvas : PORT ME");
 }
 
-/****************************************************************
- Toggle a city's hilited status.
-*****************************************************************/
+/**********************************************************************//**
+  Toggle a city's hilited status.
+**************************************************************************/
 void toggle_city_hilite(struct city *pCity, bool on_off)
 {
   log_debug("toggle_city_hilite : PORT ME");

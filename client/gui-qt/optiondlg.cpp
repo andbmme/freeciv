@@ -1,4 +1,4 @@
-/**********************************************************************
+/***********************************************************************
  Freeciv - Copyright (C) 1996 - A Kjeldberg, L Gregersen, P Unold
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -29,7 +29,6 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
-#include <QSignalMapper>
 #include <QSpinBox>
 
 // utility
@@ -56,7 +55,7 @@ enum {
 /* global value to store pointers to opened config dialogs */
 QMap<const struct option_set *, option_dialog *> dialog_list;
 
-/****************************************************************************
+/************************************************************************//**
   Splits long text to 80 characters
 ****************************************************************************/
 QString split_text(QString text, bool cut)
@@ -98,7 +97,7 @@ QString split_text(QString text, bool cut)
   return result;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Remove some text from given text(help text) to show as tooltip
 ****************************************************************************/
 QString cut_helptext(QString text)
@@ -121,7 +120,7 @@ QString cut_helptext(QString text)
 }
 
 
-/****************************************************************************
+/************************************************************************//**
   Constructor for options dialog.
 ****************************************************************************/
 option_dialog::option_dialog(const QString & name,
@@ -133,43 +132,48 @@ option_dialog::option_dialog(const QString & name,
   curr_options = options;
   setWindowTitle(name);
   tab_widget = new QTabWidget;
-  signal_map = new QSignalMapper;
 
   button_box = new QDialogButtonBox();
   but = new QPushButton(style()->standardIcon(QStyle::SP_DialogCancelButton),
                         _("Cancel"));
   button_box->addButton(but, QDialogButtonBox::ActionRole);
-  connect(but, SIGNAL(clicked()), signal_map, SLOT(map()));
-  signal_map->setMapping(but, RESPONSE_CANCEL);
+  QObject::connect(but, &QPushButton::clicked, [this]() {
+    apply_option(RESPONSE_CANCEL);
+  });
 
   but = new QPushButton(style()->standardIcon(QStyle::SP_DialogResetButton),
                         _("Reset"));
   button_box->addButton(but, QDialogButtonBox::ResetRole);
-  connect(but, SIGNAL(clicked()), signal_map, SLOT(map()));
-  signal_map->setMapping(but, RESPONSE_RESET);
+  QObject::connect(but, &QPushButton::clicked, [this]() {
+    apply_option(RESPONSE_RESET);
+  });
 
   but = new QPushButton(QIcon::fromTheme("view-refresh"), _("Refresh"));
   button_box->addButton(but, QDialogButtonBox::ActionRole);
-  connect(but, SIGNAL(clicked()), signal_map, SLOT(map()));
-  signal_map->setMapping(but, RESPONSE_REFRESH);
+  QObject::connect(but, &QPushButton::clicked, [this]() {
+    apply_option(RESPONSE_REFRESH);
+  });
 
   but = new QPushButton(style()->standardIcon(QStyle::SP_DialogApplyButton),
                         _("Apply"));
   button_box->addButton(but, QDialogButtonBox::ActionRole);
-  connect(but, SIGNAL(clicked()), signal_map, SLOT(map()));
-  signal_map->setMapping(but, RESPONSE_APPLY);
+  QObject::connect(but, &QPushButton::clicked, [this]() {
+    apply_option(RESPONSE_APPLY);
+  });
 
   but = new QPushButton(style()->standardIcon(QStyle::SP_DialogSaveButton),
                         _("Save"));
   button_box->addButton(but, QDialogButtonBox::ActionRole);
-  connect(but, SIGNAL(clicked()), signal_map, SLOT(map()));
-  signal_map->setMapping(but, RESPONSE_SAVE);
+  QObject::connect(but, &QPushButton::clicked, [this]() {
+    apply_option(RESPONSE_SAVE);
+  });
 
   but = new QPushButton(style()->standardIcon(QStyle::SP_DialogOkButton),
                         _("Ok"));
   button_box->addButton(but, QDialogButtonBox::ActionRole);
-  connect(but, SIGNAL(clicked()), signal_map, SLOT(map()));
-  signal_map->setMapping(but, RESPONSE_OK);
+  QObject::connect(but, &QPushButton::clicked, [this]() {
+    apply_option(RESPONSE_OK);
+  });
 
   main_layout = new QVBoxLayout;
   main_layout->addWidget(tab_widget);
@@ -178,11 +182,10 @@ option_dialog::option_dialog(const QString & name,
   main_layout->addWidget(button_box);
   setLayout(main_layout);
 
-  connect(signal_map, SIGNAL(mapped(int)), this, SLOT(apply_option(int)));
   setAttribute(Qt::WA_DeleteOnClose);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Destructor for options dialog.
 ****************************************************************************/
 option_dialog::~option_dialog()
@@ -193,7 +196,7 @@ option_dialog::~option_dialog()
   destroy();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Apply desired action depending on user's request (clicked button).
 ****************************************************************************/
 void option_dialog::apply_option(int response)
@@ -224,7 +227,7 @@ void option_dialog::apply_option(int response)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return selected colors (for highlighting chat).
 ****************************************************************************/
 void option_dialog::get_color(struct option *poption, QByteArray &a1,
@@ -246,7 +249,7 @@ void option_dialog::get_color(struct option *poption, QByteArray &a1,
   a2 = col2.name().toUtf8();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Apply all options.
 ****************************************************************************/
 void option_dialog::apply_options()
@@ -287,7 +290,7 @@ void option_dialog::apply_options()
 }
 
 
-/****************************************************************************
+/************************************************************************//**
   Set the boolean value of the option.
 ****************************************************************************/
 void option_dialog::set_bool(struct option *poption, bool value)
@@ -295,14 +298,14 @@ void option_dialog::set_bool(struct option *poption, bool value)
   QCheckBox *c;
 
   c = reinterpret_cast<QCheckBox *>(option_get_gui_data(poption));
-  if (value == true) {
+  if (value) {
     c->setCheckState(Qt::Checked);
   } else {
     c->setCheckState(Qt::Unchecked);
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get the boolean value from checkbox.
 ****************************************************************************/
 bool option_dialog::get_bool(struct option *poption)
@@ -317,8 +320,7 @@ bool option_dialog::get_bool(struct option *poption)
   }
 }
 
-
-/****************************************************************************
+/************************************************************************//**
   Set the integer value of the option.
 ****************************************************************************/
 void option_dialog::set_int(struct option *poption, int value)
@@ -329,7 +331,7 @@ void option_dialog::set_int(struct option *poption, int value)
   s->setValue(value);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Sets desired font name in button text and sets global font for that option
   That function is not executed when user changes font, but when applying or 
   resetting options.
@@ -345,14 +347,13 @@ void option_dialog::set_font(struct option* poption, QString s)
   qApp->processEvents();
   qp = reinterpret_cast<QPushButton *>(option_get_gui_data(poption));
   ql = s.split(",");
-  if (s.isEmpty() == false) {
+  if (!s.isEmpty()) {
     qp->setText(ql[0] + " " + ql[1]);
     qp->setFont(*fp);
   }
 }
 
-
-/****************************************************************************
+/************************************************************************//**
   Get int value from spinbox.
 ****************************************************************************/
 int option_dialog::get_int(struct option *poption)
@@ -363,9 +364,7 @@ int option_dialog::get_int(struct option *poption)
   return s->value();
 }
 
-
-
-/****************************************************************************
+/************************************************************************//**
   Set the string value of the option.
 ****************************************************************************/
 void option_dialog::set_string(struct option *poption, const char *string)
@@ -386,7 +385,7 @@ void option_dialog::set_string(struct option *poption, const char *string)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get string for desired option from combobox or lineedit.
 ****************************************************************************/
 QByteArray option_dialog::get_string(struct option *poption)
@@ -403,7 +402,7 @@ QByteArray option_dialog::get_string(struct option *poption)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set desired index(text) in combobox.
 ****************************************************************************/
 void option_dialog::set_enum(struct option *poption, int index)
@@ -414,7 +413,7 @@ void option_dialog::set_enum(struct option *poption, int index)
   cb->setCurrentIndex(index);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get indexed value from combobox.
 ****************************************************************************/
 int option_dialog::get_enum(struct option *poption)
@@ -425,7 +424,7 @@ int option_dialog::get_enum(struct option *poption)
   return cb->currentIndex();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set the enum value of the option.
 ****************************************************************************/
 void option_dialog::set_bitwise(struct option *poption, unsigned int value)
@@ -446,7 +445,7 @@ void option_dialog::set_bitwise(struct option *poption, unsigned int value)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the enum value from groupbox.
 ****************************************************************************/
 unsigned int option_dialog::get_bitwise(struct option *poption)
@@ -467,7 +466,7 @@ unsigned int option_dialog::get_bitwise(struct option *poption)
   return value;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Find option indicating colors.
 ****************************************************************************/
 struct option* option_dialog::get_color_option()
@@ -480,7 +479,7 @@ struct option* option_dialog::get_color_option()
   return NULL;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set color of the buttons depending on given colors.
 ****************************************************************************/
 void option_dialog::set_color(struct option *poption, struct ft_color color)
@@ -507,9 +506,8 @@ void option_dialog::set_color(struct option *poption, struct ft_color color)
   }
 }
 
-
-/****************************************************************************
-  Refresh one given option for  option dialog.
+/************************************************************************//**
+  Refresh one given option for option dialog.
 ****************************************************************************/
 void option_dialog::option_dialog_refresh(struct option *poption)
 {
@@ -543,7 +541,7 @@ void option_dialog::option_dialog_refresh(struct option *poption)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Refresh all options.
 ****************************************************************************/
 void option_dialog::full_refresh()
@@ -553,7 +551,7 @@ void option_dialog::full_refresh()
   } options_iterate_end;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Reset all options.
 ****************************************************************************/
 void option_dialog::full_reset()
@@ -563,7 +561,7 @@ void option_dialog::full_reset()
   } options_iterate_end;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Reset one option.
 ****************************************************************************/
 void option_dialog::option_dialog_reset(struct option *poption)
@@ -597,7 +595,7 @@ void option_dialog::option_dialog_reset(struct option *poption)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create all widgets.
 ****************************************************************************/
 void option_dialog::fill(const struct option_set *poptset)
@@ -607,7 +605,7 @@ void option_dialog::fill(const struct option_set *poptset)
   } options_iterate_end;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create widget for option.
 ****************************************************************************/
 void option_dialog::add_option(struct option *poption)
@@ -766,7 +764,7 @@ void option_dialog::add_option(struct option *poption)
   option_dialog_refresh(poption);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Popup the option dialog for the option set.
 ****************************************************************************/
 void option_dialog_popup(const char *name, const struct option_set *poptset)
@@ -783,7 +781,7 @@ void option_dialog_popup(const char *name, const struct option_set *poptset)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Sets font and text in pushbutton (user just chosen font)
 ****************************************************************************/
 void option_dialog::set_font()
@@ -801,8 +799,7 @@ void option_dialog::set_font()
   pb->setText(ql[0] + " " + ql[1]);
 }
 
-
-/****************************************************************************
+/************************************************************************//**
   Get font from option.
 ****************************************************************************/
 QFont option_dialog::get_font(struct option *poption)
@@ -815,7 +812,7 @@ QFont option_dialog::get_font(struct option *poption)
   return f;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get font from pushbutton.
 ****************************************************************************/
 QByteArray option_dialog::get_button_font(struct option *poption)
@@ -828,7 +825,7 @@ QByteArray option_dialog::get_button_font(struct option *poption)
   return f.toString().toUtf8();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set color of buttons (user just changed colors).
 ****************************************************************************/
 void option_dialog::set_color()
@@ -860,7 +857,7 @@ void option_dialog::set_color()
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Popdown the option dialog for the option set.
 ****************************************************************************/
 void option_dialog_popdown(const struct option_set *poptset)
@@ -874,7 +871,7 @@ void option_dialog_popdown(const struct option_set *poptset)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Update the GUI for the option.
 ****************************************************************************/
 void option_gui_update(struct option *poption)
@@ -896,7 +893,7 @@ void option_gui_update(struct option *poption)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Add the GUI for the option.
 ****************************************************************************/
 void option_gui_add(struct option *poption)
@@ -907,7 +904,7 @@ void option_gui_add(struct option *poption)
    */
 }
 
-/****************************************************************************
+/************************************************************************//**
   Remove the GUI for the option.
 ****************************************************************************/
 void option_gui_remove(struct option *poption)

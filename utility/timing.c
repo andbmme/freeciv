@@ -102,7 +102,7 @@ struct timer {
   } start;
 };
 
-/********************************************************************** 
+/*******************************************************************//**
   Report if clock() returns -1, but only the first time.
   Ignore this timer from now on.
 ***********************************************************************/
@@ -118,7 +118,7 @@ static void report_clock_failed(struct timer *t)
 }
 
 #ifdef HAVE_GETTIMEOFDAY
-/********************************************************************** 
+/*******************************************************************//**
   Report if gettimeofday() returns -1, but only the first time.
   Ignore this timer from now on.
 ***********************************************************************/
@@ -133,7 +133,7 @@ static void report_gettimeofday_failed(struct timer *t)
   t->use = TIMER_IGNORE;
 }
 #elif !defined HAVE_FTIME
-/********************************************************************** 
+/*******************************************************************//**
   Report if time() returns -1, but only the first time.
   Ignore this timer from now on.
 ***********************************************************************/
@@ -150,7 +150,7 @@ static void report_time_failed(struct timer *t)
 #endif
 
 
-/********************************************************************** 
+/*******************************************************************//**
   Allocate a new timer with specified "type" and "use".
   The timer is created as cleared, and stopped.
 ***********************************************************************/
@@ -159,7 +159,7 @@ struct timer *timer_new(enum timer_timetype type, enum timer_use use)
   return timer_renew(NULL, type, use);
 }
 
-/********************************************************************** 
+/*******************************************************************//**
   Allocate a new timer, or reuse t, with specified "type" and "use".
   The timer is created as cleared, and stopped.
   If t is NULL, allocate and return a new timer, else
@@ -185,7 +185,7 @@ struct timer *timer_renew(struct timer *t, enum timer_timetype type,
   return t;
 }
 
-/********************************************************************** 
+/*******************************************************************//**
   Free the memory associated with a timer.
 ***********************************************************************/
 void timer_destroy(struct timer *t)
@@ -195,7 +195,7 @@ void timer_destroy(struct timer *t)
   }
 }
 
-/********************************************************************** 
+/*******************************************************************//**
   Return whether timer is in use.
   t may be NULL, in which case returns 0
 ***********************************************************************/
@@ -204,7 +204,7 @@ bool timer_in_use(struct timer *t)
   return (t && t->use != TIMER_IGNORE);
 }
 
-/********************************************************************** 
+/*******************************************************************//**
   Reset accumulated time to zero, and stop timer if going.
   That is, this may be called whether t is started or stopped;
   in either case the timer is in the stopped state after this function.
@@ -217,7 +217,7 @@ void timer_clear(struct timer *t)
   t->usec = 0;
 }
 
-/********************************************************************** 
+/*******************************************************************//**
   Start timing, adding to previous accumulated time if timer has not
   been cleared.  A warning is printed if the timer is already started.
 ***********************************************************************/
@@ -241,6 +241,7 @@ void timer_start(struct timer *t)
   } else {
 #ifdef HAVE_GETTIMEOFDAY
     int ret = gettimeofday(&t->start.tv, NULL);
+
     if (ret == -1) {
       report_gettimeofday_failed(t);
       return;
@@ -258,7 +259,7 @@ void timer_start(struct timer *t)
   t->state = TIMER_STARTED;
 }
 
-/********************************************************************** 
+/*******************************************************************//**
   Stop timing, and accumulate time so far.
   (The current time is stored in t->start, so that timer_read_seconds
   can call this to take a point reading if the timer is active.)
@@ -277,6 +278,7 @@ void timer_stop(struct timer *t)
   }
   if (t->type == TIMER_CPU) {
     clock_t now = clock();
+
     if (now == (clock_t) -1) {
       report_clock_failed(t);
       return;
@@ -287,6 +289,7 @@ void timer_stop(struct timer *t)
 #ifdef HAVE_GETTIMEOFDAY
     struct timeval now;
     int ret = gettimeofday(&now, NULL);
+
     if (ret == -1) {
       report_gettimeofday_failed(t);
       return;
@@ -298,6 +301,7 @@ void timer_stop(struct timer *t)
       t->sec -= 1.0;
     } else if (t->usec >= N_USEC_PER_SEC) {
       long sec = t->usec / N_USEC_PER_SEC;
+
       t->sec += sec;
       t->usec -= sec * N_USEC_PER_SEC;
     }
@@ -313,12 +317,14 @@ void timer_stop(struct timer *t)
       t->sec -= 1.0;
     } else if (t->usec >= N_USEC_PER_SEC) {
       long sec = t->usec / N_USEC_PER_SEC;
+
       t->sec += sec;
       t->usec -= sec * N_USEC_PER_SEC;
     }
     t->start.tp = now;
 #else
     time_t now = time(NULL);
+
     if (now == (time_t) -1) {
       report_time_failed(t);
       return;
@@ -330,7 +336,7 @@ void timer_stop(struct timer *t)
   t->state = TIMER_STOPPED;
 }
 
-/********************************************************************** 
+/*******************************************************************//**
   Read value from timer.  If the timer is not stopped, this stops the
   timer, reads it (and accumulates), and then restarts it.
   Returns 0.0 for unused timers.
@@ -349,7 +355,7 @@ double timer_read_seconds(struct timer *t)
   return t->sec + t->usec / (double)N_USEC_PER_SEC;
 }
 
-/********************************************************************** 
+/*******************************************************************//**
   Sleeps until the given number of microseconds have elapsed since the
   timer was started.  Leaves the timer running.
   Must be called with an active, running user timer.
@@ -367,10 +373,10 @@ void timer_usleep_since_start(struct timer *t, long usec)
 
   ret = gettimeofday(&tv_now, NULL);
 
-  if ((ret == -1) ||
-      (t->type != TIMER_USER) ||
-      (t->use != TIMER_ACTIVE) ||
-      (t->state != TIMER_STARTED)) {
+  if ((ret == -1)
+      || (t->type != TIMER_USER)
+      || (t->use != TIMER_ACTIVE)
+      || (t->state != TIMER_STARTED)) {
     fc_usleep(usec);
     return;
   }

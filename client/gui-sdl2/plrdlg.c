@@ -54,12 +54,12 @@
 
 static struct SMALL_DLG  *pPlayers_Dlg = NULL;
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with player dialog close button.
 **************************************************************************/
 static int exit_players_dlg_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     popdown_players_dialog();
     flush_dirty();
   }
@@ -67,45 +67,50 @@ static int exit_players_dlg_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with player widget.
 **************************************************************************/
 static int player_callback(struct widget *pWidget)
 {
   struct player *pPlayer = pWidget->data.player;
 
-  switch(Main.event.button.button) {
+  if (Main.event.type == SDL_MOUSEBUTTONDOWN) {
+    switch (Main.event.button.button) {
 #if 0
-      case SDL_BUTTON_LEFT:
+    case SDL_BUTTON_LEFT:
 
-        break;
-      case SDL_BUTTON_MIDDLE:
+      break;
+    case SDL_BUTTON_MIDDLE:
 
-        break;
+      break;
 #endif /* 0 */
     case SDL_BUTTON_RIGHT:
       if (can_intel_with_player(pPlayer)) {
-	popdown_players_dialog();
+        popdown_players_dialog();
         popup_intel_dialog(pPlayer);
-	return -1;
+        return -1;
       }
-    break;
+      break;
     default:
       popdown_players_dialog();
       popup_diplomacy_dialog(pPlayer);
       return -1;
-    break;
+      break;
+    }
+  } else if (PRESSED_EVENT(Main.event)) {
+    popdown_players_dialog();
+    popup_diplomacy_dialog(pPlayer);
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with player dialog window.
 **************************************************************************/
 static int players_window_dlg_callback(struct widget *pWindow)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     if (move_window_group_dialog(pPlayers_Dlg->pBeginWidgetList, pWindow)) {
       select_window_group_dialog(pPlayers_Dlg->pBeginWidgetList, pWindow);
       players_dialog_update();
@@ -119,12 +124,12 @@ static int players_window_dlg_callback(struct widget *pWindow)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with 'draw war status' toggle.
 **************************************************************************/
 static int toggle_draw_war_status_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     /* exit button -> neutral -> war -> casefire -> peace -> alliance */
     struct widget *pPlayer = pPlayers_Dlg->pEndWidgetList->prev->prev->prev->prev->prev->prev;
 
@@ -140,12 +145,12 @@ static int toggle_draw_war_status_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with 'draw cease-fire status' toggle.
 **************************************************************************/
 static int toggle_draw_ceasefire_status_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     /* exit button -> neutral -> war -> casefire -> peace -> alliance */
     struct widget *pPlayer = pPlayers_Dlg->pEndWidgetList->prev->prev->prev->prev->prev->prev;
 
@@ -161,12 +166,12 @@ static int toggle_draw_ceasefire_status_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with 'draw peace status' toggle.
 **************************************************************************/
 static int toggle_draw_peace_status_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     /* exit button -> neutral -> war -> casefire -> peace -> alliance */
     struct widget *pPlayer = pPlayers_Dlg->pEndWidgetList->prev->prev->prev->prev->prev->prev;
 
@@ -182,12 +187,12 @@ static int toggle_draw_peace_status_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with 'draw alliance status' toggle.
 **************************************************************************/
 static int toggle_draw_alliance_status_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     /* exit button -> neutral -> war -> casefire -> peace -> alliance */
     struct widget *pPlayer = pPlayers_Dlg->pEndWidgetList->prev->prev->prev->prev->prev->prev;
 
@@ -203,12 +208,12 @@ static int toggle_draw_alliance_status_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with 'draw neutral status' toggle.
 **************************************************************************/
 static int toggle_draw_neutral_status_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     /* exit button -> neutral -> war -> casefire -> peace -> alliance */
     struct widget *pPlayer = pPlayers_Dlg->pEndWidgetList->prev->prev->prev->prev->prev->prev;
 
@@ -224,7 +229,7 @@ static int toggle_draw_neutral_status_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Does the attached player have embassy-level information about the player.
 **************************************************************************/
 static bool have_diplomat_info_about(struct player *pPlayer)
@@ -234,10 +239,10 @@ static bool have_diplomat_info_about(struct player *pPlayer)
               && player_has_embassy(client.conn.playing, pPlayer)));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update all information in the player list dialog.
 **************************************************************************/
-void real_players_dialog_update(void)
+void real_players_dialog_update(void *unused)
 {
   if (pPlayers_Dlg) {
     struct widget *pPlayer0, *pPlayer1;
@@ -258,18 +263,18 @@ void real_players_dialog_update(void)
       for (i = 0; i < num_player_dlg_columns; i++) {
         if (player_dlg_columns[i].show) {
           switch (player_dlg_columns[i].type) {
-            case COL_TEXT:
-            case COL_RIGHT_TEXT:
-              astr_add_line(&astr, "%s: %s", player_dlg_columns[i].title,
-                                             player_dlg_columns[i].func(pPlayer));
-              break;
-            case COL_BOOLEAN:
-              astr_add_line(&astr, "%s: %s", player_dlg_columns[i].title,
-                            player_dlg_columns[i].bool_func(pPlayer) ?
-                              _("Yes") : _("No"));
-              break;
-            default:
-              break;
+          case COL_TEXT:
+          case COL_RIGHT_TEXT:
+            astr_add_line(&astr, "%s: %s", player_dlg_columns[i].title,
+                          player_dlg_columns[i].func(pPlayer));
+            break;
+          case COL_BOOLEAN:
+            astr_add_line(&astr, "%s: %s", player_dlg_columns[i].title,
+                          player_dlg_columns[i].bool_func(pPlayer) ?
+                          _("Yes") : _("No"));
+            break;
+          default:
+            break;
           }
         }
       }
@@ -349,7 +354,7 @@ void real_players_dialog_update(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Popup (or raise) the player list dialog.
 **************************************************************************/
 void popup_players_dialog(bool raise)
@@ -581,8 +586,8 @@ void popup_players_dialog(bool raise)
   players_dialog_update();
 }
 
-/**************************************************************************
-  Popdownown the player list dialog.
+/**********************************************************************//**
+  Popdown the player list dialog.
 **************************************************************************/
 void popdown_players_dialog(void)
 {
@@ -597,7 +602,7 @@ void popdown_players_dialog(void)
 /* ============================== SHORT =============================== */
 static struct ADVANCED_DLG  *pShort_Players_Dlg = NULL;
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with nations window.
 **************************************************************************/
 static int players_nations_window_dlg_callback(struct widget *pWindow)
@@ -605,12 +610,12 @@ static int players_nations_window_dlg_callback(struct widget *pWindow)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with nations window close button.
 **************************************************************************/
 static int exit_players_nations_dlg_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     popdown_players_nations_dialog();
     flush_dirty();
   }
@@ -618,7 +623,7 @@ static int exit_players_nations_dlg_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with widget of a single nation/player.
 **************************************************************************/
 static int player_nation_callback(struct widget *pWidget)
@@ -626,33 +631,39 @@ static int player_nation_callback(struct widget *pWidget)
   struct player *pPlayer = pWidget->data.player;
 
   popdown_players_nations_dialog();
-  switch(Main.event.button.button) {
+  if (Main.event.type == SDL_MOUSEBUTTONDOWN) {
+    switch (Main.event.button.button) {
 #if 0
-  case SDL_BUTTON_LEFT:
+    case SDL_BUTTON_LEFT:
 
-    break;
-  case SDL_BUTTON_MIDDLE:
+      break;
+    case SDL_BUTTON_MIDDLE:
 
-    break;
+      break;
 #endif /* 0 */
-  case SDL_BUTTON_RIGHT:
-    if (can_intel_with_player(pPlayer)) {
-      popup_intel_dialog(pPlayer);
-    } else {
-      flush_dirty();
+    case SDL_BUTTON_RIGHT:
+      if (can_intel_with_player(pPlayer)) {
+        popup_intel_dialog(pPlayer);
+      } else {
+        flush_dirty();
+      }
+      break;
+    default:
+      if (pPlayer != client.conn.playing) {
+        popup_diplomacy_dialog(pPlayer);
+      }
+      break;
     }
-    break;
-  default:
+  } else if (PRESSED_EVENT(Main.event)) {
     if (pPlayer != client.conn.playing) {
       popup_diplomacy_dialog(pPlayer);
     }
-    break;
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Popup (or raise) the short player list dialog version.
 **************************************************************************/
 void popup_players_nations_dialog(void)
@@ -861,7 +872,7 @@ void popup_players_nations_dialog(void)
   flush_dirty();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Popdown the short player list dialog version.
 **************************************************************************/
 void popdown_players_nations_dialog(void)

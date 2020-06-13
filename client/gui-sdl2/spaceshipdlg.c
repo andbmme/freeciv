@@ -1,4 +1,4 @@
-/********************************************************************** 
+/***********************************************************************
  Freeciv - Copyright (C) 1996 - A Kjeldberg, L Gregersen, P Unold
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -49,7 +49,7 @@
 static struct dialog_list *dialog_list = NULL;
 static bool dialog_list_has_been_initialised = FALSE;
 
-/**************************************************************************
+/**********************************************************************//**
   Find spaceship dialog related to specified player.
 **************************************************************************/
 static struct SMALL_DLG *get_spaceship_dialog(struct player *pplayer)
@@ -68,24 +68,24 @@ static struct SMALL_DLG *get_spaceship_dialog(struct player *pplayer)
   return NULL;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with spaceship dialog window.
 **************************************************************************/
 static int space_dialog_window_callback(struct widget *pWindow)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     move_window_group(pWindow->private_data.small_dlg->pBeginWidgetList, pWindow);
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with spaceship dialog close button.
 **************************************************************************/
 static int exit_space_dialog_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     popdown_spaceship_dialog(pWidget->data.player);
     flush_dirty();
   }
@@ -93,19 +93,19 @@ static int exit_space_dialog_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with spaceship dialog launch button.
 **************************************************************************/
 static int launch_spaceship_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     send_packet_spaceship_launch(&client.conn);
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh (update) the spaceship dialog for the given player.
 **************************************************************************/
 void refresh_spaceship_dialog(struct player *pPlayer)
@@ -139,7 +139,7 @@ void refresh_spaceship_dialog(struct player *pPlayer)
   flush_dirty();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Popup (or raise) the spaceship dialog for the given player.
 **************************************************************************/
 void popup_spaceship_dialog(struct player *pPlayer)
@@ -241,7 +241,7 @@ void popup_spaceship_dialog(struct player *pPlayer)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Close the spaceship dialog for the given player.
 **************************************************************************/
 void popdown_spaceship_dialog(struct player *pPlayer)

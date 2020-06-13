@@ -33,14 +33,13 @@
 #include "improvement.h"
 
 // ruledit
-#include "effect_edit.h"
 #include "ruledit.h"
 #include "ruledit_qt.h"
 #include "validity.h"
 
 #include "tab_building.h"
 
-/**************************************************************************
+/**********************************************************************//**
   Setup tab_building object
 **************************************************************************/
 tab_building::tab_building(ruledit_gui *ui_in) : QWidget()
@@ -89,7 +88,6 @@ tab_building::tab_building(ruledit_gui *ui_in) : QWidget()
   effects_button = new QPushButton(QString::fromUtf8(R__("Effects")), this);
   connect(effects_button, SIGNAL(pressed()), this, SLOT(edit_effects()));
   bldg_layout->addWidget(effects_button, 3, 2);
-  show_experimental(effects_button);
 
   add_button = new QPushButton(QString::fromUtf8(R__("Add Building")), this);
   connect(add_button, SIGNAL(pressed()), this, SLOT(add_now2()));
@@ -108,7 +106,7 @@ tab_building::tab_building(ruledit_gui *ui_in) : QWidget()
   setLayout(main_layout);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh the information.
 **************************************************************************/
 void tab_building::refresh()
@@ -116,7 +114,7 @@ void tab_building::refresh()
   bldg_list->clear();
 
   improvement_iterate(pimpr) {
-    if (!pimpr->disabled) {
+    if (!pimpr->ruledit_disabled) {
       QListWidgetItem *item = new QListWidgetItem(improvement_rule_name(pimpr));
 
       bldg_list->insertItem(improvement_index(pimpr), item);
@@ -124,7 +122,7 @@ void tab_building::refresh()
   } improvement_iterate_end;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update info of the building
 **************************************************************************/
 void tab_building::update_bldg_info(struct impr_type *pimpr)
@@ -152,7 +150,7 @@ void tab_building::update_bldg_info(struct impr_type *pimpr)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected building from the list.
 **************************************************************************/
 void tab_building::select_bldg()
@@ -160,19 +158,26 @@ void tab_building::select_bldg()
   QList<QListWidgetItem *> select_list = bldg_list->selectedItems();
 
   if (!select_list.isEmpty()) {
-    update_bldg_info(improvement_by_rule_name(select_list.at(0)->text().toUtf8().data()));
+    QByteArray bn_bytes;
+
+    bn_bytes = select_list.at(0)->text().toUtf8();
+    update_bldg_info(improvement_by_rule_name(bn_bytes.data()));
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User entered name for the building
 **************************************************************************/
 void tab_building::name_given()
 {
   if (selected != nullptr) {
+    QByteArray name_bytes;
+    QByteArray rname_bytes;
+
     improvement_iterate(pimpr) {
-      if (pimpr != selected && !pimpr->disabled) {
-        if (!strcmp(improvement_rule_name(pimpr), rname->text().toUtf8().data())) {
+      if (pimpr != selected && !pimpr->ruledit_disabled) {
+        rname_bytes = rname->text().toUtf8();
+        if (!strcmp(improvement_rule_name(pimpr), rname_bytes.data())) {
           ui->display_msg(R__("A building with that rule name already "
                               "exists!"));
           return;
@@ -184,14 +189,16 @@ void tab_building::name_given()
       name->setText(rname->text());
     }
 
+    name_bytes = name->text().toUtf8();
+    rname_bytes = rname->text().toUtf8();
     names_set(&(selected->name), 0,
-              name->text().toUtf8().data(),
-              rname->text().toUtf8().data());
+              name_bytes.data(),
+              rname_bytes.data());
     refresh();
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested building deletion 
 **************************************************************************/
 void tab_building::delete_now()
@@ -204,14 +211,14 @@ void tab_building::delete_now()
       return;
     }
 
-    selected->disabled = true;
+    selected->ruledit_disabled = true;
 
     refresh();
-    update_bldg_info(0);
+    update_bldg_info(nullptr);
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Initialize new tech for use.
 **************************************************************************/
 bool tab_building::initialize_new_bldg(struct impr_type *pimpr)
@@ -224,7 +231,7 @@ bool tab_building::initialize_new_bldg(struct impr_type *pimpr)
   return true;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested new building
 **************************************************************************/
 void tab_building::add_now2()
@@ -233,9 +240,9 @@ void tab_building::add_now2()
 
   // Try to reuse freed building slot
   improvement_iterate(pimpr) {
-    if (pimpr->disabled) {
+    if (pimpr->ruledit_disabled) {
       if (initialize_new_bldg(pimpr)) {
-        pimpr->disabled = false;
+        pimpr->ruledit_disabled = false;
         update_bldg_info(pimpr);
         refresh();
       }
@@ -261,7 +268,7 @@ void tab_building::add_now2()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Toggled whether rule_name and name should be kept identical
 **************************************************************************/
 void tab_building::same_name_toggle(bool checked)
@@ -272,7 +279,7 @@ void tab_building::same_name_toggle(bool checked)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User wants to edit reqs
 **************************************************************************/
 void tab_building::edit_reqs()
@@ -283,21 +290,18 @@ void tab_building::edit_reqs()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User wants to edit effects
 **************************************************************************/
 void tab_building::edit_effects()
 {
   if (selected != nullptr) {
-    effect_edit *e_edit;
     struct universal uni;
 
     uni.value.building = selected;
     uni.kind = VUT_IMPROVEMENT;
 
-    e_edit = new effect_edit(ui, QString::fromUtf8(improvement_rule_name(selected)),
-                             &uni);
-
-    e_edit->show();
+    ui->open_effect_edit(QString::fromUtf8(improvement_rule_name(selected)),
+                         &uni, EFMC_NORMAL);
   }
 }

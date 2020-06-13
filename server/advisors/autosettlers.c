@@ -73,9 +73,9 @@ struct settlermap {
   int eta; /* estimated number of turns until enroute arrives */
 };
 
-Activity_type_id as_activities_transform[ACTIVITY_LAST];
-Activity_type_id as_activities_extra[ACTIVITY_LAST];
-Activity_type_id as_activities_rmextra[ACTIVITY_LAST];
+action_id as_actions_transform[MAX_NUM_ACTIONS];
+action_id as_actions_extra[MAX_NUM_ACTIONS];
+action_id as_actions_rmextra[MAX_NUM_ACTIONS];
 
 static struct timer *as_timer = NULL;
 
@@ -89,29 +89,39 @@ void adv_settlers_free(void)
 }
 
 /**********************************************************************//**
-  Initialize advisor systems.
+  Initialize auto settlers based on the ruleset.
 **************************************************************************/
-void advisors_init(void)
+void auto_settlers_ruleset_init(void)
 {
-  int i = 0;
-
-  as_activities_transform[i++] = ACTIVITY_IRRIGATE;
-  as_activities_transform[i++] = ACTIVITY_MINE;
-  as_activities_transform[i++] = ACTIVITY_TRANSFORM;
-  as_activities_transform[i++] = ACTIVITY_LAST;
+  int i;
 
   i = 0;
-  as_activities_extra[i++] = ACTIVITY_IRRIGATE;
-  as_activities_extra[i++] = ACTIVITY_MINE;
-  as_activities_extra[i++] = ACTIVITY_GEN_ROAD;
-  as_activities_extra[i++] = ACTIVITY_BASE;
-  as_activities_extra[i++] = ACTIVITY_LAST;
+  action_list_add_all_by_result(as_actions_transform, &i,
+                                ACTRES_CULTIVATE);
+  action_list_add_all_by_result(as_actions_transform, &i,
+                                ACTRES_PLANT);
+  action_list_add_all_by_result(as_actions_transform, &i,
+                                ACTRES_TRANSFORM_TERRAIN);
+  as_actions_transform[i++] = ACTION_NONE;
 
   i = 0;
-  as_activities_rmextra[i++] = ACTIVITY_POLLUTION;
-  as_activities_rmextra[i++] = ACTIVITY_FALLOUT;
-  /* We could have ACTIVITY_PILLAGE here, but currently we don't */
-  as_activities_rmextra[i++] = ACTIVITY_LAST;
+  action_list_add_all_by_result(as_actions_extra, &i,
+                                ACTRES_IRRIGATE);
+  action_list_add_all_by_result(as_actions_extra, &i,
+                                ACTRES_MINE);
+  action_list_add_all_by_result(as_actions_extra, &i,
+                                ACTRES_ROAD);
+  action_list_add_all_by_result(as_actions_extra, &i,
+                                ACTRES_BASE);
+  as_actions_extra[i++] = ACTION_NONE;
+
+  i = 0;
+  action_list_add_all_by_result(as_actions_rmextra, &i,
+                                ACTRES_CLEAN_POLLUTION);
+  action_list_add_all_by_result(as_actions_rmextra, &i,
+                                ACTRES_CLEAN_FALLOUT);
+  /* We could have ACTRES_PILLAGE here, but currently we don't */
+  as_actions_rmextra[i++] = ACTION_NONE;
 }
 
 /**********************************************************************//**
@@ -120,7 +130,7 @@ void advisors_init(void)
   This calculates the overall benefit of connecting the civilization; this
   is independent from the local tile (trade) bonus granted by the road.
 **************************************************************************/
-int adv_settlers_road_bonus(struct tile *ptile, struct road_type *proad)
+adv_want adv_settlers_road_bonus(struct tile *ptile, struct road_type *proad)
 {
 #define MAX_DEP_ROADS 5
 
@@ -298,11 +308,12 @@ int adv_settlers_road_bonus(struct tile *ptile, struct road_type *proad)
 static void consider_settler_action(const struct player *pplayer, 
                                     enum unit_activity act,
                                     struct extra_type *target,
-                                    int extra,
+                                    adv_want extra,
                                     int new_tile_value, int old_tile_value,
                                     bool in_use, int delay,
-                                    int *best_value,
+                                    adv_want *best_value,
                                     int *best_old_tile_value,
+                                    int *best_extra,
                                     bool *improve_worked,
                                     int *best_delay,
                                     enum unit_activity *best_act,
@@ -313,6 +324,8 @@ static void consider_settler_action(const struct player *pplayer,
   bool improves;
   int total_value = 0, base_value = 0;
   int old_improvement_value;
+
+  fc_assert(act != ACTIVITY_LAST);
 
   if (extra < 0) {
     extra = 0;
@@ -336,6 +349,7 @@ static void consider_settler_action(const struct player *pplayer,
                        || (new_tile_value == *best_value && old_tile_value < *best_old_tile_value))) {
         *best_value = new_tile_value;
         *best_old_tile_value = old_tile_value;
+        *best_extra = extra;
         *best_act = act;
         *best_target = target;
         *best_tile = ptile;
@@ -378,6 +392,7 @@ static void consider_settler_action(const struct player *pplayer,
         *improve_worked = FALSE;
       }
       *best_old_tile_value = old_tile_value;
+      *best_extra = extra;
       *best_act = act;
       *best_target = target;
       *best_tile = ptile;
@@ -419,12 +434,12 @@ autosettler_tile_behavior(const struct tile *ptile,
   is used to possibly displace this previously assigned worker.
   if this array is NULL, workers are never displaced.
 **************************************************************************/
-int settler_evaluate_improvements(struct unit *punit,
-                                  enum unit_activity *best_act,
-                                  struct extra_type **best_target,
-                                  struct tile **best_tile,
-                                  struct pf_path **path,
-                                  struct settlermap *state)
+adv_want settler_evaluate_improvements(struct unit *punit,
+                                       enum unit_activity *best_act,
+                                       struct extra_type **best_target,
+                                       struct tile **best_tile,
+                                       struct pf_path **path,
+                                       struct settlermap *state)
 {
   const struct player *pplayer = unit_owner(punit);
   struct pf_parameter parameter;
@@ -434,8 +449,9 @@ int settler_evaluate_improvements(struct unit *punit,
   int best_oldv = 9999; /* oldv of best target so far; compared if
                          * newv == best_newv; not initialized to zero,
                          * so that newv = 0 activities are not chosen. */
-  int best_newv = 0;
+  adv_want best_newv = 0;
   bool improve_worked = FALSE;
+  int best_extra = 0;
   int best_delay = 0;
 
   /* closest worker, if any, headed towards target tile */
@@ -511,10 +527,12 @@ int settler_evaluate_improvements(struct unit *punit,
           oldv = city_tile_value(pcity, ptile, 0, 0);
 
           /* Now, consider various activities... */
-          as_transform_activity_iterate(act) {
+          as_transform_action_iterate(act) {
             struct extra_type *target = NULL;
-            enum extra_cause cause = activity_to_extra_cause(act);
-            enum extra_rmcause rmcause = activity_to_extra_rmcause(act);
+            enum extra_cause cause =
+                activity_to_extra_cause(action_id_get_activity(act));
+            enum extra_rmcause rmcause =
+                activity_to_extra_rmcause(action_id_get_activity(act));
 
             if (cause != EC_NONE) {
               target = next_extra_for_tile(ptile, cause, pplayer,
@@ -524,28 +542,38 @@ int settler_evaluate_improvements(struct unit *punit,
                                           punit);
             }
 
-            if (adv_city_worker_act_get(pcity, cindex, act) >= 0
-                /* These need separate implementations. */
-                && can_unit_do_activity_targeted_at(punit, act, target,
-                                                    ptile)) {
-              int extra = 0;
-              int base_value = adv_city_worker_act_get(pcity, cindex, act);
+            if (adv_city_worker_act_get(pcity, cindex,
+                                        action_id_get_activity(act)) >= 0
+                && action_prob_possible(
+                  action_speculate_unit_on_tile(act,
+                                                punit, unit_home(punit),
+                                                ptile,
+                                                parameter.omniscience,
+                                                ptile, target))) {
+              int base_value =
+                  adv_city_worker_act_get(pcity, cindex,
+                                          action_id_get_activity(act));
 
-              turns = pos.turn + get_turns_for_activity_at(punit, act, ptile,
-                                                           target);
+              turns = pos.turn
+                  + get_turns_for_activity_at(punit,
+                                              action_id_get_activity(act),
+                                              ptile, target);
               if (pos.moves_left == 0) {
                 /* We need moves left to begin activity immediately. */
                 turns++;
               }
 
-              consider_settler_action(pplayer, act, target, extra, base_value,
+              consider_settler_action(pplayer,
+                                      action_id_get_activity(act),
+                                      target, 0.0, base_value,
                                       oldv, in_use, turns,
-                                      &best_newv, &best_oldv, &improve_worked,
+                                      &best_newv, &best_oldv, &best_extra,
+                                      &improve_worked,
                                       &best_delay, best_act, best_target,
                                       best_tile, ptile);
 
             } /* endif: can the worker perform this action */
-          } as_transform_activity_iterate_end;
+          } as_transform_action_iterate_end;
 
           extra_type_iterate(pextra) {
             enum unit_activity act = ACTIVITY_LAST;
@@ -554,29 +582,41 @@ int settler_evaluate_improvements(struct unit *punit,
             bool removing = tile_has_extra(ptile, pextra);
 
             if (removing) {
-              as_rmextra_activity_iterate(try_act) {
-                if (is_extra_removed_by_action(pextra, try_act)) {
+              as_rmextra_action_iterate(try_act) {
+                struct action *taction = action_by_number(try_act);
+                if (is_extra_removed_by_action(pextra, taction)) {
                   /* We do not even evaluate actions we can't do.
                    * Removal is not considered prerequisite for anything */
-                  if (can_unit_do_activity_targeted_at(punit, try_act, pextra,
-                                                       ptile)) {
-                    act = try_act;
-                    eval_act = act;
+                  if (action_prob_possible(
+                        action_speculate_unit_on_tile(try_act,
+                                                      punit,
+                                                      unit_home(punit),
+                                                      ptile,
+                                                      parameter.omniscience,
+                                                      ptile, pextra))) {
+                    act = action_get_activity(taction);
+                    eval_act = action_get_activity(taction);
                     break;
                   }
                 }
-              } as_rmextra_activity_iterate_end;
+              } as_rmextra_action_iterate_end;
             } else {
-              as_extra_activity_iterate(try_act) {
-                if (is_extra_caused_by_action(pextra, try_act)) {
-                  eval_act = try_act;
-                  if (can_unit_do_activity_targeted_at(punit, try_act, pextra,
-                                                       ptile)) {
-                    act = try_act;
+              as_extra_action_iterate(try_act) {
+                struct action *taction = action_by_number(try_act);
+                if (is_extra_caused_by_action(pextra, taction)) {
+                  eval_act = action_id_get_activity(try_act);
+                  if (action_prob_possible(
+                        action_speculate_unit_on_tile(try_act,
+                                                      punit,
+                                                      unit_home(punit),
+                                                      ptile,
+                                                      parameter.omniscience,
+                                                      ptile, pextra))) {
+                    act = action_get_activity(taction);
                     break;
                   }
                 }
-              } as_extra_activity_iterate_end;
+              } as_extra_action_iterate_end;
             }
 
             if (eval_act == ACTIVITY_LAST) {
@@ -591,7 +631,7 @@ int settler_evaluate_improvements(struct unit *punit,
             }
 
             if (base_value >= 0) {
-              int extra;
+              adv_want extra;
               struct road_type *proad;
 
               turns = pos.turn + get_turns_for_activity_at(punit, eval_act,
@@ -656,7 +696,8 @@ int settler_evaluate_improvements(struct unit *punit,
               if (act != ACTIVITY_LAST) {
                 consider_settler_action(pplayer, act, pextra, extra, base_value,
                                         oldv, in_use, turns,
-                                        &best_newv, &best_oldv, &improve_worked,
+                                        &best_newv, &best_oldv, &best_extra,
+                                        &improve_worked,
                                         &best_delay, best_act, best_target,
                                         best_tile, ptile);
               } else {
@@ -667,8 +708,11 @@ int settler_evaluate_improvements(struct unit *punit,
 
                   dep_tgt = road_extra_get(pdep);
 
-                  if (can_unit_do_activity_targeted_at(punit, ACTIVITY_GEN_ROAD,
-                                                       dep_tgt, ptile)) {
+                  if (action_prob_possible(
+                        action_speculate_unit_on_tile(ACTION_ROAD,
+                                                      punit, unit_home(punit), ptile,
+                                                      parameter.omniscience,
+                                                      ptile, dep_tgt))) {
                     /* Consider building dependency road for later upgrade to target extra.
                      * Here we set value to be sum of dependency
                      * road and target extra values, which increases want, and turns is sum
@@ -684,7 +728,8 @@ int settler_evaluate_improvements(struct unit *punit,
                     consider_settler_action(pplayer, ACTIVITY_GEN_ROAD, dep_tgt, extra,
                                             dep_value,
                                             oldv, in_use, dep_turns,
-                                            &best_newv, &best_oldv, &improve_worked,
+                                            &best_newv, &best_oldv, &best_extra,
+                                            &improve_worked,
                                             &best_delay, best_act, best_target,
                                             best_tile, ptile);
                   }
@@ -694,9 +739,11 @@ int settler_evaluate_improvements(struct unit *punit,
                   struct extra_type *dep_tgt;
 
                   dep_tgt = base_extra_get(pdep);
-
-                  if (can_unit_do_activity_targeted_at(punit, ACTIVITY_BASE,
-                                                       dep_tgt, ptile)) {
+                  if (action_prob_possible(
+                        action_speculate_unit_on_tile(ACTION_BASE,
+                                                      punit, unit_home(punit), ptile,
+                                                      parameter.omniscience,
+                                                      ptile, dep_tgt))) {
                     /* Consider building dependency base for later upgrade to
                      * target extra. See similar road implementation above for
                      * extended commentary. */
@@ -709,9 +756,10 @@ int settler_evaluate_improvements(struct unit *punit,
                                                                            dep_tgt);
 
                     consider_settler_action(pplayer, ACTIVITY_BASE, dep_tgt,
-                                            0, dep_value, oldv, in_use,
+                                            0.0, dep_value, oldv, in_use,
                                             dep_turns, &best_newv, &best_oldv,
-                                            &improve_worked, &best_delay,
+                                            &best_extra, &improve_worked,
+                                            &best_delay,
                                             best_act, best_target,
                                             best_tile, ptile);
                   }
@@ -727,14 +775,14 @@ int settler_evaluate_improvements(struct unit *punit,
   if (!improve_worked) {
     /* best_newv contains total value of improved tile. Check amount of improvement
      * instead. */
-    best_newv = amortize((best_newv - best_oldv) * WORKER_FACTOR, best_delay);
+    best_newv = amortize((best_newv - best_oldv + best_extra) * WORKER_FACTOR, best_delay);
   }
   best_newv /= WORKER_FACTOR;
 
   best_newv = MAX(best_newv, 0); /* sanity */
 
   if (best_newv > 0) {
-    log_debug("Settler %d@(%d,%d) wants to %s at (%d,%d) with desire %d",
+    log_debug("Settler %d@(%d,%d) wants to %s at (%d,%d) with desire " ADV_WANT_PRINTF,
               punit->id, TILE_XY(unit_tile(punit)),
               get_activity_text(*best_act), TILE_XY(*best_tile), best_newv);
   } else {
@@ -790,8 +838,9 @@ struct city *settler_evaluate_city_requests(struct unit *punit,
       } unit_list_iterate_end;
 
       if (consider
-          && can_unit_do_activity_targeted_at(punit, ptask->act, ptask->tgt,
-                                              ptask->ptile)) {
+          && auto_settlers_speculate_can_act_at(punit, ptask->act,
+                                                parameter.omniscience,
+                                                ptask->tgt, ptask->ptile)) {
         /* closest worker, if any, headed towards target tile */
         struct unit *enroute = NULL;
 
@@ -958,8 +1007,8 @@ bool auto_settler_setup_work(struct player *pplayer, struct unit *punit,
                     && (real_map_distance(best_tile, unit_tile(punit))
                         < real_map_distance(best_tile,
                                             unit_tile(displaced)))));
-      UNIT_LOG(LOG_DEBUG, punit,
-               "%d (%d,%d) has displaced %d (%d,%d) on %d,%d",
+      UNIT_LOG(displaced->server.debug ? LOG_AI_TEST : LOG_DEBUG, punit,
+               "%d (%d,%d) has displaced %d (%d,%d) for worksite %d,%d",
                punit->id, completion_time,
                real_map_distance(best_tile, unit_tile(punit)),
                displaced->id, state[tile_index(best_tile)].eta,
@@ -1000,6 +1049,12 @@ bool auto_settler_setup_work(struct player *pplayer, struct unit *punit,
       }
     }
 
+    UNIT_LOG(LOG_DEBUG, punit,
+             "is heading to do %s(%s) at (%d, %d)",
+             unit_activity_name(best_act),
+             best_target && *best_target ? extra_rule_name(*best_target) : "-",
+             TILE_XY(best_tile));
+
     if (!path) {
       pft_fill_unit_parameter(&parameter, punit);
       parameter.omniscience = !has_handicap(pplayer, H_MAP);
@@ -1023,11 +1078,19 @@ bool auto_settler_setup_work(struct player *pplayer, struct unit *punit,
         }
         send_unit_info(NULL, punit); /* FIXME: probably duplicate */
 
+        UNIT_LOG(LOG_DEBUG, punit,
+                 "reached its worksite and started work");
         working = TRUE;
+      } else if (alive) {
+        UNIT_LOG(LOG_DEBUG, punit,
+                 "didn't start work yet; got to (%d, %d) with "
+                 "%d move frags left", TILE_XY(unit_tile(punit)),
+                 punit->moves_left);
       }
     } else {
-      log_debug("Autosettler does not find path (%d, %d) -> (%d, %d)",
-                TILE_XY(unit_tile(punit)), TILE_XY(best_tile));
+      UNIT_LOG(LOG_DEBUG, punit,
+               "does not find path (%d, %d) -> (%d, %d)",
+               TILE_XY(unit_tile(punit)), TILE_XY(best_tile));
     }
 
     if (pfm) {
@@ -1100,21 +1163,23 @@ void auto_settlers_player(struct player *pplayer)
   log_debug("Warmth = %d, game.globalwarming=%d",
             pplayer->ai_common.warmth, game.info.globalwarming);
   log_debug("Frost = %d, game.nuclearwinter=%d",
-            pplayer->ai_common.warmth, game.info.nuclearwinter);
+            pplayer->ai_common.frost, game.info.nuclearwinter);
 
   /* Auto-settle with a settler unit if it's under AI control (e.g. human
    * player auto-settler mode) or if the player is an AI.  But don't
    * auto-settle with a unit under orders even for an AI player - these come
    * from the human player and take precedence. */
   unit_list_iterate_safe(pplayer->units, punit) {
-    if ((punit->ai_controlled || is_ai(pplayer))
-        && (unit_has_type_flag(punit, UTYF_SETTLERS)
+    if ((punit->ssa_controller == SSA_AUTOSETTLER || is_ai(pplayer))
+        && (unit_type_get(punit)->adv.worker
             || unit_is_cityfounder(punit))
         && !unit_has_orders(punit)
         && punit->moves_left > 0) {
-      log_debug("%s settler at (%d, %d) is ai controlled.",
+      log_debug("%s %s at (%d, %d) is controlled by server side agent %s.",
                 nation_rule_name(nation_of_player(pplayer)),
-                TILE_XY(unit_tile(punit)));
+                unit_rule_name(punit),
+                TILE_XY(unit_tile(punit)),
+                server_side_agent_name(SSA_AUTOSETTLER));
       if (punit->activity == ACTIVITY_SENTRY) {
         unit_activity_handling(punit, ACTIVITY_IDLE);
       }
@@ -1174,4 +1239,142 @@ void adv_unit_new_task(struct unit *punit, enum adv_unit_task task,
   punit->server.adv->task = task;
 
   CALL_PLR_AI_FUNC(unit_task, unit_owner(punit), punit, task, ptile);
+}
+
+/**********************************************************************//**
+  Returns TRUE iff the unit can do the targeted activity at the given
+  location.
+
+  Some activities aren't actions. They are therefore unable to use
+  action_speculate_*(). Activities that are actions will use the actor's
+  current tile when evaluating distance requirements etc if used with
+  can_unit_do_activity_targeted_at(). This makes them return the wrong
+  result. They must therefore use action_speculate_*(). Call the function
+  that gives the best speculative evaluation for the specified activity.
+
+  FIXME: Get rid of the need for this.
+**************************************************************************/
+bool auto_settlers_speculate_can_act_at(const struct unit *punit,
+                                        enum unit_activity activity,
+                                        bool omniscient_cheat,
+                                        struct extra_type *target,
+                                        const struct tile *ptile)
+{
+  struct terrain *pterrain = tile_terrain(ptile);
+
+  switch (activity) {
+  case ACTIVITY_MINE:
+    if (pterrain->mining_result == pterrain) {
+      return action_prob_possible(action_speculate_unit_on_tile(
+                                    ACTION_MINE,
+                                    punit, unit_home(punit), ptile,
+                                    omniscient_cheat,
+                                    ptile, target));
+    } else {
+      return FALSE;
+    }
+
+  case ACTIVITY_PLANT:
+    if (pterrain->mining_result != pterrain
+        && pterrain->mining_result != T_NONE) {
+      return action_prob_possible(action_speculate_unit_on_tile(
+                                    ACTION_PLANT,
+                                    punit, unit_home(punit), ptile,
+                                    omniscient_cheat,
+                                    ptile, target));
+    } else {
+      return FALSE;
+    }
+
+  case ACTIVITY_IRRIGATE:
+    if (pterrain->irrigation_result == pterrain) {
+      return action_prob_possible(action_speculate_unit_on_tile(
+                                    ACTION_IRRIGATE,
+                                    punit, unit_home(punit), ptile,
+                                    omniscient_cheat,
+                                    ptile, target));
+    } else {
+      return FALSE;
+    }
+
+  case ACTIVITY_CULTIVATE:
+    if (pterrain->irrigation_result != pterrain
+        && pterrain->irrigation_result != T_NONE) {
+      return action_prob_possible(action_speculate_unit_on_tile(
+                                    ACTION_CULTIVATE,
+                                    punit, unit_home(punit), ptile,
+                                    omniscient_cheat,
+                                    ptile, target));
+    } else {
+      return FALSE;
+    }
+
+  case ACTIVITY_FORTIFYING:
+    return action_prob_possible(action_speculate_unit_on_self(
+                                  ACTION_FORTIFY,
+                                  punit, unit_home(punit), ptile,
+                                  omniscient_cheat));
+
+  case ACTIVITY_BASE:
+    return action_prob_possible(action_speculate_unit_on_tile(
+                                  ACTION_BASE,
+                                  punit, unit_home(punit), ptile,
+                                  omniscient_cheat,
+                                  ptile, target));
+
+  case ACTIVITY_GEN_ROAD:
+    return action_prob_possible(action_speculate_unit_on_tile(
+                                  ACTION_ROAD,
+                                  punit, unit_home(punit), ptile,
+                                  omniscient_cheat,
+                                  ptile, target));
+
+  case ACTIVITY_PILLAGE:
+    return action_prob_possible(action_speculate_unit_on_tile(
+                                  ACTION_PILLAGE,
+                                  punit, unit_home(punit), ptile,
+                                  omniscient_cheat,
+                                  ptile, target));
+
+  case ACTIVITY_TRANSFORM:
+    return action_prob_possible(action_speculate_unit_on_tile(
+                                  ACTION_TRANSFORM_TERRAIN,
+                                  punit, unit_home(punit), ptile,
+                                  omniscient_cheat,
+                                  ptile, target));
+
+  case ACTIVITY_CONVERT:
+    return action_prob_possible(action_speculate_unit_on_self(
+                                  ACTION_CONVERT,
+                                  punit, unit_home(punit), ptile,
+                                  omniscient_cheat));
+  case ACTIVITY_POLLUTION:
+    return action_prob_possible(action_speculate_unit_on_tile(
+                                  ACTION_CLEAN_POLLUTION,
+                                  punit, unit_home(punit), ptile,
+                                  omniscient_cheat,
+                                  ptile, target));
+  case ACTIVITY_FALLOUT:
+    return action_prob_possible(action_speculate_unit_on_tile(
+                                  ACTION_CLEAN_FALLOUT,
+                                  punit, unit_home(punit), ptile,
+                                  omniscient_cheat,
+                                  ptile, target));
+  case ACTIVITY_IDLE:
+  case ACTIVITY_GOTO:
+  case ACTIVITY_FORTIFIED:
+  case ACTIVITY_SENTRY:
+  case ACTIVITY_EXPLORE:
+  case ACTIVITY_OLD_ROAD:
+  case ACTIVITY_OLD_RAILROAD:
+  case ACTIVITY_FORTRESS:
+  case ACTIVITY_AIRBASE:
+  case ACTIVITY_PATROL_UNUSED:
+  case ACTIVITY_LAST:
+  case ACTIVITY_UNKNOWN:
+    return can_unit_do_activity_targeted_at(punit, activity, target, ptile);
+  }
+
+  fc_assert(FALSE);
+  return FALSE;
 }

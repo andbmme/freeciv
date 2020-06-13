@@ -24,6 +24,7 @@ extern "C" {
 /* common */
 #include "fc_types.h"
 #include "name_translation.h"
+#include "requirements.h"
 
 struct astring;         /* Actually defined in "utility/astring.h". */
 struct strvec;          /* Actually defined in "utility/string_vector.h". */
@@ -35,7 +36,7 @@ struct ai_type;
  * it can also be used for fixed allocations to ensure able
  * to hold full number of unit types.
  * Used in the network protocol. */
-#define U_LAST MAX_NUM_ITEMS
+#define U_LAST MAX_NUM_UNITS
 
 /* The largest distance a ruleset can allow a unit to paradrop.
  *
@@ -62,41 +63,41 @@ struct ai_type;
 /* Can occupy enemy cities */
 #define SPECENUM_VALUE3 UCF_CAN_OCCUPY_CITY
 #define SPECENUM_VALUE3NAME N_("?uclassflag:CanOccupyCity")
-#define SPECENUM_VALUE4 UCF_MISSILE
-#define SPECENUM_VALUE4NAME N_("?uclassflag:Missile")
-#define SPECENUM_VALUE5 UCF_BUILD_ANYWHERE
-#define SPECENUM_VALUE5NAME N_("?uclassflag:BuildAnywhere")
-#define SPECENUM_VALUE6 UCF_UNREACHABLE
-#define SPECENUM_VALUE6NAME N_("?uclassflag:Unreachable")
+#define SPECENUM_VALUE4 UCF_BUILD_ANYWHERE
+#define SPECENUM_VALUE4NAME N_("?uclassflag:BuildAnywhere")
+#define SPECENUM_VALUE5 UCF_UNREACHABLE
+#define SPECENUM_VALUE5NAME N_("?uclassflag:Unreachable")
 /* Can collect ransom from barbarian leader */
-#define SPECENUM_VALUE7 UCF_COLLECT_RANSOM
-#define SPECENUM_VALUE7NAME N_("?uclassflag:CollectRansom")
+#define SPECENUM_VALUE6 UCF_COLLECT_RANSOM
+#define SPECENUM_VALUE6NAME N_("?uclassflag:CollectRansom")
 /* Is subject to ZOC */
-#define SPECENUM_VALUE8 UCF_ZOC
-#define SPECENUM_VALUE8NAME N_("?uclassflag:ZOC")
+#define SPECENUM_VALUE7 UCF_ZOC
+#define SPECENUM_VALUE7NAME N_("?uclassflag:ZOC")
 /* Can fortify on land squares */
-#define SPECENUM_VALUE9 UCF_CAN_FORTIFY
-#define SPECENUM_VALUE9NAME N_("?uclassflag:CanFortify")
-#define SPECENUM_VALUE10 UCF_CAN_PILLAGE
-#define SPECENUM_VALUE10NAME N_("?uclassflag:CanPillage")
+#define SPECENUM_VALUE8 UCF_CAN_FORTIFY
+#define SPECENUM_VALUE8NAME N_("?uclassflag:CanFortify")
 /* Cities can still work tile when enemy unit on it */
-#define SPECENUM_VALUE11 UCF_DOESNT_OCCUPY_TILE
-#define SPECENUM_VALUE11NAME N_("?uclassflag:DoesntOccupyTile")
+#define SPECENUM_VALUE9 UCF_DOESNT_OCCUPY_TILE
+#define SPECENUM_VALUE9NAME N_("?uclassflag:DoesntOccupyTile")
 /* Can attack against units on non-native tiles */
-#define SPECENUM_VALUE12 UCF_ATTACK_NON_NATIVE
-#define SPECENUM_VALUE12NAME N_("?uclassflag:AttackNonNative")
+#define SPECENUM_VALUE10 UCF_ATTACK_NON_NATIVE
+#define SPECENUM_VALUE10NAME N_("?uclassflag:AttackNonNative")
 /* Kills citizens upon successful attack against a city */
-#define SPECENUM_VALUE13 UCF_KILLCITIZEN
-#define SPECENUM_VALUE13NAME N_("?uclassflag:KillCitizen")
+#define SPECENUM_VALUE11 UCF_KILLCITIZEN
+#define SPECENUM_VALUE11NAME N_("?uclassflag:KillCitizen")
 
-#define SPECENUM_VALUE14 UCF_USER_FLAG_1
-#define SPECENUM_VALUE15 UCF_USER_FLAG_2
-#define SPECENUM_VALUE16 UCF_USER_FLAG_3
-#define SPECENUM_VALUE17 UCF_USER_FLAG_4
-#define SPECENUM_VALUE18 UCF_USER_FLAG_5
-#define SPECENUM_VALUE19 UCF_USER_FLAG_6
-#define SPECENUM_VALUE20 UCF_USER_FLAG_7
-#define SPECENUM_VALUE21 UCF_USER_FLAG_8
+#define SPECENUM_VALUE12 UCF_USER_FLAG_1
+#define SPECENUM_VALUE13 UCF_USER_FLAG_2
+#define SPECENUM_VALUE14 UCF_USER_FLAG_3
+#define SPECENUM_VALUE15 UCF_USER_FLAG_4
+#define SPECENUM_VALUE16 UCF_USER_FLAG_5
+#define SPECENUM_VALUE17 UCF_USER_FLAG_6
+#define SPECENUM_VALUE18 UCF_USER_FLAG_7
+#define SPECENUM_VALUE19 UCF_USER_FLAG_8
+#define SPECENUM_VALUE20 UCF_USER_FLAG_9
+#define SPECENUM_VALUE21 UCF_USER_FLAG_10
+#define SPECENUM_VALUE22 UCF_USER_FLAG_11
+#define SPECENUM_VALUE23 UCF_USER_FLAG_12
 
 /* keep this last */
 #define SPECENUM_COUNT UCF_COUNT
@@ -104,7 +105,7 @@ struct ai_type;
 #define SPECENUM_BITVECTOR bv_unit_class_flags
 #include "specenum_gen.h"
 
-#define UCF_LAST_USER_FLAG UCF_USER_FLAG_8
+#define UCF_LAST_USER_FLAG UCF_USER_FLAG_12
 #define MAX_NUM_USER_UCLASS_FLAGS (UCF_LAST_USER_FLAG                     \
                                    - UCF_USER_FLAG_1 + 1)
 
@@ -131,7 +132,7 @@ struct unit_class_list;
 struct unit_class {
   Unit_Class_id item_number;
   struct name_translation name;
-  bool disabled;
+  bool ruledit_disabled;
   enum unit_move_type move_type;
   int min_speed;           /* Minimum speed after damage and effects */
   int hp_loss_pct;         /* Percentage of hitpoints lost each turn not in city or airbase */
@@ -159,7 +160,7 @@ struct unit_class {
  * for bits, though unit_type.flags is still a bitfield, and code
  * which uses unit_has_type_flag() without twiddling bits is unchanged.
  * (It is easier to go from i to (1<<i) than the reverse.)
- * See data/default/units.ruleset for documentation of their effects.
+ * See data/classic/units.ruleset for documentation of their effects.
  * Change the array *flag_names[] in unittype.c accordingly.
  * Used in the network protocol.
  */
@@ -188,9 +189,9 @@ struct unit_class {
  * against it has better odds. */
 #define SPECENUM_VALUE7 UTYF_PROVOKING
 #define SPECENUM_VALUE7NAME N_("?unitflag:Provoking")
-/* Invisible except when adjacent (Submarine) */
-#define SPECENUM_VALUE8 UTYF_RESERVED_1
-#define SPECENUM_VALUE8NAME "RESERVED"
+/* Overrides unreachable_protects server setting */
+#define SPECENUM_VALUE8 UTYF_NEVER_PROTECTS
+#define SPECENUM_VALUE8NAME N_("?unitflag:NeverProtects")
 /* Does not include ability to found cities */
 #define SPECENUM_VALUE9 UTYF_SETTLERS
 #define SPECENUM_VALUE9NAME N_("?unitflag:Settlers")
@@ -250,10 +251,9 @@ struct unit_class {
 /* Only barbarians can build this unit */
 #define SPECENUM_VALUE27 UTYF_BARBARIAN_ONLY
 #define SPECENUM_VALUE27NAME N_("?unitflag:BarbarianOnly")
-/* Unit won't lose all its movement when moving from non-native terrain to
- * native terrain even if slow_invasions is turned on. */
-#define SPECENUM_VALUE28 UTYF_BEACH_LANDER
-#define SPECENUM_VALUE28NAME N_("?unitflag:BeachLander")
+/* Feel free to take this. */
+#define SPECENUM_VALUE28 UTYF_RESERVED_1
+#define SPECENUM_VALUE28NAME N_("Reserved 1")
 /* Unit can't be built in scenarios where founding new cities is prevented. */
 #define SPECENUM_VALUE29 UTYF_NEWCITY_GAMES_ONLY
 #define SPECENUM_VALUE29NAME N_("?unitflag:NewCityGamesOnly")
@@ -341,7 +341,7 @@ struct unit_class {
 /* can be found in hut */
 #define SPECENUM_VALUE79 L_HUT
 #define SPECENUM_VALUE79NAME N_("?unitflag:Hut")
-/* can be found in hut, global tech required */
+/* can be found in hut, tech required */
 #define SPECENUM_VALUE80 L_HUT_TECH
 #define SPECENUM_VALUE80NAME N_("?unitflag:HutTech")
 /* is created in Partisan circumstances */
@@ -435,6 +435,10 @@ BV_DEFINE(bv_unit_type_roles, L_MAX);
 #define SPECENUM_VALUE1NAME "DefenseDivider"
 #define SPECENUM_VALUE2 CBONUS_FIREPOWER1
 #define SPECENUM_VALUE2NAME "Firepower1"
+#define SPECENUM_VALUE3 CBONUS_DEFENSE_MULTIPLIER_PCT
+#define SPECENUM_VALUE3NAME "DefenseMultiplierPct"
+#define SPECENUM_VALUE4 CBONUS_DEFENSE_DIVIDER_PCT
+#define SPECENUM_VALUE4NAME "DefenseDividerPct"
 #include "specenum_gen.h"
 
 struct combat_bonus {
@@ -461,7 +465,7 @@ struct veteran_level {
   struct name_translation name; /* level/rank name */
   int power_fact; /* combat/work speed/diplomatic power factor (in %) */
   int move_bonus;
-  int raise_chance; /* server only */
+  int base_raise_chance; /* server only */
   int work_raise_chance; /* server only */
 };
 
@@ -474,7 +478,7 @@ struct veteran_system {
 struct unit_type {
   Unit_type_id item_number;
   struct name_translation name;
-  bool disabled;                        /* Does not really exist - hole in improvments array */
+  bool ruledit_disabled;              /* Does not really exist - hole in improvments array */
   char graphic_str[MAX_LEN_NAME];
   char graphic_alt[MAX_LEN_NAME];
   char sound_move[MAX_LEN_NAME];
@@ -489,8 +493,7 @@ struct unit_type {
   int unknown_move_cost; /* See utype_unknown_move_cost(). */
 
   struct advance *require_advance;	/* may be NULL */
-  struct impr_type *need_improvement;	/* may be NULL */
-  struct government *need_government;	/* may be NULL */
+  struct requirement_vector build_reqs;
 
   int vision_radius_sq;
   int transport_capacity;
@@ -499,8 +502,8 @@ struct unit_type {
   struct combat_bonus_list *bonuses;
 
 #define U_NOT_OBSOLETED (NULL)
-  struct unit_type *obsoleted_by;
-  struct unit_type *converted_to;
+  const struct unit_type *obsoleted_by;
+  const struct unit_type *converted_to;
   int convert_time;
   int fuel;
 
@@ -545,13 +548,14 @@ struct unit_type {
 
   struct {
     bool igwall;
+    bool worker;
   } adv;
 
   struct {
-    int max_defense_mp; /* Value 0 here does not guarantee that unit never
-                         * has CBONUS_DEFENSE_MULTIPLIER, it merely means
-                         * that there's no POSITIVE one */
-    int defense_mp_bonuses[U_LAST];
+    int max_defense_mp_pct; /* Value 0 here does not guarantee that unit
+                             * never has CBONUS_DEFENSE_MULTIPLIER, it
+                             * merely means that there's no POSITIVE one */
+    int defense_mp_bonuses_pct[U_LAST];
   } cache;
 
   void *ais[FREECIV_AI_MOD_LAST];
@@ -562,7 +566,7 @@ Unit_type_id utype_count(void);
 Unit_type_id utype_index(const struct unit_type *punittype);
 Unit_type_id utype_number(const struct unit_type *punittype);
 
-struct unit_type *unit_type_get(const struct unit *punit);
+const struct unit_type *unit_type_get(const struct unit *punit);
 struct unit_type *utype_by_number(const Unit_type_id id);
 
 struct unit_type *unit_type_by_rule_name(const char *name);
@@ -596,6 +600,11 @@ void set_user_unit_type_flag_name(enum unit_type_flag_id id, const char *name,
                                   const char *helptxt);
 const char *unit_type_flag_helptxt(enum unit_type_flag_id id);
 
+bool utype_can_create_extra(const struct unit_type *putype,
+                            const struct extra_type *pextra);
+bool utype_can_remove_extra(const struct unit_type *putype,
+                            const struct extra_type *pextra);
+
 bool unit_can_take_over(const struct unit *punit);
 bool utype_can_take_over(const struct unit_type *punittype);
 
@@ -606,38 +615,58 @@ bool utype_can_freely_unload(const struct unit_type *pcargotype,
 
 bool utype_may_act_at_all(const struct unit_type *putype);
 bool utype_can_do_action(const struct unit_type *putype,
-                         const int action_id);
+                         const action_id act_id);
+bool utype_can_do_action_result(const struct unit_type *putype,
+                                enum action_result result);
 bool utype_acts_hostile(const struct unit_type *putype);
 
 bool can_unit_act_when_ustate_is(const struct unit_type *punit_type,
                                  const enum ustate_prop prop,
                                  const bool is_there);
 bool utype_can_do_act_when_ustate(const struct unit_type *punit_type,
-                                  const int action_id,
+                                  const action_id act_id,
                                   const enum ustate_prop prop,
                                   const bool is_there);
 
 bool utype_can_do_act_if_tgt_citytile(const struct unit_type *punit_type,
-                                      const int action_id,
+                                      const action_id act_id,
                                       const enum citytile_type prop,
                                       const bool is_there);
 
 bool can_utype_do_act_if_tgt_diplrel(const struct unit_type *punit_type,
-                                     const int action_id,
+                                     const action_id act_id,
                                      const int prop,
                                      const bool is_there);
 
-bool utype_may_act_move_frags(struct unit_type *punit_type,
-                              const int action_id,
+bool utype_may_act_move_frags(const struct unit_type *punit_type,
+                              const action_id act_id,
                               const int move_fragments);
 
-bool utype_may_act_tgt_city_tile(struct unit_type *punit_type,
-                                 const int action_id,
+bool utype_may_act_tgt_city_tile(const struct unit_type *punit_type,
+                                 const action_id act_id,
                                  const enum citytile_type prop,
                                  const bool is_there);
 
 bool utype_is_consumed_by_action(const struct action *paction,
                                  const struct unit_type *utype);
+
+bool utype_is_moved_to_tgt_by_action(const struct action *paction,
+                                     const struct unit_type *utype);
+
+bool utype_is_unmoved_by_action(const struct action *paction,
+                                const struct unit_type *utype);
+
+bool utype_pays_for_regular_move_to_tgt(const struct action *paction,
+                                        const struct unit_type *utype);
+
+int utype_pays_mp_for_action_base(const struct action *paction,
+                                  const struct unit_type *putype);
+
+int utype_pays_mp_for_action_estimate(const struct action *paction,
+                                      const struct unit_type *putype,
+                                      const struct player *act_player,
+                                      const struct tile *act_tile,
+                                      const struct tile *tgt_tile);
 
 /* Functions to operate on various flag and roles. */
 typedef bool (*role_unit_callback)(struct unit_type *ptype, void *data);
@@ -693,11 +722,15 @@ void set_user_unit_class_flag_name(enum unit_class_flag_id id,
 const char *unit_class_flag_helptxt(enum unit_class_flag_id id);
 
 /* Ancillary routines */
-int unit_build_shield_cost(const struct unit *punit);
-int utype_build_shield_cost(const struct unit_type *punittype);
+int unit_build_shield_cost(const struct city *pcity, const struct unit *punit);
+int utype_build_shield_cost(const struct city *pcity,
+                            const struct unit_type *punittype);
+int utype_build_shield_cost_base(const struct unit_type *punittype);
+int unit_build_shield_cost_base(const struct unit *punit);
 
-int utype_buy_gold_cost(const struct unit_type *punittype,
-			int shields_in_stock);
+int utype_buy_gold_cost(const struct city *pcity,
+                        const struct unit_type *punittype,
+                        int shields_in_stock);
 
 const struct veteran_system *
   utype_veteran_system(const struct unit_type *punittype);
@@ -715,9 +748,6 @@ void veteran_system_definition(struct veteran_system *vsystem, int level,
                                int vlist_move, int vlist_raise,
                                int vlist_wraise);
 
-int unit_disband_shields(const struct unit *punit);
-int utype_disband_shields(const struct unit_type *punittype);
-
 int unit_pop_value(const struct unit *punit);
 int utype_pop_value(const struct unit_type *punittype);
 
@@ -729,8 +759,8 @@ int utype_upkeep_cost(const struct unit_type *ut, struct player *pplayer,
                       Output_type_id otype);
 int utype_happy_cost(const struct unit_type *ut, const struct player *pplayer);
 
-struct unit_type *can_upgrade_unittype(const struct player *pplayer,
-				       struct unit_type *punittype);
+const struct unit_type *can_upgrade_unittype(const struct player *pplayer,
+                                             const struct unit_type *punittype);
 int unit_upgrade_price(const struct player *pplayer,
 		       const struct unit_type *from,
 		       const struct unit_type *to);
@@ -747,7 +777,7 @@ bool can_player_build_unit_now(const struct player *p,
 
 #define utype_fuel(ptype) (ptype)->fuel
 
-bool utype_is_cityfounder(struct unit_type *utype);
+bool utype_is_cityfounder(const struct unit_type *utype);
 
 /* Initialization and iteration */
 void unit_types_init(void);
@@ -769,11 +799,11 @@ const struct unit_type *unit_type_array_last(void);
   }									\
 }
 
-#define unit_active_type_iterate(_p)                                    \
+#define unit_type_re_active_iterate(_p)                                 \
   unit_type_iterate(_p) {                                               \
-    if (!_p->disabled) {
+    if (!_p->ruledit_disabled) {
 
-#define unit_active_type_iterate_end                                    \
+#define unit_type_re_active_iterate_end                                 \
     }                                                                   \
   } unit_type_iterate_end;
 
@@ -806,11 +836,11 @@ const struct unit_class *unit_class_array_last(void);
   }									\
 }
 
-#define unit_active_class_iterate(_p)                                    \
+#define unit_class_re_active_iterate(_p)                                 \
   unit_class_iterate(_p) {                                               \
-    if (!_p->disabled) {
+    if (!_p->ruledit_disabled) {
 
-#define unit_active_class_iterate_end                                    \
+#define unit_class_re_active_iterate_end                                 \
     }                                                                    \
   } unit_class_iterate_end;
 

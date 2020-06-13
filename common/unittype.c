@@ -120,12 +120,11 @@ struct unit_type *utype_by_number(const Unit_type_id id)
 /**********************************************************************//**
   Return the unit type for this unit.
 **************************************************************************/
-struct unit_type *unit_type_get(const struct unit *punit)
+const struct unit_type *unit_type_get(const struct unit *punit)
 {
   fc_assert_ret_val(NULL != punit, NULL);
   return punit->utype;
 }
-
 
 /**********************************************************************//**
   Returns the upkeep of a unit of this type under the given government.
@@ -206,6 +205,54 @@ bool unit_has_type_role(const struct unit *punit, enum unit_role_id role)
 }
 
 /**********************************************************************//**
+  Return whether the unit can do an action that creates the specified
+  extra kind.
+**************************************************************************/
+bool utype_can_create_extra(const struct unit_type *putype,
+                            const struct extra_type *pextra)
+{
+  action_iterate(act_id) {
+    struct action *paction = action_by_number(act_id);
+
+    if (!utype_can_do_action(putype, act_id)) {
+      /* Not relevant. */
+      continue;
+    }
+
+    if (action_creates_extra(paction, pextra)) {
+      /* Can create */
+      return TRUE;
+    }
+  } action_iterate_end;
+
+  return FALSE;
+}
+
+/**********************************************************************//**
+  Return whether the unit can do an action that removes the specified
+  extra kind.
+**************************************************************************/
+bool utype_can_remove_extra(const struct unit_type *putype,
+                            const struct extra_type *pextra)
+{
+  action_iterate(act_id) {
+    struct action *paction = action_by_number(act_id);
+
+    if (!utype_can_do_action(putype, act_id)) {
+      /* Not relevant. */
+      continue;
+    }
+
+    if (action_removes_extra(paction, pextra)) {
+      /* Can remove */
+      return TRUE;
+    }
+  } action_iterate_end;
+
+  return FALSE;
+}
+
+/**********************************************************************//**
   Return whether the unit can take over enemy cities.
 **************************************************************************/
 bool unit_can_take_over(const struct unit *punit)
@@ -224,7 +271,7 @@ bool utype_can_take_over(const struct unit_type *punittype)
 {
   /* FIXME: "Paradrop Unit" can in certain circumstances result in city
    * conquest. */
-  return utype_can_do_action(punittype, ACTION_CONQUER_CITY);
+  return utype_can_do_action_result(punittype, ACTRES_CONQUER_CITY);
 }
 
 /**********************************************************************//**
@@ -251,7 +298,7 @@ bool utype_can_freely_unload(const struct unit_type *pcargotype,
                   uclass_index(utype_class(ptranstype)));
 }
 
-/* Fake action representing any hostile action. */
+/* Fake action id representing any hostile action. */
 #define ACTION_HOSTILE ACTION_COUNT + 1
 
 /* Number of real and fake actions. */
@@ -259,7 +306,7 @@ bool utype_can_freely_unload(const struct unit_type *pcargotype,
 
 /* Cache of what generalized (ruleset defined) action enabler controlled
  * actions units of each type can perform. Checking if any action can be
- * done at all is done via the fake action ACTION_ANY. If any hostile
+ * done at all is done via the fake action id ACTION_ANY. If any hostile
  * action can be performed is done via ACTION_HOSTILE. */
 static bv_unit_types unit_can_act_cache[ACTION_AND_FAKES];
 
@@ -279,12 +326,14 @@ static void unit_can_act_cache_set(struct unit_type *putype)
   /* See if the unit type can do an action controlled by generalized action
    * enablers */
   action_enablers_iterate(enabler) {
+    const struct action *paction = action_by_number(enabler->action);
     if (action_id_get_actor_kind(enabler->action) == AAK_UNIT
-        && action_actor_utype_hard_reqs_ok(enabler->action, putype)
+        && action_actor_utype_hard_reqs_ok(paction->result, putype)
         && requirement_fulfilled_by_unit_type(putype,
                                               &(enabler->actor_reqs))) {
       log_debug("act_cache: %s can %s",
-                utype_rule_name(putype), gen_action_name(enabler->action));
+                utype_rule_name(putype),
+                action_id_rule_name(enabler->action));
       BV_SET(unit_can_act_cache[enabler->action], utype_index(putype));
       BV_SET(unit_can_act_cache[ACTION_ANY], utype_index(putype));
       if (action_is_hostile(enabler->action)) {
@@ -306,11 +355,38 @@ bool utype_may_act_at_all(const struct unit_type *putype)
 /**********************************************************************//**
   Return TRUE iff units of the given type can do the specified generalized
   (ruleset defined) action enabler controlled action.
+
+  Note that a specific unit in a specific situation still may be unable to
+  perform the specified action.
 **************************************************************************/
 bool utype_can_do_action(const struct unit_type *putype,
-                         const int action_id)
+                         const action_id act_id)
 {
-  return BV_ISSET(unit_can_act_cache[action_id], utype_index(putype));
+  fc_assert_ret_val(putype, FALSE);
+  fc_assert_ret_val(act_id >= 0 && act_id < ACTION_AND_FAKES, FALSE);
+
+  return BV_ISSET(unit_can_act_cache[act_id], utype_index(putype));
+}
+
+/**********************************************************************//**
+  Return TRUE iff units of the given type can do any enabler controlled
+  action with the specified action result.
+
+  Note that a specific unit in a specific situation still may be unable to
+  perform the specified action.
+**************************************************************************/
+bool utype_can_do_action_result(const struct unit_type *putype,
+                                enum action_result result)
+{
+  fc_assert_ret_val(putype, FALSE);
+
+  action_by_result_iterate(paction, act_id, result) {
+    if (utype_can_do_action(putype, paction->id)) {
+      return TRUE;
+    }
+  } action_by_result_iterate_end;
+
+  return FALSE;
 }
 
 /**********************************************************************//**
@@ -371,8 +447,8 @@ static void unit_state_action_cache_set(struct unit_type *putype)
 
   /* The unit is not yet known to be allowed to perform any actions no
    * matter what its unit state is. */
-  action_iterate(action_id) {
-    BV_CLR_ALL(ustate_act_cache[uidx][action_id]);
+  action_iterate(act_id) {
+    BV_CLR_ALL(ustate_act_cache[uidx][act_id]);
   } action_iterate_end;
   BV_CLR_ALL(ustate_act_cache[uidx][ACTION_ANY]);
   BV_CLR_ALL(ustate_act_cache[uidx][ACTION_HOSTILE]);
@@ -451,8 +527,8 @@ static void local_dipl_rel_action_cache_set(struct unit_type *putype)
 
   /* The unit is not yet known to be allowed to perform any actions no
    * matter what the diplomatic state is. */
-  action_iterate(action_id) {
-    BV_CLR_ALL(dipl_rel_action_cache[uidx][action_id]);
+  action_iterate(act_id) {
+    BV_CLR_ALL(dipl_rel_action_cache[uidx][act_id]);
   } action_iterate_end;
   BV_CLR_ALL(dipl_rel_action_cache[uidx][ACTION_ANY]);
   BV_CLR_ALL(dipl_rel_action_cache[uidx][ACTION_HOSTILE]);
@@ -527,8 +603,8 @@ static void tgt_citytile_act_cache_set(struct unit_type *putype)
 
   /* The unit is not yet known to be allowed to perform any actions no
    * matter what its target's CityTile state is. */
-  action_iterate(action_id) {
-    BV_CLR_ALL(ctile_tgt_act_cache[uidx][action_id]);
+  action_iterate(act_id) {
+    BV_CLR_ALL(ctile_tgt_act_cache[uidx][act_id]);
   } action_iterate_end;
   BV_CLR_ALL(ctile_tgt_act_cache[uidx][ACTION_ANY]);
   BV_CLR_ALL(ctile_tgt_act_cache[uidx][ACTION_HOSTILE]);
@@ -666,11 +742,14 @@ bool can_unit_act_when_ustate_is(const struct unit_type *punit_type,
   is_there.
 **************************************************************************/
 bool utype_can_do_act_when_ustate(const struct unit_type *punit_type,
-                                  const int action_id,
+                                  const action_id act_id,
                                   const enum ustate_prop prop,
                                   const bool is_there)
 {
-  return BV_ISSET(ustate_act_cache[utype_index(punit_type)][action_id],
+  fc_assert_ret_val(punit_type, FALSE);
+  fc_assert_ret_val(act_id >= 0 && act_id < ACTION_AND_FAKES, FALSE);
+
+  return BV_ISSET(ustate_act_cache[utype_index(punit_type)][act_id],
       requirement_unit_state_ereq(prop, is_there));
 }
 
@@ -680,11 +759,14 @@ bool utype_can_do_act_when_ustate(const struct unit_type *punit_type,
   value is_there.
 **************************************************************************/
 bool utype_can_do_act_if_tgt_citytile(const struct unit_type *punit_type,
-                                      const int action_id,
+                                      const action_id act_id,
                                       const enum citytile_type prop,
                                       const bool is_there)
 {
-  return BV_ISSET(ctile_tgt_act_cache[utype_index(punit_type)][action_id],
+  fc_assert_ret_val(punit_type, FALSE);
+  fc_assert_ret_val(act_id >= 0 && act_id < ACTION_AND_FAKES, FALSE);
+
+  return BV_ISSET(ctile_tgt_act_cache[utype_index(punit_type)][act_id],
       requirement_citytile_ereq(prop, is_there));
 }
 
@@ -698,13 +780,14 @@ bool utype_can_do_act_if_tgt_citytile(const struct unit_type *punit_type,
   ranges are stored in dipl_rel_action_cache.
 **************************************************************************/
 bool can_utype_do_act_if_tgt_diplrel(const struct unit_type *punit_type,
-                                     const int action_id,
+                                     const action_id act_id,
                                      const int prop,
                                      const bool is_there)
 {
-  int utype_id = utype_index(punit_type);
+  fc_assert_ret_val(punit_type, FALSE);
+  fc_assert_ret_val(act_id >= 0 && act_id < ACTION_AND_FAKES, FALSE);
 
-  return BV_ISSET(dipl_rel_action_cache[utype_id][action_id],
+  return BV_ISSET(dipl_rel_action_cache[utype_index(punit_type)][act_id],
       requirement_diplrel_ereq(prop, REQ_RANGE_LOCAL, is_there));
 }
 
@@ -717,20 +800,20 @@ bool can_utype_do_act_if_tgt_diplrel(const struct unit_type *punit_type,
   would be a good idea to cache the (merged) ranges of move fragments
   where a unit of the given type can perform the specified action.
 **************************************************************************/
-bool utype_may_act_move_frags(struct unit_type *punit_type,
-                              const int action_id,
+bool utype_may_act_move_frags(const struct unit_type *punit_type,
+                              const action_id act_id,
                               const int move_fragments)
 {
   struct range *ml_range;
 
-  fc_assert(action_id_exists(action_id) || action_id == ACTION_ANY);
+  fc_assert(action_id_exists(act_id) || act_id == ACTION_ANY);
 
   if (!utype_may_act_at_all(punit_type)) {
     /* Not an actor unit. */
     return FALSE;
   }
 
-  if (action_id == ACTION_ANY) {
+  if (act_id == ACTION_ANY) {
     /* Any action is OK. */
     action_iterate(alt_act) {
       if (utype_may_act_move_frags(punit_type, alt_act,
@@ -744,13 +827,13 @@ bool utype_may_act_move_frags(struct unit_type *punit_type,
     return FALSE;
   }
 
-  if (action_id_get_actor_kind(action_id) != AAK_UNIT) {
+  if (action_id_get_actor_kind(act_id) != AAK_UNIT) {
     /* This action isn't performed by any unit at all so this unit type
      * can't do it. */
     return FALSE;
   }
 
-  action_enabler_list_iterate(action_enablers_for_action(action_id),
+  action_enabler_list_iterate(action_enablers_for_action(act_id),
                               enabler) {
     if (!requirement_fulfilled_by_unit_type(punit_type,
                                             &(enabler->actor_reqs))) {
@@ -783,8 +866,8 @@ bool utype_may_act_move_frags(struct unit_type *punit_type,
   Note: Values aren't cached. If a performance critical user appears it
   would be a good idea to cache the result.
 **************************************************************************/
-bool utype_may_act_tgt_city_tile(struct unit_type *punit_type,
-                                 const int action_id,
+bool utype_may_act_tgt_city_tile(const struct unit_type *punit_type,
+                                 const action_id act_id,
                                  const enum citytile_type prop,
                                  const bool is_there)
 {
@@ -795,7 +878,7 @@ bool utype_may_act_tgt_city_tile(struct unit_type *punit_type,
     return FALSE;
   }
 
-  if (action_id == ACTION_ANY) {
+  if (act_id == ACTION_ANY) {
     /* Any action is OK. */
     action_iterate(alt_act) {
       if (utype_may_act_tgt_city_tile(punit_type, alt_act,
@@ -809,7 +892,7 @@ bool utype_may_act_tgt_city_tile(struct unit_type *punit_type,
     return FALSE;
   }
 
-  if (action_id_get_actor_kind(action_id) != AAK_UNIT) {
+  if (action_id_get_actor_kind(act_id) != AAK_UNIT) {
     /* This action isn't performed by any unit at all so this unit type
      * can't do it. */
     return FALSE;
@@ -826,7 +909,7 @@ bool utype_may_act_tgt_city_tile(struct unit_type *punit_type,
   /* Will only check the specified property */
   req.source.value.citytile = prop;
 
-  action_enabler_list_iterate(action_enablers_for_action(action_id),
+  action_enabler_list_iterate(action_enablers_for_action(act_id),
                               enabler) {
     if (!requirement_fulfilled_by_unit_type(punit_type,
                                             &(enabler->actor_reqs))) {
@@ -850,26 +933,211 @@ bool utype_may_act_tgt_city_tile(struct unit_type *punit_type,
 bool utype_is_consumed_by_action(const struct action *paction,
                                  const struct unit_type *utype)
 {
+  return paction->actor_consuming_always;
+}
+
+/**********************************************************************//**
+  Returns TRUE iff successfully performing the specified action always will
+  move the actor unit of the specified type to the target's tile.
+**************************************************************************/
+bool utype_is_moved_to_tgt_by_action(const struct action *paction,
+                                     const struct unit_type *utype)
+{
+  fc_assert_ret_val(action_get_actor_kind(paction) == AAK_UNIT, FALSE);
+
   if (paction->actor_consuming_always) {
-    /* This action will always consume the unit no matter who it is. */
+    return FALSE;
+  }
+
+  switch (paction->actor.is_unit.moves_actor) {
+  case MAK_STAYS:
+    /* Stays at the tile were it was. */
+    return FALSE;
+  case MAK_REGULAR:
+    /* A "regular" move. Does it charge the move cost of a regular move?
+     * Update utype_pays_for_regular_move_to_tgt() if yes. */
+    return TRUE;
+  case MAK_TELEPORT:
+    /* A teleporting move. */
+    return TRUE;
+  case MAK_FORCED:
+    /* Tries a forced move under certain conditions. */
+    return FALSE;
+  case MAK_ESCAPE:
+    /* May die, may be teleported to a safe city. */
+    return FALSE;
+  case MAK_UNREPRESENTABLE:
+    /* Too complex to determine. */
+    return FALSE;
+  }
+
+  fc_assert_msg(FALSE, "Should not reach this code.");
+  return FALSE;
+}
+
+/**********************************************************************//**
+  Returns TRUE iff successfully performing the specified action never will
+  move the actor unit from its current tile.
+**************************************************************************/
+bool utype_is_unmoved_by_action(const struct action *paction,
+                                const struct unit_type *utype)
+{
+  fc_assert_ret_val(action_get_actor_kind(paction) == AAK_UNIT, FALSE);
+
+  if (paction->actor_consuming_always) {
+    /* Dead counts as moved off the board */
+    return FALSE;
+  }
+
+  switch (paction->actor.is_unit.moves_actor) {
+  case MAK_STAYS:
+    /* Stays at the tile were it was. */
+    return TRUE;
+  case MAK_REGULAR:
+    /* A "regular" move. Does it charge the move cost of a regular move?
+     * Update utype_pays_for_regular_move_to_tgt() if yes. */
+    return FALSE;
+  case MAK_TELEPORT:
+    /* A teleporting move. */
+    return FALSE;
+  case MAK_FORCED:
+    /* Tries a forced move under certain conditions. */
+    return FALSE;
+  case MAK_ESCAPE:
+    /* May die, may be teleported to a safe city. */
+    return FALSE;
+  case MAK_UNREPRESENTABLE:
+    /* Too complex to determine. */
+    return FALSE;
+  }
+
+  fc_assert_msg(FALSE, "Should not reach this code.");
+  return FALSE;
+}
+
+/**********************************************************************//**
+  Returns TRUE iff successfully performing the specified action always
+  will cost the actor unit of the specified type the move fragments it
+  would take to perform a regular move to the target's tile. This cost
+  is added to the cost of successfully performing the action.
+**************************************************************************/
+bool utype_pays_for_regular_move_to_tgt(const struct action *paction,
+                                        const struct unit_type *utype)
+{
+  if (!utype_is_moved_to_tgt_by_action(paction, utype)) {
+    /* Not even a move. */
+    return FALSE;
+  }
+
+  if (action_has_result(paction, ACTRES_CONQUER_CITY)) {
+    /* Moves into the city to occupy it. */
     return TRUE;
   }
 
-  /* FIXME: Since the actions listed below can be predicted to always
-   * consume the actor unit based on unit type alone they should probably
-   * be split in an actor consuming and a non actor consuming version. */
-  switch (paction->id) {
-  case ACTION_ATTACK:
-    return uclass_has_flag(utype->uclass, UCF_MISSILE);
-  default:
-    return FALSE;
+  if (action_has_result(paction, ACTRES_TRANSPORT_DISEMBARK)) {
+    /* Moves out of the transport to disembark. */
+    return TRUE;
   }
+
+  if (action_has_result(paction, ACTRES_TRANSPORT_EMBARK)) {
+    /* Moves into the transport to embark. */
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+/**********************************************************************//**
+  Returns the amount of movement points successfully performing the
+  specified action will consume in the actor unit type without taking
+  effects or regular moves into account.
+**************************************************************************/
+int utype_pays_mp_for_action_base(const struct action *paction,
+                                  const struct unit_type *putype)
+{
+  int mpco = 0;
+
+  if (action_has_result(paction, ACTRES_ATTACK)
+      && !utype_is_consumed_by_action(paction, putype)) {
+    if (utype_has_flag(putype, UTYF_ONEATTACK)) {
+      mpco += MAX_MOVE_FRAGS;
+    } else {
+      mpco += SINGLE_MOVE;
+    }
+  }
+
+  return mpco;
+}
+
+/**********************************************************************//**
+  Returns an estimate of the amount of movement points successfully
+  performing the specified action will consume in the actor unit type.
+**************************************************************************/
+int utype_pays_mp_for_action_estimate(const struct action *paction,
+                                      const struct unit_type *putype,
+                                      const struct player *act_player,
+                                      const struct tile *act_tile,
+                                      const struct tile *tgt_tile)
+{
+  const struct tile *post_action_tile;
+  int mpco = utype_pays_mp_for_action_base(paction, putype);
+
+  if (utype_is_moved_to_tgt_by_action(paction, putype)) {
+    post_action_tile = tgt_tile;
+  } else {
+    /* FIXME: Not 100% true. May escape, have a probability for moving to
+     * target tile etc. */
+    post_action_tile = act_tile;
+  }
+
+  if (utype_pays_for_regular_move_to_tgt(paction, putype)) {
+    /* Add the cost from the move. */
+    mpco += map_move_cost(&(wld.map), act_player, putype,
+                          act_tile, tgt_tile);
+  }
+
+  /* FIXME: Probably wrong result if the effect
+   * EFT_ACTION_SUCCESS_MOVE_COST depends on unit state. Add unit state
+   * parameters? */
+  mpco += get_target_bonus_effects(NULL,
+                                  act_player,
+                                  NULL,
+                                  tile_city(post_action_tile),
+                                  NULL, tgt_tile,
+                                  NULL, putype, NULL, NULL,
+                                  paction, EFT_ACTION_SUCCESS_MOVE_COST);
+
+  return mpco;
 }
 
 /**********************************************************************//**
   Returns the number of shields it takes to build this unit type.
 **************************************************************************/
-int utype_build_shield_cost(const struct unit_type *punittype)
+int utype_build_shield_cost(const struct city *pcity,
+                            const struct unit_type *punittype)
+{
+  int base;
+  struct player *owner;
+  struct tile *ptile;
+
+  if (pcity != NULL) {
+    owner = city_owner(pcity);
+    ptile = city_tile(pcity);
+  } else {
+    owner = NULL;
+    ptile = NULL;
+  }
+
+  base = punittype->build_cost
+    * (100 + get_unittype_bonus(owner, ptile, punittype, EFT_UNIT_BUILD_COST_PCT)) / 100;
+
+  return MAX(base * game.info.shieldbox / 100, 1);
+}
+
+/**********************************************************************//**
+  Returns the number of shields this unit type represents.
+**************************************************************************/
+int utype_build_shield_cost_base(const struct unit_type *punittype)
 {
   return MAX(punittype->build_cost * game.info.shieldbox / 100, 1);
 }
@@ -877,43 +1145,52 @@ int utype_build_shield_cost(const struct unit_type *punittype)
 /**********************************************************************//**
   Returns the number of shields it takes to build this unit.
 **************************************************************************/
-int unit_build_shield_cost(const struct unit *punit)
+int unit_build_shield_cost(const struct city *pcity, const struct unit *punit)
 {
-  return utype_build_shield_cost(unit_type_get(punit));
+  return utype_build_shield_cost(pcity, unit_type_get(punit));
+}
+
+/**********************************************************************//**
+  Returns the number of shields this unit represents
+**************************************************************************/
+int unit_build_shield_cost_base(const struct unit *punit)
+{
+  return utype_build_shield_cost_base(unit_type_get(punit));
 }
 
 /**********************************************************************//**
   Returns the amount of gold it takes to rush this unit.
 **************************************************************************/
-int utype_buy_gold_cost(const struct unit_type *punittype,
-			int shields_in_stock)
+int utype_buy_gold_cost(const struct city *pcity,
+                        const struct unit_type *punittype,
+                        int shields_in_stock)
 {
   int cost = 0;
-  const int missing = utype_build_shield_cost(punittype) - shields_in_stock;
+  const int missing = utype_build_shield_cost(pcity, punittype) - shields_in_stock;
+  struct player *owner;
+  struct tile *ptile;
 
   if (missing > 0) {
     cost = 2 * missing + (missing * missing) / 20;
   }
+
   if (shields_in_stock == 0) {
     cost *= 2;
   }
+
+  if (pcity != NULL) {
+    owner = city_owner(pcity);
+    ptile = city_tile(pcity);
+  } else {
+    owner = NULL;
+    ptile = NULL;
+  }
+
+  cost = cost
+    * (100 + get_unittype_bonus(owner, ptile, punittype, EFT_UNIT_BUY_COST_PCT))
+    / 100;
+
   return cost;
-}
-
-/**********************************************************************//**
-  Returns the number of shields received when this unit type is disbanded.
-**************************************************************************/
-int utype_disband_shields(const struct unit_type *punittype)
-{
-  return utype_build_shield_cost(punittype) / 2;
-}
-
-/**********************************************************************//**
-  Returns the number of shields received when this unit is disbanded.
-**************************************************************************/
-int unit_disband_shields(const struct unit *punit)
-{
-  return utype_disband_shields(unit_type_get(punit));
 }
 
 /**********************************************************************//**
@@ -1070,11 +1347,11 @@ bool role_units_translations(struct astring *astr, int flag, bool alts)
   Return whether this player can upgrade this unit type (to any other
   unit type).  Returns NULL if no upgrade is possible.
 **************************************************************************/
-struct unit_type *can_upgrade_unittype(const struct player *pplayer,
-				       struct unit_type *punittype)
+const struct unit_type *can_upgrade_unittype(const struct player *pplayer,
+                                             const struct unit_type *punittype)
 {
-  struct unit_type *upgrade = punittype;
-  struct unit_type *best_upgrade = NULL;
+  const struct unit_type *upgrade = punittype;
+  const struct unit_type *best_upgrade = NULL;
 
   /* For some reason this used to check
    * can_player_build_unit_direct() for the unittype
@@ -1099,10 +1376,16 @@ struct unit_type *can_upgrade_unittype(const struct player *pplayer,
   belongs to.
 **************************************************************************/
 int unit_upgrade_price(const struct player *pplayer,
-		       const struct unit_type *from,
-		       const struct unit_type *to)
+                       const struct unit_type *from,
+                       const struct unit_type *to)
 {
-  int base_cost = utype_buy_gold_cost(to, utype_disband_shields(from));
+  /* Upgrade price is only payed for "Upgrade Unit" so it is safe to hard
+   * code the action ID for now. paction will have to become a parameter
+   * before generalized actions appears. */
+  const struct action *paction = action_by_number(ACTION_UPGRADE_UNIT);
+  int missing = (utype_build_shield_cost_base(to)
+                 - unit_shield_value(NULL, from, paction));
+  int base_cost = 2 * missing + (missing * missing) / 20;
 
   return base_cost
     * (100 + get_player_bonus(pplayer, EFT_UPGRADE_PRICE_PCT))
@@ -1327,7 +1610,9 @@ bool can_player_build_unit_direct(const struct player *p,
     return FALSE;
   }
 
-  if (utype_can_do_action(punittype, ACTION_NUKE)
+  if ((utype_can_do_action_result(punittype, ACTRES_NUKE_CITY)
+       || utype_can_do_action_result(punittype, ACTRES_NUKE_UNITS)
+       || utype_can_do_action_result(punittype, ACTRES_NUKE))
       && get_player_bonus(p, EFT_ENABLE_NUKE) <= 0) {
     return FALSE;
   }
@@ -1348,10 +1633,40 @@ bool can_player_build_unit_direct(const struct player *p,
     return FALSE;
   }
 
-  if (punittype->need_government
-      && punittype->need_government != government_of_player(p)) {
-    return FALSE;
-  }
+  requirement_vector_iterate(&punittype->build_reqs, preq) {
+    if (preq->source.kind == VUT_IMPROVEMENT
+        && preq->range == REQ_RANGE_CITY && preq->present) {
+      /* If the unit has a building requirement, we check to see if the
+       * player can build that building.  Note that individual cities may
+       * not have that building, so they still may not be able to build the
+       * unit. */
+      if (is_great_wonder(preq->source.value.building)
+          && (great_wonder_is_built(preq->source.value.building)
+              || great_wonder_is_destroyed(preq->source.value.building))) {
+        /* It's already built great wonder */
+        if (great_wonder_owner(preq->source.value.building) != p) {
+          /* Not owned by this player. Either destroyed or owned by somebody
+           * else. */
+          return FALSE;
+        }
+      } else {
+        if (!can_player_build_improvement_direct(
+                p, preq->source.value.building)) {
+          return FALSE;
+        }
+      }
+    }
+    if (preq->range < REQ_RANGE_PLAYER) {
+      /* The question *here* is if the *player* can build this unit */
+      continue;
+    }
+    if (!is_req_active(p, NULL,
+                       NULL, NULL, NULL, NULL, punittype, NULL, NULL, NULL,
+                       preq, RPT_CERTAIN)) {
+      return FALSE;
+    }
+  } requirement_vector_iterate_end;
+
   if (research_invention_state(research_get(p),
                                advance_number(punittype->require_advance))
       != TECH_KNOWN) {
@@ -1386,27 +1701,6 @@ bool can_player_build_unit_direct(const struct player *p,
   if (utype_player_already_has_this_unique(p, punittype)) {
     /* A player can only have one unit of each unique unit type. */
     return FALSE;
-  }
-
-  /* If the unit has a building requirement, we check to see if the player
-   * can build that building.  Note that individual cities may not have
-   * that building, so they still may not be able to build the unit. */
-  if (punittype->need_improvement) {
-    if (is_great_wonder(punittype->need_improvement)
-        && (great_wonder_is_built(punittype->need_improvement)
-            || great_wonder_is_destroyed(punittype->need_improvement))) {
-      /* It's already built great wonder */
-      if (great_wonder_owner(punittype->need_improvement) != p) {
-        /* Not owned by this player. Either destroyed or owned by somebody
-         * else. */
-        return FALSE;
-      }
-    } else {
-      if (!can_player_build_improvement_direct(p,
-                                               punittype->need_improvement)) {
-        return FALSE;
-      }
-    }
   }
 
   return TRUE;
@@ -1616,7 +1910,8 @@ struct unit_type *best_role_unit(const struct city *pcity, int role)
 
   for (j = n_with_role[role] - 1; j >= 0; j--) {
     u = with_role[role][j];
-    if ((1 != utype_fuel(u) || uclass_has_flag(utype_class(u), UCF_MISSILE))
+    if ((1 != utype_fuel(u)
+         || utype_can_do_action(u, ACTION_SUICIDE_ATTACK))
         && can_city_build_unit_now(pcity, u)) {
       /* Allow fuel == 1 units when pathfinding can handle them. */
       return u;
@@ -1689,10 +1984,11 @@ void unit_types_init(void)
    * num_unit_types isn't known yet. */
   for (i = 0; i < ARRAY_SIZE(unit_types); i++) {
     unit_types[i].item_number = i;
+    requirement_vector_init(&(unit_types[i].build_reqs));
     unit_types[i].helptext = NULL;
     unit_types[i].veteran = NULL;
     unit_types[i].bonuses = combat_bonus_list_new();
-    unit_types[i].disabled = FALSE;
+    unit_types[i].ruledit_disabled = FALSE;
   }
 }
 
@@ -1704,6 +2000,7 @@ static void unit_type_free(struct unit_type *punittype)
   if (NULL != punittype->helptext) {
     strvec_destroy(punittype->helptext);
     punittype->helptext = NULL;
+    requirement_vector_free(&(punittype->build_reqs));
   }
 
   veteran_system_destroy(punittype->veteran);
@@ -1850,7 +2147,7 @@ void unit_classes_init(void)
     unit_classes[i].cache.bonus_roads = NULL;
     unit_classes[i].cache.subset_movers = NULL;
     unit_classes[i].helptext = NULL;
-    unit_classes[i].disabled = FALSE;
+    unit_classes[i].ruledit_disabled = FALSE;
   }
 }
 
@@ -2007,7 +2304,7 @@ void veteran_system_definition(struct veteran_system *vsystem, int level,
   names_set(&vlevel->name, NULL, vlist_name, NULL);
   vlevel->power_fact = vlist_power;
   vlevel->move_bonus = vlist_move;
-  vlevel->raise_chance = vlist_raise;
+  vlevel->base_raise_chance = vlist_raise;
   vlevel->work_raise_chance = vlist_wraise;
 }
 
@@ -2084,15 +2381,20 @@ void set_unit_class_caches(struct unit_class *pclass)
 **************************************************************************/
 void set_unit_type_caches(struct unit_type *ptype)
 {
-  ptype->cache.max_defense_mp = -FC_INFINITY;
+  ptype->cache.max_defense_mp_pct = -FC_INFINITY;
 
   unit_type_iterate(utype) {
     int idx = utype_index(utype);
 
-    ptype->cache.defense_mp_bonuses[idx] = combat_bonus_against(ptype->bonuses, utype,
-                                                                CBONUS_DEFENSE_MULTIPLIER);
-    if (ptype->cache.defense_mp_bonuses[idx] > ptype->cache.max_defense_mp) {
-      ptype->cache.max_defense_mp = ptype->cache.defense_mp_bonuses[idx];
+    ptype->cache.defense_mp_bonuses_pct[idx] = combat_bonus_against(
+        ptype->bonuses, utype, CBONUS_DEFENSE_MULTIPLIER_PCT)
+        + 100 * combat_bonus_against(ptype->bonuses, utype,
+                                    CBONUS_DEFENSE_MULTIPLIER);
+
+    if (ptype->cache.defense_mp_bonuses_pct[idx]
+        > ptype->cache.max_defense_mp_pct) {
+      ptype->cache.max_defense_mp_pct =
+         ptype->cache.defense_mp_bonuses_pct[idx];
     }
   } unit_type_iterate_end;
 }
@@ -2208,7 +2510,7 @@ void set_unit_move_type(struct unit_class *puclass)
 /**********************************************************************//**
   Is cityfounder type
 **************************************************************************/
-bool utype_is_cityfounder(struct unit_type *utype)
+bool utype_is_cityfounder(const struct unit_type *utype)
 {
   if (game.scenario.prevent_new_cities) {
     /* No unit is allowed to found new cities */

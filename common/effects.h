@@ -30,6 +30,7 @@ extern "C" {
 /* Type of effects. Add new values via SPECENUM_VALUE%d and
  * SPECENUM_VALUE%dNAME at the end of the list.
  * Used in the network protocol.
+ *
  */
 #define SPECENUM_NAME effect_type
 #define SPECENUM_VALUE0 EFT_TECH_PARASITE
@@ -140,7 +141,7 @@ extern "C" {
 #define SPECENUM_VALUE46NAME "City_Vision_Radius_Sq"
 #define SPECENUM_VALUE47 EFT_UNIT_VISION_RADIUS_SQ
 #define SPECENUM_VALUE47NAME "Unit_Vision_Radius_Sq"
-/* Interacts with F_BADWALLATTACKER, ignored by F_IGWALL */
+/* Interacts with UTYF_BADWALLATTACKER */
 #define SPECENUM_VALUE48 EFT_DEFEND_BONUS
 #define SPECENUM_VALUE48NAME "Defend_Bonus"
 #define SPECENUM_VALUE49 EFT_TRADEROUTE_PCT
@@ -227,20 +228,20 @@ extern "C" {
 /* The index for the city image of the given city style. */
 #define SPECENUM_VALUE83 EFT_CITY_IMAGE
 #define SPECENUM_VALUE83NAME "City_Image"
-#define SPECENUM_VALUE84 EFT_IRRIG_POSSIBLE
-#define SPECENUM_VALUE84NAME "Irrig_Possible"
+#define SPECENUM_VALUE84 EFT_IMPR_BUILD_COST_PCT
+#define SPECENUM_VALUE84NAME "Building_Build_Cost_Pct"
 #define SPECENUM_VALUE85 EFT_MAX_TRADE_ROUTES
 #define SPECENUM_VALUE85NAME "Max_Trade_Routes"
 #define SPECENUM_VALUE86 EFT_GOV_CENTER
 #define SPECENUM_VALUE86NAME "Gov_Center"
-#define SPECENUM_VALUE87 EFT_TRANSFORM_POSSIBLE
-#define SPECENUM_VALUE87NAME "Transform_Possible"
-#define SPECENUM_VALUE88 EFT_MINING_POSSIBLE
-#define SPECENUM_VALUE88NAME "Mining_Possible"
-#define SPECENUM_VALUE89 EFT_IRRIG_TF_POSSIBLE
-#define SPECENUM_VALUE89NAME "Irrig_TF_Possible"
-#define SPECENUM_VALUE90 EFT_MINING_TF_POSSIBLE
-#define SPECENUM_VALUE90NAME "Mining_TF_Possible"
+#define SPECENUM_VALUE87 EFT_COMBAT_ROUNDS
+#define SPECENUM_VALUE87NAME "Combat_Rounds"
+#define SPECENUM_VALUE88 EFT_IMPR_BUY_COST_PCT
+#define SPECENUM_VALUE88NAME "Building_Buy_Cost_Pct"
+#define SPECENUM_VALUE89 EFT_UNIT_BUILD_COST_PCT
+#define SPECENUM_VALUE89NAME "Unit_Build_Cost_Pct"
+#define SPECENUM_VALUE90 EFT_UNIT_BUY_COST_PCT
+#define SPECENUM_VALUE90NAME "Unit_Buy_Cost_Pct"
 #define SPECENUM_VALUE91 EFT_NOT_TECH_SOURCE
 #define SPECENUM_VALUE91NAME "Not_Tech_Source"
 #define SPECENUM_VALUE92 EFT_ENEMY_CITIZEN_UNHAPPY_PCT
@@ -293,6 +294,22 @@ extern "C" {
 #define SPECENUM_VALUE115NAME "Unit_Slots"
 #define SPECENUM_VALUE116 EFT_ATTACK_BONUS
 #define SPECENUM_VALUE116NAME "Attack_Bonus"
+#define SPECENUM_VALUE117 EFT_CONQUEST_TECH_PCT
+#define SPECENUM_VALUE117NAME "Conquest_Tech_Pct"
+#define SPECENUM_VALUE118 EFT_ACTION_SUCCESS_MOVE_COST
+#define SPECENUM_VALUE118NAME "Action_Success_Actor_Move_Cost"
+#define SPECENUM_VALUE119 EFT_ACTION_SUCCESS_TARGET_MOVE_COST
+#define SPECENUM_VALUE119NAME "Action_Success_Target_Move_Cost"
+#define SPECENUM_VALUE120 EFT_INFRA_POINTS
+#define SPECENUM_VALUE120NAME "Infra_Points"
+#define SPECENUM_VALUE121 EFT_FORTIFY_DEFENSE_BONUS
+#define SPECENUM_VALUE121NAME "Fortify_Defense_Bonus"
+#define SPECENUM_VALUE122 EFT_MAPS_STOLEN_PCT
+#define SPECENUM_VALUE122NAME "Maps_Stolen_Pct"
+#define SPECENUM_VALUE123 EFT_UNIT_SHIELD_VALUE_PCT
+#define SPECENUM_VALUE123NAME "Unit_Shield_Value_Pct"
+#define SPECENUM_VALUE124 EFT_CASUS_BELLI_COMPLETE
+#define SPECENUM_VALUE124NAME "Casus_Belli_Complete"
 /* keep this last */
 #define SPECENUM_COUNT EFT_COUNT
 #include "specenum_gen.h"
@@ -346,8 +363,11 @@ void send_ruleset_cache(struct conn_list *dest);
 int effect_cumulative_max(enum effect_type type, struct universal *for_uni);
 int effect_cumulative_min(enum effect_type type, struct universal *for_uni);
 
+int effect_value_from_universals(enum effect_type type,
+                                 struct universal *unis, size_t n_unis);
+
 bool is_building_replaced(const struct city *pcity,
-			  struct impr_type *pimprove,
+                          const struct impr_type *pimprove,
                           const enum req_problem_type prob_type);
 
 /* functions to know the bonuses a certain effect is granting */
@@ -412,7 +432,7 @@ bool building_has_effect(const struct impr_type *pimprove,
 int get_current_construction_bonus(const struct city *pcity,
                                    enum effect_type effect_type,
                                    const enum req_problem_type prob_type);
-int get_potential_improvement_bonus(struct impr_type *pimprove,
+int get_potential_improvement_bonus(const struct impr_type *pimprove,
                                     const struct city *pcity,
                                     enum effect_type effect_type,
                                     const enum req_problem_type prob_type);

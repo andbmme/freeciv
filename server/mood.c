@@ -1,4 +1,4 @@
-/********************************************************************** 
+/***********************************************************************
  Freeciv - Copyright (C) 1996 - A Kjeldberg, L Gregersen, P Unold
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,12 +22,13 @@
 
 #include "mood.h"
 
-/**************************************************************************
+/**********************************************************************//**
   What is the player mood?
 **************************************************************************/
 enum mood_type player_mood(struct player *pplayer)
 {
-  if (pplayer->last_war_action >= 0 && pplayer->last_war_action + 10 >= game.info.turn) {
+  if (pplayer->last_war_action >= 0
+      && pplayer->last_war_action + WAR_MOOD_LASTS >= game.info.turn) {
     players_iterate(other) {
       struct player_diplstate *us, *them;
 

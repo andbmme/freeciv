@@ -63,8 +63,8 @@ void center_on_something(void);
  */
 
 cid cid_encode(struct universal target);
-cid cid_encode_unit(struct unit_type *punittype);
-cid cid_encode_building(struct impr_type *pimprove);
+cid cid_encode_unit(const struct unit_type *punittype);
+cid cid_encode_building(const struct impr_type *pimprove);
 cid cid_encode_from_city(const struct city *pcity);
 
 struct universal cid_decode(cid cid);
@@ -143,6 +143,8 @@ bool mapimg_client_createmap(const char *filename);
 
 struct nation_set *client_current_nation_set(void);
 bool client_nation_is_in_current_set(const struct nation_type *pnation);
+
+enum ai_level server_ai_level(void);
 
 #ifdef __cplusplus
 }

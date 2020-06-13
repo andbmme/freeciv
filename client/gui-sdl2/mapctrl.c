@@ -51,7 +51,6 @@
 #include "dialogs.h"
 #include "finddlg.h"
 #include "graphics.h"
-#include "gui_iconv.h"
 #include "gui_id.h"
 #include "gui_main.h"
 #include "gui_mouse.h"
@@ -79,6 +78,7 @@ extern bool is_unit_move_blocked;
 
 static char *pSuggestedCityName = NULL;
 static struct SMALL_DLG *pNewCity_Dlg = NULL;
+extern struct widget *pOptions_Button;
 
 #ifdef SCALE_MINIMAP
 static struct SMALL_DLG *pScale_MiniMap_Dlg = NULL;
@@ -116,7 +116,7 @@ static void disable_unitinfo_widgets(void);
 
 /* ================================================================ */
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with nations button.
 **************************************************************************/
 static int players_action_callback(struct widget *pWidget)
@@ -125,20 +125,20 @@ static int players_action_callback(struct widget *pWidget)
   widget_redraw(pWidget);
   widget_mark_dirty(pWidget);
   if (Main.event.type == SDL_MOUSEBUTTONDOWN) {
-    switch(Main.event.button.button) {
+    switch (Main.event.button.button) {
 #if 0
-      case SDL_BUTTON_LEFT:
+    case SDL_BUTTON_LEFT:
 
       break;
-      case SDL_BUTTON_MIDDLE:
+    case SDL_BUTTON_MIDDLE:
 
       break;
 #endif /* 0 */
-      case SDL_BUTTON_RIGHT:
-        popup_players_nations_dialog();
+    case SDL_BUTTON_RIGHT:
+      popup_players_nations_dialog();
       break;
-      default:
-        popup_players_dialog(true);
+    default:
+      popup_players_dialog(true);
       break;
     }
   } else {
@@ -148,12 +148,12 @@ static int players_action_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with units button.
 **************************************************************************/
 static int units_action_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     set_wstate(pWidget, FC_WS_NORMAL);
     widget_redraw(pWidget);
     widget_mark_dirty(pWidget);
@@ -163,7 +163,7 @@ static int units_action_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with cities button.
 **************************************************************************/
 static int cities_action_callback(struct widget *pButton)
@@ -171,38 +171,39 @@ static int cities_action_callback(struct widget *pButton)
   set_wstate(pButton, FC_WS_DISABLED);
   widget_redraw(pButton);
   widget_mark_dirty(pButton);
-  if (Main.event.type == SDL_MOUSEBUTTONDOWN) {
-    switch(Main.event.button.button) {
+  if (Main.event.type == SDL_KEYDOWN) {
+    /* Ctrl-F shortcut */
+    popup_find_dialog();
+  } else if (Main.event.type == SDL_MOUSEBUTTONDOWN) {
+    switch (Main.event.button.button) {
 #if 0
-      case SDL_BUTTON_LEFT:
+    case SDL_BUTTON_LEFT:
 
       break;
-      case SDL_BUTTON_MIDDLE:
+    case SDL_BUTTON_MIDDLE:
 
       break;
 #endif /* 0 */
-      case SDL_BUTTON_RIGHT:
-        popup_find_dialog();
+    case SDL_BUTTON_RIGHT:
+      popup_find_dialog();
       break;
-      default:
-        city_report_dialog_popup(FALSE);
+    default:
+      city_report_dialog_popup(FALSE);
       break;
     }
-  } else {
-    popup_find_dialog();
+  } else if (PRESSED_EVENT(Main.event)) {
+    city_report_dialog_popup(FALSE);
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with Turn Done button.
 **************************************************************************/
 static int end_turn_callback(struct widget *pButton)
 {
-  if (Main.event.type == SDL_KEYDOWN
-      || (Main.event.type == SDL_MOUSEBUTTONDOWN
-          && Main.event.button.button == SDL_BUTTON_LEFT)) {
+  if (PRESSED_EVENT(Main.event)) {
     widget_redraw(pButton);
     widget_flush(pButton);
     disable_focus_animation();
@@ -212,39 +213,39 @@ static int end_turn_callback(struct widget *pButton)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with Revolution button.
 **************************************************************************/
 static int revolution_callback(struct widget *pButton)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     set_wstate(pButton, FC_WS_DISABLED);
     widget_redraw(pButton);
     widget_mark_dirty(pButton);
-    popup_revolution_dialog();
+    popup_government_dialog();
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with Research button.
 **************************************************************************/
 static int research_callback(struct widget *pButton)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     science_report_dialog_popup(TRUE);
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with Economy button.
 **************************************************************************/
 static int economy_callback(struct widget *pButton)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     economy_report_dialog_popup(FALSE);
   }
 
@@ -253,12 +254,12 @@ static int economy_callback(struct widget *pButton)
 
 /* ====================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Show/Hide Units Info Window
 **************************************************************************/
 static int toggle_unit_info_window_callback(struct widget *pIcon_Widget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     struct widget *pBuf = NULL;
 
     clear_surface(pIcon_Widget->theme, NULL);
@@ -379,12 +380,12 @@ static int toggle_unit_info_window_callback(struct widget *pIcon_Widget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Show/Hide Mini Map
 **************************************************************************/
 static int toggle_map_window_callback(struct widget *pMap_Button)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     struct unit *pFocus = head_of_units_in_focus();
     struct widget *pWidget;
 
@@ -517,12 +518,12 @@ static int toggle_map_window_callback(struct widget *pMap_Button)
 
 /* ====================================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with minimap toggling button.
 **************************************************************************/
 static int toggle_minimap_mode_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     if (pWidget != NULL) {
       selected_widget = pWidget;
       set_wstate(pWidget, FC_WS_SELECTED);
@@ -535,12 +536,12 @@ static int toggle_minimap_mode_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with messages toggling button.
 **************************************************************************/
 static int toggle_msg_window_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     if (meswin_dialog_is_open()) {
       meswin_dialog_popdown();
       copy_chars_to_utf8_str(pWidget->info_label, _("Show Messages (F9)"));
@@ -560,7 +561,7 @@ static int toggle_msg_window_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update the size of the minimap
 **************************************************************************/
 int resize_minimap(void)
@@ -583,24 +584,24 @@ int resize_minimap(void)
 #ifdef SCALE_MINIMAP
 /* ============================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with minimap scaling dialog
 **************************************************************************/
 static int move_scale_minimap_dlg_callback(struct widget *pWindow)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     move_window_group(pScale_MiniMap_Dlg->pBeginWidgetList, pWindow);
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with minimap scaling dialog closing button.
 **************************************************************************/
 static int popdown_scale_minimap_dlg_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     if (pScale_MiniMap_Dlg) {
       popdown_window_group_dialog(pScale_MiniMap_Dlg->pBeginWidgetList,
                                   pScale_MiniMap_Dlg->pEndWidgetList);
@@ -614,12 +615,12 @@ static int popdown_scale_minimap_dlg_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with minimap width increase button.
 **************************************************************************/
 static int up_width_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     widget_redraw(pWidget);
     widget_mark_dirty(pWidget);
     if ((((OVERVIEW_TILE_WIDTH + 1) * map.xsize) +
@@ -641,12 +642,12 @@ static int up_width_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with minimap width decrease button.
 **************************************************************************/
 static int down_width_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     widget_redraw(pWidget);
     widget_mark_dirty(pWidget);
     if (OVERVIEW_TILE_WIDTH > 1) {
@@ -665,12 +666,12 @@ static int down_width_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with minimap height increase button.
 **************************************************************************/
 static int up_height_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     widget_redraw(pWidget);
     widget_mark_dirty(pWidget);
     if (Main.screen->h -
@@ -690,12 +691,12 @@ static int up_height_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with minimap height decrease button.
 **************************************************************************/
 static int down_height_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     widget_redraw(pWidget);
     widget_mark_dirty(pWidget);
     if (OVERVIEW_TILE_HEIGHT > 1) {
@@ -715,7 +716,7 @@ static int down_height_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Open minimap scaling dialog.
 **************************************************************************/
 static void popup_minimap_scale_dialog(void)
@@ -880,24 +881,24 @@ static void popup_minimap_scale_dialog(void)
 /* ==================================================================== */
 #ifdef SCALE_UNITINFO
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with unitinfo scaling dialog.
 **************************************************************************/
 static int move_scale_unitinfo_dlg_callback(struct widget *pWindow)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     move_window_group(pScale_UnitInfo_Dlg->pBeginWidgetList, pWindow);
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Close unitinfo scaling dialog.
 **************************************************************************/
 static int popdown_scale_unitinfo_dlg_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     if (pScale_UnitInfo_Dlg) {
       popdown_window_group_dialog(pScale_UnitInfo_Dlg->pBeginWidgetList,
                                   pScale_UnitInfo_Dlg->pEndWidgetList);
@@ -911,7 +912,7 @@ static int popdown_scale_unitinfo_dlg_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Rebuild unitinfo widget.
 **************************************************************************/
 static void remake_unitinfo(int w, int h)
@@ -995,7 +996,7 @@ static void remake_unitinfo(int w, int h)
   unitinfo_h = h;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Resize unitinfo widget.
 **************************************************************************/
 int resize_unit_info(void)
@@ -1022,12 +1023,12 @@ int resize_unit_info(void)
   return 0;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with unitinfo width increase button.
 **************************************************************************/
 static int up_info_width_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     widget_redraw(pWidget);
     widget_mark_dirty(pWidget);
     if (main_window_width() - ((INFO_WIDTH + 1) * map.xsize + BLOCKU_W +
@@ -1042,12 +1043,12 @@ static int up_info_width_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with unitinfo width decrease button.
 **************************************************************************/
 static int down_info_width_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     widget_redraw(pWidget);
     widget_mark_dirty(pWidget);
     if (INFO_WIDTH > INFO_WIDTH_MIN) {
@@ -1060,12 +1061,12 @@ static int down_info_width_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with unitinfo height increase button.
 **************************************************************************/
 static int up_info_height_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     widget_redraw(pWidget);
     widget_mark_dirty(pWidget);
     if (Main.screen->h - ((INFO_HEIGHT + 1) * map.ysize +
@@ -1079,12 +1080,12 @@ static int up_info_height_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with unitinfo height decrease button.
 **************************************************************************/
 static int down_info_height_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     widget_redraw(pWidget);
     widget_mark_dirty(pWidget);
     if (INFO_HEIGHT > INFO_HEIGHT_MIN) {
@@ -1097,7 +1098,7 @@ static int down_info_height_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Open unitinfo scaling dialog.
 **************************************************************************/
 static void popup_unitinfo_scale_dialog(void)
@@ -1258,64 +1259,68 @@ static void popup_unitinfo_scale_dialog(void)
 
 /* ==================================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with minimap window.
 **************************************************************************/
 static int minimap_window_callback(struct widget *pWidget)
 {
   int mouse_x, mouse_y;
 
-  switch(Main.event.button.button) {
-    case SDL_BUTTON_RIGHT:
-      mouse_x = Main.event.motion.x - pMiniMap_Window->dst->dest_rect.x -
-                pMiniMap_Window->area.x - overview_start_x;
-      mouse_y = Main.event.motion.y - pMiniMap_Window->dst->dest_rect.y -
-                pMiniMap_Window->area.y - overview_start_y;
-      if ((SDL_Client_Flags & CF_OVERVIEW_SHOWN)
-          && (mouse_x >= 0) && (mouse_x < overview_w)
-          && (mouse_y >= 0) && (mouse_y < overview_h)) {
-        int map_x, map_y;
+  switch (Main.event.button.button) {
+  case SDL_BUTTON_RIGHT:
+    mouse_x = Main.event.motion.x - pMiniMap_Window->dst->dest_rect.x -
+      pMiniMap_Window->area.x - overview_start_x;
+    mouse_y = Main.event.motion.y - pMiniMap_Window->dst->dest_rect.y -
+      pMiniMap_Window->area.y - overview_start_y;
+    if ((SDL_Client_Flags & CF_OVERVIEW_SHOWN)
+        && (mouse_x >= 0) && (mouse_x < overview_w)
+        && (mouse_y >= 0) && (mouse_y < overview_h)) {
+      int map_x, map_y;
 
-        overview_to_map_pos(&map_x, &map_y, mouse_x, mouse_y);
-        center_tile_mapcanvas(map_pos_to_tile(&(wld.map), map_x, map_y));
-      }
+      overview_to_map_pos(&map_x, &map_y, mouse_x, mouse_y);
+      center_tile_mapcanvas(map_pos_to_tile(&(wld.map), map_x, map_y));
+    }
 
-      break;
-    case SDL_BUTTON_MIDDLE:
+    break;
+  case SDL_BUTTON_MIDDLE:
     /* FIXME: scaling needs to be fixed */
 #ifdef SCALE_MINIMAP
-      popup_minimap_scale_dialog();
+    popup_minimap_scale_dialog();
 #endif
-      break;
-    default:
-      break;
+    break;
+  default:
+    break;
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with unitinfo window.
 **************************************************************************/
 static int unit_info_window_callback(struct widget *pWidget)
 {
-  switch(Main.event.button.button) {
+  if (Main.event.type == SDL_MOUSEBUTTONDOWN) {
+    switch (Main.event.button.button) {
 #if 0
     case SDL_BUTTON_LEFT:
 
-    break;
+      break;
 #endif
     case SDL_BUTTON_MIDDLE:
       request_center_focus_unit();
-    break;
+      break;
     case SDL_BUTTON_RIGHT:
 #ifdef SCALE_UNITINFO
       popup_unitinfo_scale_dialog();
 #endif
-    break;
+      break;
     default:
       key_unit_wait();
-    break;
+      break;
+    }
+  } else if (PRESSED_EVENT(Main.event)) {
+    key_unit_wait();
   }
 
   return -1;
@@ -1323,7 +1328,7 @@ static int unit_info_window_callback(struct widget *pWidget)
 
 /* ============================== Public =============================== */
 
-/**************************************************************************
+/**********************************************************************//**
   This Function is used when resize Main.screen.
   We must set new Units Info Win. start position.
 **************************************************************************/
@@ -1377,7 +1382,7 @@ void set_new_unitinfo_window_pos(void)
                       area.y + area.h - pWidget->size.h - 2);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   This Function is used when resize Main.screen.
   We must set new MiniMap start position.
 **************************************************************************/
@@ -1453,7 +1458,7 @@ void set_new_minimap_window_pos(void)
                       area.y + area.h - pWidget->size.h - 2);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Open unitinfo window.
 **************************************************************************/
 void popup_unitinfo_window(void)
@@ -1567,7 +1572,7 @@ void popup_unitinfo_window(void)
   widget_redraw(pUnits_Info_Window);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make unitinfo buttons visible.
 **************************************************************************/
 void show_unitinfo_window_buttons(void)
@@ -1591,7 +1596,7 @@ void show_unitinfo_window_buttons(void)
   clear_wflag(pWidget, WF_HIDDEN);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make unitinfo buttons hidden.
 **************************************************************************/
 void hide_unitinfo_window_buttons(void)
@@ -1615,7 +1620,7 @@ void hide_unitinfo_window_buttons(void)
   set_wflag(pWidget, WF_HIDDEN);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make unitinfo buttons disabled.
 **************************************************************************/
 void disable_unitinfo_window_buttons(void)
@@ -1635,7 +1640,7 @@ void disable_unitinfo_window_buttons(void)
   set_wstate(pWidget, FC_WS_DISABLED);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Close unitinfo window.
 **************************************************************************/
 void popdown_unitinfo_window(void)
@@ -1647,7 +1652,7 @@ void popdown_unitinfo_window(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Open minimap area.
 **************************************************************************/
 void popup_minimap_window(void)
@@ -1803,7 +1808,7 @@ void popup_minimap_window(void)
   widget_redraw(pMiniMap_Window);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make minimap window buttons visible.
 **************************************************************************/
 void show_minimap_window_buttons(void)
@@ -1845,7 +1850,7 @@ void show_minimap_window_buttons(void)
   clear_wflag(pWidget, WF_HIDDEN);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make minimap window buttons hidden.
 **************************************************************************/
 void hide_minimap_window_buttons(void)
@@ -1887,7 +1892,7 @@ void hide_minimap_window_buttons(void)
   set_wflag(pWidget, WF_HIDDEN);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Redraw minimap window buttons.
 **************************************************************************/
 void redraw_minimap_window_buttons(void)
@@ -1928,7 +1933,7 @@ void redraw_minimap_window_buttons(void)
   widget_redraw(pWidget);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make minimap window buttons disabled.
 **************************************************************************/
 void disable_minimap_window_buttons(void)
@@ -1962,7 +1967,7 @@ void disable_minimap_window_buttons(void)
 #endif /* SMALL_SCREEN */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Close minimap window.
 **************************************************************************/
 void popdown_minimap_window(void)
@@ -1974,7 +1979,7 @@ void popdown_minimap_window(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create and show game page.
 **************************************************************************/
 void show_game_page(void)
@@ -2037,7 +2042,7 @@ void show_game_page(void)
   enable_order_buttons();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Close game page.
 **************************************************************************/
 void close_game_page(void)
@@ -2059,7 +2064,7 @@ void close_game_page(void)
   SDL_Client_Flags &= ~CF_MAP_UNIT_W_CREATED;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make minimap window buttons disabled and redraw.
   TODO: Use disable_minimap_window_buttons() for disabling buttons.
 **************************************************************************/
@@ -2108,7 +2113,7 @@ static void disable_minimap_widgets(void)
   redraw_group(pBuf, pEnd, TRUE);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make unitinfo window buttons disabled and redraw.
   TODO: Use disable_unitinfo_window_buttons() for disabling buttons.
 **************************************************************************/
@@ -2122,7 +2127,7 @@ static void disable_unitinfo_widgets(void)
   redraw_group(pBuf, pEnd, TRUE);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Disable game page widgets.
 **************************************************************************/
 void disable_main_widgets(void)
@@ -2137,7 +2142,7 @@ void disable_main_widgets(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make minimap window buttons enabled and redraw.
 **************************************************************************/
 static void enable_minimap_widgets(void)
@@ -2187,7 +2192,7 @@ static void enable_minimap_widgets(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make unitinfo window buttons enabled and redraw.
 **************************************************************************/
 static void enable_unitinfo_widgets(void)
@@ -2204,7 +2209,7 @@ static void enable_unitinfo_widgets(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Enable game page widgets.
 **************************************************************************/
 void enable_main_widgets(void)
@@ -2219,7 +2224,7 @@ void enable_main_widgets(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Get main unitinfo widget.
 **************************************************************************/
 struct widget *get_unit_info_window_widget(void)
@@ -2227,7 +2232,7 @@ struct widget *get_unit_info_window_widget(void)
   return pUnits_Info_Window;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Get main minimap widget.
 **************************************************************************/
 struct widget *get_minimap_window_widget(void)
@@ -2235,7 +2240,7 @@ struct widget *get_minimap_window_widget(void)
   return pMiniMap_Window;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Get main tax rates widget.
 **************************************************************************/
 struct widget *get_tax_rates_widget(void)
@@ -2243,7 +2248,7 @@ struct widget *get_tax_rates_widget(void)
   return pTax_Button;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Get main research widget.
 **************************************************************************/
 struct widget *get_research_widget(void)
@@ -2251,7 +2256,7 @@ struct widget *get_research_widget(void)
   return pResearch_Button;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Get main revolution widget.
 **************************************************************************/
 struct widget *get_revolution_widget(void)
@@ -2259,7 +2264,7 @@ struct widget *get_revolution_widget(void)
   return pRevolution_Button;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make Find City button available.
 **************************************************************************/
 void enable_and_redraw_find_city_button(void)
@@ -2269,7 +2274,7 @@ void enable_and_redraw_find_city_button(void)
   widget_mark_dirty(pFind_City_Button);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make Revolution button available.
 **************************************************************************/
 void enable_and_redraw_revolution_button(void)
@@ -2278,9 +2283,34 @@ void enable_and_redraw_revolution_button(void)
   widget_redraw(pRevolution_Button);
   widget_mark_dirty(pRevolution_Button);
 }
+/**********************************************************************//**
+  Finger down handler
+**************************************************************************/
+void finger_down_on_map(struct finger_behavior *finger_behavior)
+{
+  if (C_S_RUNNING != client_state()) {
+    return;
+  }
 
-/**************************************************************************
-  mouse click handler
+  key_unit_goto();
+  update_mouse_cursor(CURSOR_GOTO);
+}
+
+/**********************************************************************//**
+  Finger up handler
+**************************************************************************/
+void finger_up_on_map(struct finger_behavior *finger_behavior)
+{
+  if (C_S_RUNNING != client_state()) {
+    return;
+  }
+  update_mouse_cursor(CURSOR_DEFAULT);
+  action_button_pressed(finger_behavior->event.x,
+                        finger_behavior->event.y, SELECT_POPUP);
+}
+
+/**********************************************************************//**
+  Mouse click handler
 **************************************************************************/
 void button_down_on_map(struct mouse_button_behavior *button_behavior)
 {
@@ -2291,65 +2321,65 @@ void button_down_on_map(struct mouse_button_behavior *button_behavior)
   }
 
   if (button_behavior->event->button == SDL_BUTTON_LEFT) {
-    switch(button_behavior->hold_state) {
-      case MB_HOLD_SHORT:
-        break;
-      case MB_HOLD_MEDIUM:
-        /* switch to goto mode */
-        key_unit_goto();
-        update_mouse_cursor(CURSOR_GOTO);
-        break;
-      case MB_HOLD_LONG:
+    switch (button_behavior->hold_state) {
+    case MB_HOLD_SHORT:
+      break;
+    case MB_HOLD_MEDIUM:
+      /* switch to goto mode */
+      key_unit_goto();
+      update_mouse_cursor(CURSOR_GOTO);
+      break;
+    case MB_HOLD_LONG:
 #ifdef UNDER_CE
-        /* cancel goto mode and open context menu on Pocket PC since we have
-         * only one 'mouse button' */
-        key_cancel_action();
-        draw_goto_patrol_lines = FALSE;
-        update_mouse_cursor(CURSOR_DEFAULT);
-        /* popup context menu */
-        if ((ptile = canvas_pos_to_tile((int) button_behavior->event->x,
-                                        (int) button_behavior->event->y))) {
-          popup_advanced_terrain_dialog(ptile, button_behavior->event->x,
-                                        button_behavior->event->y);
-        }
+      /* cancel goto mode and open context menu on Pocket PC since we have
+       * only one 'mouse button' */
+      key_cancel_action();
+      draw_goto_patrol_lines = FALSE;
+      update_mouse_cursor(CURSOR_DEFAULT);
+      /* popup context menu */
+      if ((ptile = canvas_pos_to_tile((int) button_behavior->event->x,
+                                      (int) button_behavior->event->y))) {
+        popup_advanced_terrain_dialog(ptile, button_behavior->event->x,
+                                      button_behavior->event->y);
+      }
 #endif /* UNDER_CE */
-        break;
-      default:
-        break;
+      break;
+    default:
+      break;
     }
   } else if (button_behavior->event->button == SDL_BUTTON_MIDDLE) {
-    switch(button_behavior->hold_state) {
-      case MB_HOLD_SHORT:
-        break;
-      case MB_HOLD_MEDIUM:
-        break;
-      case MB_HOLD_LONG:
-        break;
-      default:
-        break;
+    switch (button_behavior->hold_state) {
+    case MB_HOLD_SHORT:
+      break;
+    case MB_HOLD_MEDIUM:
+      break;
+    case MB_HOLD_LONG:
+      break;
+    default:
+      break;
     }
   } else if (button_behavior->event->button == SDL_BUTTON_RIGHT) {
     switch (button_behavior->hold_state) {
-      case MB_HOLD_SHORT:
-        break;
-      case MB_HOLD_MEDIUM:
-        /* popup context menu */
-        if ((ptile = canvas_pos_to_tile((int) button_behavior->event->x,
-                                        (int) button_behavior->event->y))) {
-          popup_advanced_terrain_dialog(ptile, button_behavior->event->x,
-                                        button_behavior->event->y);
-        }
-        break;
-      case MB_HOLD_LONG:
-        break;
-      default:
-        break;
+    case MB_HOLD_SHORT:
+      break;
+    case MB_HOLD_MEDIUM:
+      /* popup context menu */
+      if ((ptile = canvas_pos_to_tile((int) button_behavior->event->x,
+                                      (int) button_behavior->event->y))) {
+        popup_advanced_terrain_dialog(ptile, button_behavior->event->x,
+                                      button_behavior->event->y);
+      }
+      break;
+    case MB_HOLD_LONG:
+      break;
+    default:
+      break;
     }
   }
 }
 
-/**************************************************************************
-  Use released mouse button over map. 
+/**********************************************************************//**
+  Use released mouse button over map.
 **************************************************************************/
 void button_up_on_map(struct mouse_button_behavior *button_behavior)
 {
@@ -2363,84 +2393,84 @@ void button_up_on_map(struct mouse_button_behavior *button_behavior)
   draw_goto_patrol_lines = FALSE;
 
   if (button_behavior->event->button == SDL_BUTTON_LEFT) {
-    switch(button_behavior->hold_state) {
-      case MB_HOLD_SHORT:
-        if (LSHIFT || LALT || LCTRL) {
-          if ((ptile = canvas_pos_to_tile((int) button_behavior->event->x,
-                                          (int) button_behavior->event->y))) {
-            if (LSHIFT) {
-              popup_advanced_terrain_dialog(ptile, button_behavior->event->x,
-                                            button_behavior->event->y);
-            } else {
-              if (((pCity = tile_city(ptile)) != NULL)
-                  && (city_owner(pCity) == client.conn.playing)) {
-                if (LCTRL) {
-                  popup_worklist_editor(pCity, NULL);
-                } else {
-                  /* LALT - this work only with fullscreen mode */
-                  popup_hurry_production_dialog(pCity, NULL);
-                }
+    switch (button_behavior->hold_state) {
+    case MB_HOLD_SHORT:
+      if (LSHIFT || LALT || LCTRL) {
+        if ((ptile = canvas_pos_to_tile((int) button_behavior->event->x,
+                                        (int) button_behavior->event->y))) {
+          if (LSHIFT) {
+            popup_advanced_terrain_dialog(ptile, button_behavior->event->x,
+                                          button_behavior->event->y);
+          } else {
+            if (((pCity = tile_city(ptile)) != NULL)
+                && (city_owner(pCity) == client.conn.playing)) {
+              if (LCTRL) {
+                popup_worklist_editor(pCity, NULL);
+              } else {
+                /* LALT - this work only with fullscreen mode */
+                popup_hurry_production_dialog(pCity, NULL);
               }
             }
           }
-        } else {
-          update_mouse_cursor(CURSOR_DEFAULT);
-          action_button_pressed(button_behavior->event->x,
-                                button_behavior->event->y, SELECT_POPUP);
         }
-        break;
-      case MB_HOLD_MEDIUM:
-        /* finish goto */
+      } else {
         update_mouse_cursor(CURSOR_DEFAULT);
         action_button_pressed(button_behavior->event->x,
                               button_behavior->event->y, SELECT_POPUP);
-        break;
-      case MB_HOLD_LONG:
+      }
+      break;
+    case MB_HOLD_MEDIUM:
+      /* finish goto */
+      update_mouse_cursor(CURSOR_DEFAULT);
+      action_button_pressed(button_behavior->event->x,
+                            button_behavior->event->y, SELECT_POPUP);
+      break;
+    case MB_HOLD_LONG:
 #ifndef UNDER_CE
-        /* finish goto */
-        update_mouse_cursor(CURSOR_DEFAULT);
-        action_button_pressed(button_behavior->event->x,
-                              button_behavior->event->y, SELECT_POPUP);
+      /* finish goto */
+      update_mouse_cursor(CURSOR_DEFAULT);
+      action_button_pressed(button_behavior->event->x,
+                            button_behavior->event->y, SELECT_POPUP);
 #endif /* UNDER_CE */
-        break;
-      default:
-        break;
+      break;
+    default:
+      break;
     }
   } else if (button_behavior->event->button == SDL_BUTTON_MIDDLE) {
-    switch(button_behavior->hold_state) {
-      case MB_HOLD_SHORT:
+    switch (button_behavior->hold_state) {
+    case MB_HOLD_SHORT:
 /*        break;*/
-      case MB_HOLD_MEDIUM:
+    case MB_HOLD_MEDIUM:
 /*        break;*/
-      case MB_HOLD_LONG:
+    case MB_HOLD_LONG:
 /*        break;*/
-      default:
-        /* popup context menu */
-        if ((ptile = canvas_pos_to_tile((int) button_behavior->event->x,
-                                        (int) button_behavior->event->y))) {
-          popup_advanced_terrain_dialog(ptile, button_behavior->event->x,
-                                        button_behavior->event->y);
-        }
-        break;
+    default:
+      /* popup context menu */
+      if ((ptile = canvas_pos_to_tile((int) button_behavior->event->x,
+                                      (int) button_behavior->event->y))) {
+        popup_advanced_terrain_dialog(ptile, button_behavior->event->x,
+                                      button_behavior->event->y);
+      }
+      break;
     }
   } else if (button_behavior->event->button == SDL_BUTTON_RIGHT) {
     switch (button_behavior->hold_state) {
-      case MB_HOLD_SHORT:
-        /* recenter map */
-        recenter_button_pressed(button_behavior->event->x, button_behavior->event->y);
-        flush_dirty();
-        break;
-      case MB_HOLD_MEDIUM:
-        break;
-      case MB_HOLD_LONG:
-        break;
-      default:
-        break;
+    case MB_HOLD_SHORT:
+      /* recenter map */
+      recenter_button_pressed(button_behavior->event->x, button_behavior->event->y);
+      flush_dirty();
+      break;
+    case MB_HOLD_MEDIUM:
+      break;
+    case MB_HOLD_LONG:
+      break;
+    default:
+      break;
     }
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Toggle map drawing stuff.
 **************************************************************************/
 bool map_event_handler(SDL_Keysym key)
@@ -2561,10 +2591,22 @@ bool map_event_handler(SDL_Keysym key)
         }
         return FALSE;
 
-        /* show city growth Ctrl+r */
-      case SDLK_r:
+        /* show city growth Ctrl+o */
+        /* show pollution - Ctrl+Shift+o */
+      case SDLK_o:
         if (LCTRL || RCTRL) {
-          key_city_growth_toggle();
+          if (LSHIFT || RSHIFT) {
+            key_pollution_toggle();
+          } else {
+            key_city_growth_toggle();
+          }
+        }
+        return FALSE;
+
+        /* show bases - Ctrl+Shift+f */
+      case SDLK_f:
+        if ((LCTRL || RCTRL) && (LSHIFT || RSHIFT)) {
+          request_toggle_bases();
         }
         return FALSE;
 
@@ -2609,13 +2651,6 @@ bool map_event_handler(SDL_Keysym key)
         }
         return FALSE;
 
-        /* show bases - Ctrl+Shift+f */
-      case SDLK_f:
-        if ((LCTRL || RCTRL) && (LSHIFT || RSHIFT)) {
-          request_toggle_bases();
-        }
-        return FALSE;
-
         /* show resources - Ctrl+s */
       case SDLK_s:
         if (LCTRL || RCTRL) {
@@ -2627,13 +2662,6 @@ bool map_event_handler(SDL_Keysym key)
       case SDLK_h:
         if (LCTRL || RCTRL) {
           key_huts_toggle();
-        }
-        return FALSE;
-
-        /* show pollution - Ctrl+o */
-      case SDLK_o:
-        if (LCTRL || RCTRL) {
-          key_pollution_toggle();
         }
         return FALSE;
 
@@ -2690,12 +2718,12 @@ bool map_event_handler(SDL_Keysym key)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with the edit button of the new city dialog.
 **************************************************************************/
 static int newcity_name_edit_callback(struct widget *pEdit)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     if (pNewCity_Dlg->pBeginWidgetList->string_utf8->text == NULL) {
       /* empty input -> restore previous content */
       copy_chars_to_utf8_str(pEdit->string_utf8, pSuggestedCityName);
@@ -2708,14 +2736,12 @@ static int newcity_name_edit_callback(struct widget *pEdit)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with the Ok button of the new city dialog.
 **************************************************************************/
 static int newcity_ok_callback(struct widget *ok_button)
 {
-  if (Main.event.type == SDL_KEYDOWN
-      || (Main.event.type == SDL_MOUSEBUTTONDOWN
-          && Main.event.button.button == SDL_BUTTON_LEFT)) {
+  if (PRESSED_EVENT(Main.event)) {
 
     finish_city(ok_button->data.tile, pNewCity_Dlg->pBeginWidgetList->string_utf8->text);
 
@@ -2731,12 +2757,12 @@ static int newcity_ok_callback(struct widget *ok_button)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with the Cancel button of the new city dialog.
 **************************************************************************/
 static int newcity_cancel_callback(struct widget *pCancel_Button)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     popdown_window_group_dialog(pNewCity_Dlg->pBeginWidgetList,
                                 pNewCity_Dlg->pEndWidgetList);
 
@@ -2752,12 +2778,12 @@ static int newcity_cancel_callback(struct widget *pCancel_Button)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with the new city dialog.
 **************************************************************************/
 static int move_new_city_dlg_callback(struct widget *pWindow)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     move_window_group(pNewCity_Dlg->pBeginWidgetList, pWindow);
   }
 
@@ -2767,7 +2793,7 @@ static int move_new_city_dlg_callback(struct widget *pWindow)
 /* ============================== Native =============================== */
 
   
-/**************************************************************************
+/**********************************************************************//**
   Popup a dialog to ask for the name of a new city.  The given string
   should be used as a suggestion.
 **************************************************************************/
@@ -2896,7 +2922,7 @@ void popup_newcity_dialog(struct unit *pUnit, const char *pSuggestname)
   widget_flush(pWindow);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Close new city dialog.
 **************************************************************************/
 void popdown_newcity_dialog(void)
@@ -2909,7 +2935,7 @@ void popdown_newcity_dialog(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   A turn done button should be provided for the player. This function
   is called to toggle it between active/inactive.
 **************************************************************************/
@@ -2928,7 +2954,7 @@ void set_turn_done_button_state(bool state)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Draw a goto or patrol line at the current mouse position.
 **************************************************************************/
 void create_line_at_mouse_pos(void)
@@ -2940,9 +2966,9 @@ void create_line_at_mouse_pos(void)
   draw_goto_patrol_lines = TRUE;
 }
 
-/**************************************************************************
- The Area Selection rectangle. Called by center_tile_mapcanvas() and
- when the mouse pointer moves.
+/**********************************************************************//**
+  The Area Selection rectangle. Called by center_tile_mapcanvas() and
+  when the mouse pointer moves.
 **************************************************************************/
 void update_rect_at_mouse_pos(void)
 {

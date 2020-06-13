@@ -127,6 +127,7 @@ struct animation
   int height;
   union {
     struct {
+      struct unit *mover;
       struct tile *src;
       struct tile *dest;
       float canvas_dx;
@@ -202,7 +203,7 @@ static bool movement_animation(struct animation *anim, double time_gone)
   int new_x, new_y;
   double timing_sec = (double)gui_options.smooth_move_unit_msec / 1000.0;
   double mytime = MIN(time_gone, timing_sec);
-  struct unit *punit = game_unit_by_number(anim->id);
+  struct unit *punit = anim->movement.mover;
 
   if (punit != NULL) {
     tile_to_canvas_pos(&start_x, &start_y, anim->movement.src);
@@ -224,6 +225,9 @@ static bool movement_animation(struct animation *anim, double time_gone)
 
     if (time_gone >= timing_sec) {
       /* Animation over */
+      if (--anim->movement.mover->refcount <= 0) {
+        FC_FREE(anim->movement.mover);
+      }
       return TRUE;
     }
   } else {
@@ -378,7 +382,7 @@ static bool nuke_animation(struct animation *anim, double time_gone)
   if (time_gone > 1.0) {
     update_map_canvas_visible();
 
-    return FALSE;
+    return TRUE;
   }
 
   return FALSE;
@@ -432,7 +436,7 @@ void update_animation(void)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a new goto line counter.
 ****************************************************************************/
 static inline struct gotoline_counter *gotoline_counter_new(void)
@@ -441,7 +445,7 @@ static inline struct gotoline_counter *gotoline_counter_new(void)
   return pglc;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a new goto line counter.
 ****************************************************************************/
 static void gotoline_counter_destroy(struct gotoline_counter *pglc)
@@ -450,11 +454,11 @@ static void gotoline_counter_destroy(struct gotoline_counter *pglc)
   free(pglc);
 }
 
-/**************************************************************************
- Refreshes a single tile on the map canvas.
-**************************************************************************/
+/************************************************************************//**
+  Refreshes a single tile on the map canvas.
+****************************************************************************/
 void refresh_tile_mapcanvas(struct tile *ptile,
-			    bool full_refresh, bool write_to_screen)
+                            bool full_refresh, bool write_to_screen)
 {
   if (full_refresh) {
     queue_mapview_tile_update(ptile, TILE_UPDATE_TILE_FULL);
@@ -466,9 +470,9 @@ void refresh_tile_mapcanvas(struct tile *ptile,
   }
 }
 
-/**************************************************************************
- Refreshes a single unit on the map canvas.
-**************************************************************************/
+/************************************************************************//**
+  Refreshes a single unit on the map canvas.
+****************************************************************************/
 void refresh_unit_mapcanvas(struct unit *punit, struct tile *ptile,
 			    bool full_refresh, bool write_to_screen)
 {
@@ -484,14 +488,14 @@ void refresh_unit_mapcanvas(struct unit *punit, struct tile *ptile,
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Refreshes a single city on the map canvas.
 
   If full_refresh is given then the citymap area and the city text will
   also be refreshed.  Otherwise only the base city sprite is refreshed.
-**************************************************************************/
+****************************************************************************/
 void refresh_city_mapcanvas(struct city *pcity, struct tile *ptile,
-			    bool full_refresh, bool write_to_screen)
+                            bool full_refresh, bool write_to_screen)
 {
   if (full_refresh && (gui_options.draw_map_grid || gui_options.draw_borders)) {
     queue_mapview_tile_update(ptile, TILE_UPDATE_CITYMAP);
@@ -503,7 +507,7 @@ void refresh_city_mapcanvas(struct city *pcity, struct tile *ptile,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Translate from a cartesian system to the GUI system.  This function works
   on vectors, meaning it can be passed a (dx,dy) pair and will return the
   change in GUI coordinates corresponding to this vector.  It is thus more
@@ -535,21 +539,21 @@ void map_to_gui_vector(const struct tileset *t, float zoom,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Translate from map to gui coordinate systems.
 
   GUI coordinates are comparable to canvas coordinates but extend in all
   directions.  gui(0,0) == map(0,0).
 ****************************************************************************/
 static void map_to_gui_pos(const struct tileset *t,
-			   float *gui_x, float *gui_y, int map_x, int map_y)
+                           float *gui_x, float *gui_y, int map_x, int map_y)
 {
   /* Since the GUI origin is the same as the map origin we can just do a
    * vector conversion. */
   map_to_gui_vector(t, map_zoom, gui_x, gui_y, map_x, map_y);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Translate from gui to map coordinate systems.  See map_to_gui_pos().
 
   Note that you lose some information in this conversion.  If you convert
@@ -636,7 +640,7 @@ static void gui_to_map_pos(const struct tileset *t,
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Finds the canvas coordinates for a map position. Beside setting the results
   in canvas_x, canvas_y it returns whether the tile is inside the
   visible mapview canvas.
@@ -657,13 +661,13 @@ static void gui_to_map_pos(const struct tileset *t,
   important to remember when doing some round-off operations. Other
   parts of the code assume tileset_tile_width(tileset) and tileset_tile_height(tileset)
   to be even numbers.
-**************************************************************************/
+****************************************************************************/
 bool tile_to_canvas_pos(float *canvas_x, float *canvas_y, struct tile *ptile)
 {
   int center_map_x, center_map_y, dx, dy, tile_x, tile_y;
 
   /*
-   * First we wrap the coordinates to hopefully be within the the mapview
+   * First we wrap the coordinates to hopefully be within the mapview
    * window.  We do this by finding the position closest to the center
    * of the window.
    */
@@ -698,7 +702,7 @@ bool tile_to_canvas_pos(float *canvas_x, float *canvas_y, struct tile *ptile)
                              - tileset_tile_height(tileset)) * map_zoom));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Finds the map coordinates corresponding to pixel coordinates.  The
   resulting position is unwrapped and may be unreal.
 ****************************************************************************/
@@ -710,10 +714,10 @@ static void base_canvas_to_map_pos(int *map_x, int *map_y,
                  canvas_y + mapview.gui_y0);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Finds the tile corresponding to pixel coordinates.  Returns that tile,
   or NULL if the position is off the map.
-**************************************************************************/
+****************************************************************************/
 struct tile *canvas_pos_to_tile(float canvas_x, float canvas_y)
 {
   int map_x, map_y;
@@ -726,10 +730,10 @@ struct tile *canvas_pos_to_tile(float canvas_x, float canvas_y)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Finds the tile corresponding to pixel coordinates.  Returns that tile,
   or the one nearest is the position is off the map.  Will never return NULL.
-**************************************************************************/
+****************************************************************************/
 struct tile *canvas_pos_to_nearest_tile(float canvas_x, float canvas_y)
 {
   int map_x, map_y;
@@ -738,12 +742,12 @@ struct tile *canvas_pos_to_nearest_tile(float canvas_x, float canvas_y)
   return nearest_real_tile(&(wld.map), map_x, map_y);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Normalize (wrap) the GUI position.  This is equivalent to a map wrapping,
   but in GUI coordinates so that pixel accuracy is preserved.
 ****************************************************************************/
 static void normalize_gui_pos(const struct tileset *t,
-			      float *gui_x, float *gui_y)
+                              float *gui_x, float *gui_y)
 {
   int map_x, map_y, nat_x, nat_y, diff_x, diff_y;
   float gui_x0, gui_y0;
@@ -774,14 +778,14 @@ static void normalize_gui_pos(const struct tileset *t,
   *gui_y += diff_y;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Find the vector with minimum "real" distance between two GUI positions.
   This corresponds to map_to_distance_vector but works for GUI coordinates.
 ****************************************************************************/
 static void gui_distance_vector(const struct tileset *t,
-				float *gui_dx, float *gui_dy,
-				float gui_x0, float gui_y0,
-				float gui_x1, float gui_y1)
+                                float *gui_dx, float *gui_dy,
+                                float gui_x0, float gui_y0,
+                                float gui_x1, float gui_y1)
 {
   int map_x0, map_y0, map_x1, map_y1;
   float gui_x0_base, gui_y0_base, gui_x1_base, gui_y1_base;
@@ -818,7 +822,7 @@ static void gui_distance_vector(const struct tileset *t,
   *gui_dy += gui_y1_diff - gui_y0_diff;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Move the GUI origin to the given normalized, clipped origin.  This may
   be called many times when sliding the mapview.
 ****************************************************************************/
@@ -907,6 +911,7 @@ static void base_set_mapview_origin(float gui_x0, float gui_y0)
   case HOVER_PATROL:
   case HOVER_CONNECT:
     create_line_at_mouse_pos();
+  case HOVER_GOTO_SEL_TGT:
   case HOVER_NONE:
   case HOVER_PARADROP:
   case HOVER_ACT_SEL_TGT:
@@ -917,7 +922,7 @@ static void base_set_mapview_origin(float gui_x0, float gui_y0)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Adjust mapview origin values. Returns TRUE iff values are different from
   current mapview.
 ****************************************************************************/
@@ -948,7 +953,7 @@ static bool calc_mapview_origin(float *gui_x0, float *gui_y0)
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Change the mapview origin, clip it, and update everything.
 ****************************************************************************/
 void set_mapview_origin(float gui_x0, float gui_y0)
@@ -1026,7 +1031,7 @@ void set_mapview_origin(float gui_x0, float gui_y0)
   update_map_canvas_scrollbars();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the scroll dimensions of the clipping window for the mapview window..
 
   Imagine the entire map in scroll coordinates.  It is a rectangle.  Now
@@ -1053,7 +1058,7 @@ void set_mapview_origin(float gui_x0, float gui_y0)
 ****************************************************************************/
 void get_mapview_scroll_window(float *xmin, float *ymin,
                                float *xmax, float *ymax,
-			       int *xsize, int *ysize)
+                               int *xsize, int *ysize)
 {
   int diff;
 
@@ -1131,7 +1136,7 @@ void get_mapview_scroll_window(float *xmin, float *ymin,
             *xmin, *xsize, *xmax, *ymin, *ymax, *ysize);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Find the scroll step for the mapview.  This is the amount to scroll (in
   scroll coordinates) on each "step".  See also get_mapview_scroll_window.
 ****************************************************************************/
@@ -1146,7 +1151,7 @@ void get_mapview_scroll_step(int *xstep, int *ystep)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Find the current scroll position (origin) of the mapview.
 ****************************************************************************/
 void get_mapview_scroll_pos(int *scroll_x, int *scroll_y)
@@ -1155,7 +1160,7 @@ void get_mapview_scroll_pos(int *scroll_x, int *scroll_y)
   *scroll_y = mapview.gui_y0;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set the scroll position (origin) of the mapview, and update the GUI.
 ****************************************************************************/
 void set_mapview_scroll_pos(int scroll_x, int scroll_y)
@@ -1167,18 +1172,18 @@ void set_mapview_scroll_pos(int scroll_x, int scroll_y)
   can_slide = TRUE;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Finds the current center tile of the mapcanvas.
-**************************************************************************/
+****************************************************************************/
 struct tile *get_center_tile_mapcanvas(void)
 {
   return canvas_pos_to_nearest_tile(mapview.width / 2,
                                     mapview.height / 2);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Centers the mapview around (map_x, map_y).
-**************************************************************************/
+****************************************************************************/
 void center_tile_mapcanvas(struct tile *ptile)
 {
   float gui_x, gui_y;
@@ -1202,10 +1207,10 @@ void center_tile_mapcanvas(struct tile *ptile)
   center_tile = ptile;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return TRUE iff the given map position has a tile visible on the
   map canvas.
-**************************************************************************/
+****************************************************************************/
 bool tile_visible_mapcanvas(struct tile *ptile)
 {
   float dummy_x, dummy_y; /* well, it needs two pointers... */
@@ -1213,7 +1218,7 @@ bool tile_visible_mapcanvas(struct tile *ptile)
   return tile_to_canvas_pos(&dummy_x, &dummy_y, ptile);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return TRUE iff the given map position has a tile visible within the
   interior of the map canvas. This information is used to determine
   when we need to recenter the map canvas.
@@ -1223,7 +1228,7 @@ bool tile_visible_mapcanvas(struct tile *ptile)
   edge of the map, then the tile is on the "border" of the map canvas.
 
   This function is only correct for the current topology.
-**************************************************************************/
+****************************************************************************/
 bool tile_visible_and_not_on_border_mapcanvas(struct tile *ptile)
 {
   float canvas_x, canvas_y;
@@ -1267,9 +1272,9 @@ bool tile_visible_and_not_on_border_mapcanvas(struct tile *ptile)
   return TRUE;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Draw an array of drawn sprites onto the canvas.
-**************************************************************************/
+****************************************************************************/
 void put_drawn_sprites(struct canvas *pcanvas, float zoom,
                        int canvas_x, int canvas_y,
                        int count, struct drawn_sprite *pdrawn,
@@ -1302,10 +1307,10 @@ void put_drawn_sprites(struct canvas *pcanvas, float zoom,
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Draw one layer of a tile, edge, corner, unit, and/or city onto the
   canvas at the given position.
-**************************************************************************/
+****************************************************************************/
 void put_one_element(struct canvas *pcanvas, float zoom,
                      enum mapview_layer layer,
                      const struct tile *ptile,
@@ -1327,10 +1332,10 @@ void put_one_element(struct canvas *pcanvas, float zoom,
   put_drawn_sprites(pcanvas, zoom, canvas_x, canvas_y, count, tile_sprs, fog);
 }
 
-/*****************************************************************************
+/************************************************************************//**
   Draw the given unit onto the canvas store at the given location. The area
   of drawing is tileset_unit_height(tileset) x tileset_unit_width(tileset).
-*****************************************************************************/
+****************************************************************************/
 void put_unit(const struct unit *punit, struct canvas *pcanvas, float zoom,
               int canvas_x, int canvas_y)
 {
@@ -1341,10 +1346,10 @@ void put_unit(const struct unit *punit, struct canvas *pcanvas, float zoom,
   } mapview_layer_iterate_end;
 }
 
-/*****************************************************************************
+/************************************************************************//**
   Draw the given unit onto the canvas store at the given location. The area
   of drawing is tileset_unit_height(tileset) x tileset_unit_width(tileset).
-*****************************************************************************/
+****************************************************************************/
 void put_unittype(const struct unit_type *putype, struct canvas *pcanvas, float zoom,
                   int canvas_x, int canvas_y)
 {
@@ -1355,11 +1360,11 @@ void put_unittype(const struct unit_type *putype, struct canvas *pcanvas, float 
   } mapview_layer_iterate_end;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Draw the given city onto the canvas store at the given location.  The
   area of drawing is
   tileset_full_tile_height(tileset) x tileset_full_tile_width(tileset).
-**************************************************************************/
+****************************************************************************/
 void put_city(struct city *pcity, struct canvas *pcanvas, float zoom,
               int canvas_x, int canvas_y)
 {
@@ -1371,12 +1376,12 @@ void put_city(struct city *pcity, struct canvas *pcanvas, float zoom,
   } mapview_layer_iterate_end;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Draw the given tile terrain onto the canvas store at the given location.
   The area of drawing is
   tileset_full_tile_height(tileset) x tileset_full_tile_width(tileset)
   (even though most tiles are not this tall).
-**************************************************************************/
+****************************************************************************/
 void put_terrain(struct tile *ptile, struct canvas *pcanvas, float zoom,
                  int canvas_x, int canvas_y)
 {
@@ -1388,7 +1393,7 @@ void put_terrain(struct tile *ptile, struct canvas *pcanvas, float zoom,
   } mapview_layer_iterate_end;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Draw food, gold, and shield upkeep values on the unit.
 
   The proper way to do this is probably something like what Civ II does
@@ -1428,7 +1433,7 @@ static int color_index = 0;
 #define NUM_CITY_COLORS tileset_num_city_colors(tileset)
 
 
-/****************************************************************************
+/************************************************************************//**
   Toggle the city color.  This cycles through the possible colors for the
   citymap as shown on the mapview.  These colors are listed in the
   city_colors array; above.
@@ -1446,7 +1451,7 @@ void toggle_city_color(struct city *pcity)
   refresh_city_mapcanvas(pcity, pcity->tile, TRUE, FALSE);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Toggle the unit color.  This cycles through the possible colors for the
   citymap as shown on the mapview.  These colors are listed in the
   city_colors array; above.
@@ -1464,7 +1469,7 @@ void toggle_unit_color(struct unit *punit)
   refresh_unit_mapcanvas(punit, unit_tile(punit), TRUE, FALSE);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Animate the nuke explosion at map(x, y).
 ****************************************************************************/
 void put_nuke_mushroom_pixmaps(struct tile *ptile)
@@ -1515,12 +1520,12 @@ void put_nuke_mushroom_pixmaps(struct tile *ptile)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Draw some or all of a tile onto the canvas.
-**************************************************************************/
+****************************************************************************/
 static void put_one_tile(struct canvas *pcanvas, enum mapview_layer layer,
-			 struct tile *ptile, int canvas_x, int canvas_y,
-			 const struct city *citymode)
+                         struct tile *ptile, int canvas_x, int canvas_y,
+                         const struct city *citymode)
 {
   if (client_tile_get_known(ptile) != TILE_UNKNOWN
       || (editor_is_active() && editor_tile_is_selected(ptile))) {
@@ -1541,7 +1546,7 @@ static void put_one_tile(struct canvas *pcanvas, enum mapview_layer layer,
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Depending on where ptile1 and ptile2 are on the map canvas, a trade route
   line may need to be drawn as two disjointed line segments. This function
   fills the given line array 'lines' with the necessary line segments.
@@ -1551,7 +1556,7 @@ static void put_one_tile(struct canvas *pcanvas, enum mapview_layer layer,
   NB: It is assumed ptile1 and ptile2 are already consistently ordered.
   NB: 'lines' must be able to hold least MAX_TRADE_ROUTE_DRAW_LINES
   elements.
-**************************************************************************/
+****************************************************************************/
 static int trade_route_to_canvas_lines(const struct tile *ptile1,
                                        const struct tile *ptile2,
                                        struct trade_route_line *lines)
@@ -1579,9 +1584,9 @@ static int trade_route_to_canvas_lines(const struct tile *ptile1,
   return 2;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Draw a colored trade route line from one tile to another.
-**************************************************************************/
+****************************************************************************/
 static void draw_trade_route_line(const struct tile *ptile1,
                                   const struct tile *ptile2,
                                   enum color_std color)
@@ -1620,9 +1625,9 @@ static void draw_trade_route_line(const struct tile *ptile1,
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Draw all trade routes for the given city.
-**************************************************************************/
+****************************************************************************/
 static void draw_trade_routes_for_city(const struct city *pcity_src)
 {
   if (!pcity_src) {
@@ -1635,9 +1640,9 @@ static void draw_trade_routes_for_city(const struct city *pcity_src)
   } trade_partners_iterate_end;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Draw trade routes between cities as lines on the main map canvas.
-**************************************************************************/
+****************************************************************************/
 static void draw_trade_routes(void)
 {
   if (!gui_options.draw_city_trade_routes) {
@@ -1659,7 +1664,7 @@ static void draw_trade_routes(void)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Update (refresh) the map canvas starting at the given tile (in map
   coordinates) and with the given dimensions (also in map coordinates).
 
@@ -1673,7 +1678,7 @@ static void draw_trade_routes(void)
 
   x, y, width, and height are in map coordinates; they need not be
   normalized or even real.
-**************************************************************************/
+****************************************************************************/
 void update_map_canvas(int canvas_x, int canvas_y, int width, int height)
 {
   int gui_x0, gui_y0;
@@ -1779,9 +1784,9 @@ void update_map_canvas(int canvas_x, int canvas_y, int width, int height)
   dirty_rect(canvas_x, canvas_y, width, height);
 }
 
-/**************************************************************************
- Update (only) the visible part of the map
-**************************************************************************/
+/************************************************************************//**
+  Update (only) the visible part of the map
+****************************************************************************/
 void update_map_canvas_visible(void)
 {
   queue_mapview_update(UPDATE_MAP_CANVAS_VISIBLE);
@@ -1799,29 +1804,29 @@ static int max_desc_width = 0, max_desc_height = 0;
 /* Same for tile labels */
 static int max_label_width = 0, max_label_height = 0 ;
 
-/**************************************************************************
+/************************************************************************//**
   Update the city description for the given city.
-**************************************************************************/
+****************************************************************************/
 void update_city_description(struct city *pcity)
 {
   queue_mapview_tile_update(pcity->tile, TILE_UPDATE_CITY_DESC);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Update the label for the given tile
-**************************************************************************/
+****************************************************************************/
 void update_tile_label(struct tile *ptile)
 {
   queue_mapview_tile_update(ptile, TILE_UPDATE_TILE_LABEL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Draw a "full" city bar for the city.  This is a subcase of show_city_desc
   (see that function for more info) for tilesets that have a full city bar.
 ****************************************************************************/
 static void show_full_citybar(struct canvas *pcanvas,
-			      const int canvas_x0, const int canvas_y0,
-			      struct city *pcity, int *width, int *height)
+                              const int canvas_x0, const int canvas_y0,
+                              struct city *pcity, int *width, int *height)
 {
   const struct citybar_sprites *citybar = get_citybar_sprites(tileset);
   static char name[512], growth[32], prod[512], size[32], trade_routes[32];
@@ -2121,14 +2126,14 @@ static void show_full_citybar(struct canvas *pcanvas,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Draw a "small" city bar for the city.  This is a subcase of show_city_desc
   (see that function for more info) for tilesets that do not have a full
   city bar.
 ****************************************************************************/
 static void show_small_citybar(struct canvas *pcanvas,
-			   int canvas_x, int canvas_y,
-			   struct city *pcity, int *width, int *height)
+                               int canvas_x, int canvas_y,
+                               struct city *pcity, int *width, int *height)
 {
   static char name[512], growth[32], prod[512], trade_routes[32];
   enum color_std growth_color;
@@ -2235,7 +2240,7 @@ static void show_small_citybar(struct canvas *pcanvas,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Draw a description for the given city.  This description may include the
   name, turns-to-grow, production, and city turns-to-build (depending on
   client options).
@@ -2248,8 +2253,8 @@ static void show_small_citybar(struct canvas *pcanvas,
   city's tile).
 ****************************************************************************/
 static void show_city_desc(struct canvas *pcanvas,
-			   int canvas_x, int canvas_y,
-			   struct city *pcity, int *width, int *height)
+                           int canvas_x, int canvas_y,
+                           struct city *pcity, int *width, int *height)
 {
   if (gui_options.draw_full_citybar) {
     show_full_citybar(pcanvas, canvas_x, canvas_y, pcity, width, height);
@@ -2258,7 +2263,7 @@ static void show_city_desc(struct canvas *pcanvas,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Draw a label for the given tile.
 
   (canvas_x, canvas_y) gives the location on the given canvas at which to
@@ -2269,8 +2274,8 @@ static void show_city_desc(struct canvas *pcanvas,
   city's tile).
 ****************************************************************************/
 static void show_tile_label(struct canvas *pcanvas,
-			   int canvas_x, int canvas_y,
-			   struct tile *ptile, int *width, int *height)
+                            int canvas_x, int canvas_y,
+                            struct tile *ptile, int *width, int *height)
 {
   const enum client_font FONT_TILE_LABEL = FONT_CITY_NAME; /* TODO: new font */
 #define COLOR_MAPVIEW_TILELABEL COLOR_MAPVIEW_CITYTEXT
@@ -2286,11 +2291,11 @@ static void show_tile_label(struct canvas *pcanvas,
 #undef COLOR_MAPVIEW_TILELABEL
 }
 
-/**************************************************************************
+/************************************************************************//**
   Show descriptions for all cities visible on the map canvas.
-**************************************************************************/
+****************************************************************************/
 void show_city_descriptions(int canvas_base_x, int canvas_base_y,
-			    int width_base, int height_base)
+                            int width_base, int height_base)
 {
   const int dx = max_desc_width - tileset_tile_width(tileset) * map_zoom;
   const int dy = max_desc_height;
@@ -2360,9 +2365,9 @@ void show_city_descriptions(int canvas_base_x, int canvas_base_y,
   max_desc_height = MAX(max_desc_height, new_max_height);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Show labels for all tiles visible on the map canvas.
-**************************************************************************/
+****************************************************************************/
 void show_tile_labels(int canvas_base_x, int canvas_base_y,
                       int width_base, int height_base)
 {
@@ -2403,7 +2408,7 @@ void show_tile_labels(int canvas_base_x, int canvas_base_y,
   max_label_height = MAX(max_label_height, new_max_height);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Draw the goto route for the unit.  Return TRUE if anything is drawn.
 
   This duplicates drawing code that is run during the hover state.
@@ -2448,7 +2453,7 @@ bool show_unit_orders(struct unit *punit)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Draw a goto line at the given location and direction.  The line goes from
   the source tile to the adjacent tile in the given direction.
 ****************************************************************************/
@@ -2486,12 +2491,12 @@ void draw_segment(struct tile *src_tile, enum direction8 dir)
    * which fails when the size of the mapview approaches that of the map. */
 }
 
-/****************************************************************************
+/************************************************************************//**
   This function is called to decrease a unit's HP smoothly in battle
   when combat_animation is turned on.
 ****************************************************************************/
 void decrease_unit_hp_smooth(struct unit *punit0, int hp0, 
-			     struct unit *punit1, int hp1)
+                             struct unit *punit1, int hp1)
 {
   struct unit *losing_unit = (hp0 == 0 ? punit0 : punit1);
   float canvas_x, canvas_y;
@@ -2620,10 +2625,10 @@ void decrease_unit_hp_smooth(struct unit *punit0, int hp0,
   refresh_unit_mapcanvas(punit1, unit_tile(punit1), TRUE, FALSE);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Animates punit's "smooth" move from (x0, y0) to (x0+dx, y0+dy).
   Note: Works only for adjacent-tile moves.
-**************************************************************************/
+****************************************************************************/
 void move_unit_map_canvas(struct unit *punit,
                           struct tile *src_tile, int dx, int dy)
 {
@@ -2675,6 +2680,8 @@ void move_unit_map_canvas(struct unit *punit,
 
       anim->type = ANIM_MOVEMENT;
       anim->id = punit->id;
+      punit->refcount++;
+      anim->movement.mover = punit;
       anim->movement.src = src_tile;
       anim->movement.dest = dest_tile;
       anim->movement.canvas_dx = canvas_dx;
@@ -2726,7 +2733,7 @@ void move_unit_map_canvas(struct unit *punit,
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Find the "best" city/settlers to associate with the selected tile.
     a.  If a visible city is working the tile, return that city.
     b.  If another player's city is working the tile, return NULL.
@@ -2737,9 +2744,9 @@ void move_unit_map_canvas(struct unit *punit,
     f.  If any settler could work it if they founded a city, choose the
         closest one (only if punit != NULL).
     g.  If nobody can work it, return NULL.
-**************************************************************************/
+****************************************************************************/
 struct city *find_city_or_settler_near_tile(const struct tile *ptile,
-					    struct unit **punit)
+                                            struct unit **punit)
 {
   struct city *closest_city;
   struct city *pcity;
@@ -2825,20 +2832,20 @@ struct city *find_city_or_settler_near_tile(const struct tile *ptile,
   return NULL;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Find the nearest/best city that owns the tile.
-**************************************************************************/
+****************************************************************************/
 struct city *find_city_near_tile(const struct tile *ptile)
 {
   return find_city_or_settler_near_tile(ptile, NULL);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Append the buy cost of the current production of the given city to the
   already NULL-terminated buffer. Does nothing if draw_city_buycost is
   set to FALSE, or if it does not make sense to buy the current production
   (e.g. coinage).
-**************************************************************************/
+****************************************************************************/
 static void append_city_buycost_string(const struct city *pcity,
                                        char *buffer, int buffer_len)
 {
@@ -2850,14 +2857,13 @@ static void append_city_buycost_string(const struct city *pcity,
     return;
   }
 
-  cat_snprintf(buffer, buffer_len, "/%d",
-               city_production_buy_gold_cost(pcity));
+  cat_snprintf(buffer, buffer_len, "/%d", pcity->client.buy_cost);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Find the mapview city production text for the given city, and place it
   into the buffer.
-**************************************************************************/
+****************************************************************************/
 void get_city_mapview_production(struct city *pcity,
                                  char *buffer, size_t buffer_len)
 {
@@ -2879,11 +2885,11 @@ void get_city_mapview_production(struct city *pcity,
   append_city_buycost_string(pcity, buffer, buffer_len);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Find the mapview city trade routes text for the given city, and place it
   into the buffer. Sets 'pcolor' to the preferred color the text should
   be drawn in if it is non-NULL.
-**************************************************************************/
+****************************************************************************/
 void get_city_mapview_trade_routes(struct city *pcity,
                                    char *trade_routes_buffer,
                                    size_t trade_routes_buffer_len,
@@ -2933,7 +2939,7 @@ static bool callback_queued = FALSE;
  * direction. */
 struct tile_list *tile_updates[TILE_UPDATE_COUNT];
 
-/****************************************************************************
+/************************************************************************//**
   This callback is called during an idle moment to unqueue any pending
   mapview updates.
 ****************************************************************************/
@@ -2943,7 +2949,7 @@ static void queue_callback(void *data)
   unqueue_mapview_updates(TRUE);
 }
 
-/****************************************************************************
+/************************************************************************//**
   When a mapview update is queued this function should be called to prepare
   an idle-time callback to unqueue the updates.
 ****************************************************************************/
@@ -2955,7 +2961,7 @@ static void queue_add_callback(void)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   This function, along with unqueue_mapview_update(), helps in updating
   the mapview when a packet is received.  Previously, we just called
   update_map_canvas when (for instance) a city update was received.
@@ -2971,7 +2977,7 @@ static void queue_add_callback(void)
   Using these functions, updates are done correctly, and are probably
   faster too.  But it's a bit of a hack to insert this code into the
   packet-handling code.
-**************************************************************************/
+****************************************************************************/
 void queue_mapview_update(enum update_type update)
 {
   if (can_client_change_view()) {
@@ -2980,15 +2986,15 @@ void queue_mapview_update(enum update_type update)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Queue this tile to be refreshed.  The refresh will be done some time
   soon thereafter, and grouped with other needed refreshes.
 
   Note this should only be called for tiles.  For cities or units use
   queue_mapview_xxx_update instead.
-**************************************************************************/
+****************************************************************************/
 void queue_mapview_tile_update(struct tile *ptile,
-			       enum tile_update_type type)
+                               enum tile_update_type type)
 {
   if (can_client_change_view()) {
     if (!tile_updates[type]) {
@@ -2999,9 +3005,9 @@ void queue_mapview_tile_update(struct tile *ptile,
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   See comment for queue_mapview_update().
-**************************************************************************/
+****************************************************************************/
 void unqueue_mapview_updates(bool write_to_screen)
 {
   /* Calculate the area covered by each update type.  The area array gives
@@ -3117,10 +3123,10 @@ void unqueue_mapview_updates(bool write_to_screen)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Fill the two buffers which information about the city which is shown
   below it. It does not take draw_city_names/draw_city_growth into account.
-**************************************************************************/
+****************************************************************************/
 void get_city_mapview_name_and_growth(struct city *pcity,
                                       char *name_buffer,
                                       size_t name_buffer_len,
@@ -3162,10 +3168,10 @@ void get_city_mapview_name_and_growth(struct city *pcity,
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Returns TRUE if cached drawing is possible.  If the mapview is too large
   we have to turn it off.
-**************************************************************************/
+****************************************************************************/
 static bool can_do_cached_drawing(void)
 {
   const int W = tileset_tile_width(tileset) * map_zoom;
@@ -3237,10 +3243,10 @@ static bool can_do_cached_drawing(void)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Called when we receive map dimensions.  It initialized the mapview
   decorations.
-**************************************************************************/
+****************************************************************************/
 void mapdeco_init(void)
 {
   /* HACK: this must be called on a map_info packet. */
@@ -3252,9 +3258,9 @@ void mapdeco_init(void)
   mapdeco_gotoline_table = gotoline_hash_new();
 }
 
-/**************************************************************************
+/************************************************************************//**
   Free all memory used for map decorations.
-**************************************************************************/
+****************************************************************************/
 void mapdeco_free(void)
 {
   if (mapdeco_highlight_table) {
@@ -3271,13 +3277,14 @@ void mapdeco_free(void)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Set the given tile's map decoration as either highlighted or not,
   depending on the value of 'highlight'.
-**************************************************************************/
+****************************************************************************/
 void mapdeco_set_highlight(const struct tile *ptile, bool highlight)
 {
   bool changed = FALSE;
+
   if (!ptile || !mapdeco_highlight_table) {
     return;
   }
@@ -3294,9 +3301,9 @@ void mapdeco_set_highlight(const struct tile *ptile, bool highlight)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return TRUE if the given tile is highlighted.
-**************************************************************************/
+****************************************************************************/
 bool mapdeco_is_highlight_set(const struct tile *ptile)
 {
   if (!ptile || !mapdeco_highlight_table) {
@@ -3305,10 +3312,10 @@ bool mapdeco_is_highlight_set(const struct tile *ptile)
   return tile_hash_lookup(mapdeco_highlight_table, ptile, NULL);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Clears all highlighting. Marks the previously highlighted tiles as
   needing a mapview update.
-**************************************************************************/
+****************************************************************************/
 void mapdeco_clear_highlights(void)
 {
   if (!mapdeco_highlight_table) {
@@ -3322,9 +3329,9 @@ void mapdeco_clear_highlights(void)
   tile_hash_clear(mapdeco_highlight_table);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Marks the given tile as having a "crosshair" map decoration.
-**************************************************************************/
+****************************************************************************/
 void mapdeco_set_crosshair(const struct tile *ptile, bool crosshair)
 {
   bool changed;
@@ -3345,9 +3352,9 @@ void mapdeco_set_crosshair(const struct tile *ptile, bool crosshair)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Returns TRUE if there is a "crosshair" decoration set at the given tile.
-**************************************************************************/
+****************************************************************************/
 bool mapdeco_is_crosshair_set(const struct tile *ptile)
 {
   if (!mapdeco_crosshair_table || !ptile) {
@@ -3356,10 +3363,10 @@ bool mapdeco_is_crosshair_set(const struct tile *ptile)
   return tile_hash_lookup(mapdeco_crosshair_table, ptile, NULL);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Clears all previous set tile crosshair decorations. Marks the affected
   tiles as needing a mapview update.
-**************************************************************************/
+****************************************************************************/
 void mapdeco_clear_crosshairs(void)
 {
   if (!mapdeco_crosshair_table) {
@@ -3373,11 +3380,11 @@ void mapdeco_clear_crosshairs(void)
   tile_hash_clear(mapdeco_crosshair_table);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Add a goto line from the given tile 'ptile' in the direction 'dir'. If
   there was no previously drawn line there, a mapview update is queued
   for the source and destination tiles.
-**************************************************************************/
+****************************************************************************/
 void mapdeco_add_gotoline(const struct tile *ptile, enum direction8 dir)
 {
   struct gotoline_counter *pglc;
@@ -3385,7 +3392,7 @@ void mapdeco_add_gotoline(const struct tile *ptile, enum direction8 dir)
   bool changed;
 
   if (!mapdeco_gotoline_table || !ptile
-      || !(0 <= dir && dir <= direction8_max())) {
+      || !(dir <= direction8_max())) {
     return;
   }
   ptile_dest = mapstep(&(wld.map), ptile, dir);
@@ -3407,11 +3414,11 @@ void mapdeco_add_gotoline(const struct tile *ptile, enum direction8 dir)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Removes a goto line from the given tile 'ptile' going in the direction
   'dir'. If this was the last line there, a mapview update is queued to
   erase the drawn line.
-**************************************************************************/
+****************************************************************************/
 void mapdeco_remove_gotoline(const struct tile *ptile,
                              enum direction8 dir)
 {
@@ -3419,7 +3426,7 @@ void mapdeco_remove_gotoline(const struct tile *ptile,
   bool changed = FALSE;
 
   if (!mapdeco_gotoline_table || !ptile
-      || !(0 <= dir && dir <= direction8_max())) {
+      || !(dir <= direction8_max())) {
     return;
   }
 
@@ -3443,11 +3450,11 @@ void mapdeco_remove_gotoline(const struct tile *ptile,
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Set the map decorations for the given unit's goto route. A goto route
   consists of one or more goto lines, with each line being from the center
   of one tile to the center of another tile.
-**************************************************************************/
+****************************************************************************/
 void mapdeco_set_gotoroute(const struct unit *punit)
 {
   const struct unit_order *porder;
@@ -3479,16 +3486,16 @@ void mapdeco_set_gotoroute(const struct unit *punit)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Returns TRUE if a goto line should be drawn from the given tile in the
   given direction.
-**************************************************************************/
+****************************************************************************/
 bool mapdeco_is_gotoline_set(const struct tile *ptile,
                              enum direction8 dir)
 {
   struct gotoline_counter *pglc;
 
-  if (!ptile || !(0 <= dir && dir <= direction8_max())
+  if (!ptile || !(dir <= direction8_max())
       || !mapdeco_gotoline_table) {
     return FALSE;
   }
@@ -3500,10 +3507,10 @@ bool mapdeco_is_gotoline_set(const struct tile *ptile,
   return pglc->line_count[dir] > 0;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Clear all goto line map decorations and queues mapview updates for the
   affected tiles.
-**************************************************************************/
+****************************************************************************/
 void mapdeco_clear_gotoroutes(void)
 {
   if (!mapdeco_gotoline_table) {
@@ -3521,11 +3528,11 @@ void mapdeco_clear_gotoroutes(void)
   gotoline_hash_clear(mapdeco_gotoline_table);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Called if the map in the GUI is resized.
 
   Returns TRUE iff the canvas was redrawn.
-**************************************************************************/
+****************************************************************************/
 bool map_canvas_resized(int width, int height)
 {
   int old_tile_width = mapview.tile_width;
@@ -3612,25 +3619,25 @@ bool map_canvas_resized(int width, int height)
   return redrawn;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Sets up data for the mapview and overview.
-**************************************************************************/
+****************************************************************************/
 void init_mapcanvas_and_overview(void)
 {
   /* Create a dummy map to make sure mapview.store is never NULL. */
   map_canvas_resized(1, 1);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Frees resources allocated for mapview and overview
-**************************************************************************/
+****************************************************************************/
 void free_mapcanvas_and_overview(void)
 {
   canvas_free(mapview.store);
   canvas_free(mapview.tmp_store);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the desired width of the spaceship canvas.
 ****************************************************************************/
 void get_spaceship_dimensions(int *width, int *height)
@@ -3643,11 +3650,11 @@ void get_spaceship_dimensions(int *width, int *height)
   *height *= 7;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Draw the spaceship onto the canvas.
 ****************************************************************************/
 void put_spaceship(struct canvas *pcanvas, int canvas_x, int canvas_y,
-		   const struct player *pplayer)
+                   const struct player *pplayer)
 {
   int i, x, y;  
   const struct player_spaceship *ship = &pplayer->spaceship;
@@ -3733,9 +3740,9 @@ struct link_mark {
 
 static struct link_mark_list *link_marks = NULL;
 
-/********************************************************************** 
+/************************************************************************//**
   Find a link mark in the list.
-***********************************************************************/
+****************************************************************************/
 static struct link_mark *link_mark_find(enum text_link_type type, int id)
 {
   link_marks_iterate(pmark) {
@@ -3747,9 +3754,9 @@ static struct link_mark *link_mark_find(enum text_link_type type, int id)
   return NULL;
 }
 
-/********************************************************************** 
+/************************************************************************//**
   Create a new link mark.
-***********************************************************************/
+****************************************************************************/
 static struct link_mark *link_mark_new(enum text_link_type type,
                                        int id, int turns)
 {
@@ -3762,17 +3769,17 @@ static struct link_mark *link_mark_new(enum text_link_type type,
   return pmark;
 }
 
-/********************************************************************** 
+/************************************************************************//**
   Remove a link mark.
-***********************************************************************/
+****************************************************************************/
 static void link_mark_destroy(struct link_mark *pmark)
 {
   free(pmark);
 }
 
-/********************************************************************** 
+/************************************************************************//**
   Returns the location of the pointed mark.
-***********************************************************************/
+****************************************************************************/
 static struct tile *link_mark_tile(const struct link_mark *pmark)
 {
   switch (pmark->type) {
@@ -3792,9 +3799,9 @@ static struct tile *link_mark_tile(const struct link_mark *pmark)
   return NULL;
 }
 
-/********************************************************************** 
+/************************************************************************//**
   Returns the color of the pointed mark.
-***********************************************************************/
+****************************************************************************/
 static struct color *link_mark_color(const struct link_mark *pmark)
 {
   switch (pmark->type) {
@@ -3808,9 +3815,9 @@ static struct color *link_mark_color(const struct link_mark *pmark)
   return NULL;
 }
 
-/********************************************************************** 
+/************************************************************************//**
   Print a link mark.
-***********************************************************************/
+****************************************************************************/
 static void link_mark_draw(const struct link_mark *pmark)
 {
   int width = tileset_tile_width(tileset) * map_zoom;
@@ -3846,9 +3853,9 @@ static void link_mark_draw(const struct link_mark *pmark)
   canvas_put_line(mapview.store, pcolor, LINE_TILE_FRAME, x_right, y_bottom, 0, -ylen);
 }
 
-/********************************************************************** 
+/************************************************************************//**
   Initialize the link marks.
-***********************************************************************/
+****************************************************************************/
 void link_marks_init(void)
 {
   if (link_marks) {
@@ -3858,9 +3865,9 @@ void link_marks_init(void)
   link_marks = link_mark_list_new_full(link_mark_destroy);
 }
 
-/********************************************************************** 
+/************************************************************************//**
   Free the link marks.
-***********************************************************************/
+****************************************************************************/
 void link_marks_free(void)
 {
   if (!link_marks) {
@@ -3871,9 +3878,9 @@ void link_marks_free(void)
   link_marks = NULL;
 }
 
-/********************************************************************** 
+/************************************************************************//**
   Draw all link marks.
-***********************************************************************/
+****************************************************************************/
 void link_marks_draw_all(void)
 {
   link_marks_iterate(pmark) {
@@ -3881,18 +3888,18 @@ void link_marks_draw_all(void)
   } link_marks_iterate_end;
 }
 
-/********************************************************************** 
+/************************************************************************//**
   Clear all visible links.
-***********************************************************************/
+****************************************************************************/
 void link_marks_clear_all(void)
 {
   link_mark_list_clear(link_marks);
   update_map_canvas_visible();
 }
 
-/********************************************************************** 
+/************************************************************************//**
   Clear all visible links.
-***********************************************************************/
+****************************************************************************/
 void link_marks_decrease_turn_counters(void)
 {
   link_marks_iterate(pmark) {
@@ -3904,9 +3911,9 @@ void link_marks_decrease_turn_counters(void)
   /* update_map_canvas_visible(); not needed here. */
 }
 
-/********************************************************************** 
+/************************************************************************//**
   Add a visible link for 2 turns.
-***********************************************************************/
+****************************************************************************/
 void link_mark_add_new(enum text_link_type type, int id)
 {
   struct link_mark *pmark = link_mark_find(type, id);
@@ -3926,9 +3933,9 @@ void link_mark_add_new(enum text_link_type type, int id)
   }
 }
 
-/********************************************************************** 
+/************************************************************************//**
   Add a visible link for 1 turn.
-***********************************************************************/
+****************************************************************************/
 void link_mark_restore(enum text_link_type type, int id)
 {
   struct link_mark *pmark;
@@ -3946,9 +3953,9 @@ void link_mark_restore(enum text_link_type type, int id)
   }
 }
 
-/********************************************************************** 
+/************************************************************************//**
   Are the topology and tileset compatible?
-***********************************************************************/
+****************************************************************************/
 enum topo_comp_lvl tileset_map_topo_compatible(int topology_id,
                                                struct tileset *tset)
 {
@@ -3987,9 +3994,9 @@ enum topo_comp_lvl tileset_map_topo_compatible(int topology_id,
   return TOPO_COMPATIBLE;
 }
 
-/********************************************************************** 
+/************************************************************************//**
   Set frame by frame animation mode on.
-***********************************************************************/
+****************************************************************************/
 void set_frame_by_frame_animation(void)
 {
   frame_by_frame_animation = TRUE;

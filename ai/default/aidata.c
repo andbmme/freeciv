@@ -30,11 +30,11 @@
 #include "advdata.h"
 
 /* ai/default */
-#include "aicity.h"
 #include "aiferry.h"
 #include "aiplayer.h"
 #include "aisettler.h"
 #include "aiunit.h"
+#include "daicity.h"
 #include "daidiplomacy.h"
 #include "daieffects.h"
 
@@ -50,7 +50,7 @@ static void dai_diplomacy_destroy(struct ai_type *ait,
                                   const struct player *plr1,
                                   const struct player *plr2);
 
-/****************************************************************************
+/************************************************************************//**
   Initialize ai data structure
 ****************************************************************************/
 void dai_data_init(struct ai_type *ait, struct player *pplayer)
@@ -95,7 +95,7 @@ void dai_data_init(struct ai_type *ait, struct player *pplayer)
   dai_auto_settler_init(ai);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Deinitialize ai data structure
 ****************************************************************************/
 void dai_data_close(struct ai_type *ait, struct player *pplayer)
@@ -122,10 +122,10 @@ void dai_data_close(struct ai_type *ait, struct player *pplayer)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return whether data phase is currently open. Data phase is open
   between dai_data_phase_begin() and dai_data_phase_finished() calls.
-**************************************************************************/
+****************************************************************************/
 bool is_ai_data_phase_open(struct ai_type *ait, struct player *pplayer)
 {
   struct ai_plr *ai = def_ai_player_data(pplayer, ait);
@@ -133,7 +133,7 @@ bool is_ai_data_phase_open(struct ai_type *ait, struct player *pplayer)
   return ai->phase_initialized;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Make and cache lots of calculations needed for other functions.
 ****************************************************************************/
 void dai_data_phase_begin(struct ai_type *ait, struct player *pplayer,
@@ -216,28 +216,19 @@ void dai_data_phase_begin(struct ai_type *ait, struct player *pplayer,
 
   BV_CLR_ALL(ai->stats.diplomat_reservations);
   unit_list_iterate(pplayer->units, punit) {
-    if ((unit_can_do_action(punit, ACTION_SPY_POISON)
-         || unit_can_do_action(punit, ACTION_SPY_POISON_ESC)
-         || unit_can_do_action(punit, ACTION_SPY_SABOTAGE_CITY)
-         || unit_can_do_action(punit, ACTION_SPY_SABOTAGE_CITY_ESC)
-         || unit_can_do_action(punit, ACTION_SPY_TARGETED_SABOTAGE_CITY)
-         || unit_can_do_action(punit, ACTION_SPY_TARGETED_SABOTAGE_CITY_ESC)
-         || unit_can_do_action(punit, ACTION_SPY_INCITE_CITY)
-         || unit_can_do_action(punit, ACTION_SPY_INCITE_CITY_ESC)
-         || unit_can_do_action(punit, ACTION_ESTABLISH_EMBASSY)
-         || unit_can_do_action(punit, ACTION_ESTABLISH_EMBASSY_STAY)
-         || unit_can_do_action(punit, ACTION_SPY_STEAL_TECH)
-         || unit_can_do_action(punit, ACTION_SPY_STEAL_TECH_ESC)
-         || unit_can_do_action(punit, ACTION_SPY_TARGETED_STEAL_TECH)
-         || unit_can_do_action(punit, ACTION_SPY_TARGETED_STEAL_TECH_ESC)
-         || unit_can_do_action(punit, ACTION_SPY_INVESTIGATE_CITY)
-         || unit_can_do_action(punit, ACTION_INV_CITY_SPEND)
-         || unit_can_do_action(punit, ACTION_SPY_STEAL_GOLD)
-         || unit_can_do_action(punit, ACTION_SPY_STEAL_GOLD_ESC)
-         || unit_can_do_action(punit, ACTION_STEAL_MAPS)
-         || unit_can_do_action(punit, ACTION_STEAL_MAPS_ESC)
-         || unit_can_do_action(punit, ACTION_SPY_NUKE_ESC)
-         || unit_can_do_action(punit, ACTION_SPY_NUKE))
+    if ((unit_can_do_action_result(punit, ACTRES_SPY_POISON)
+         || unit_can_do_action_result(punit, ACTRES_SPY_SPREAD_PLAGUE)
+         || unit_can_do_action_result(punit, ACTRES_SPY_SABOTAGE_CITY)
+         || unit_can_do_action_result(punit, ACTRES_SPY_TARGETED_SABOTAGE_CITY)
+         || unit_can_do_action_result(punit, ACTRES_SPY_SABOTAGE_CITY_PRODUCTION)
+         || unit_can_do_action_result(punit, ACTRES_SPY_INCITE_CITY)
+         || unit_can_do_action_result(punit, ACTRES_ESTABLISH_EMBASSY)
+         || unit_can_do_action_result(punit, ACTRES_SPY_STEAL_TECH)
+         || unit_can_do_action_result(punit, ACTRES_SPY_TARGETED_STEAL_TECH)
+         || unit_can_do_action_result(punit, ACTRES_SPY_INVESTIGATE_CITY)
+         || unit_can_do_action_result(punit, ACTRES_SPY_STEAL_GOLD)
+         || unit_can_do_action_result(punit, ACTRES_STEAL_MAPS)
+         || unit_can_do_action_result(punit, ACTRES_SPY_NUKE))
         && def_ai_unit_data(punit, ait)->task == AIUNIT_ATTACK) {
 
       fc_assert_msg(punit->goto_tile != NULL, "No target city for spy action");
@@ -285,7 +276,7 @@ void dai_data_phase_begin(struct ai_type *ait, struct player *pplayer,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Clean up ai data after phase finished.
 ****************************************************************************/
 void dai_data_phase_finished(struct ai_type *ait, struct player *pplayer)
@@ -305,7 +296,7 @@ void dai_data_phase_finished(struct ai_type *ait, struct player *pplayer)
   ai->phase_initialized = FALSE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get current default ai data related to player.
   If close is set, data phase will be opened even if it's currently closed,
   and the boolean will be set accordingly to tell caller that phase needs
@@ -357,7 +348,7 @@ struct ai_plr *dai_plr_data_get(struct ai_type *ait, struct player *pplayer,
   return ai;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Allocate new ai diplomacy slot
 ****************************************************************************/
 static void dai_diplomacy_new(struct ai_type *ait,
@@ -379,7 +370,7 @@ static void dai_diplomacy_new(struct ai_type *ait,
   *player_intel_slot = player_intel;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set diplomacy data between two players to its default values.
 ****************************************************************************/
 static void dai_diplomacy_defaults(struct ai_type *ait,
@@ -402,9 +393,9 @@ static void dai_diplomacy_defaults(struct ai_type *ait,
   player_intel->warned_about_space = 0;
 }
 
-/***************************************************************
+/************************************************************************//**
   Returns diplomatic state type between two players
-***************************************************************/
+****************************************************************************/
 struct ai_dip_intel *dai_diplomacy_get(struct ai_type *ait,
                                        const struct player *plr1,
                                        const struct player *plr2)
@@ -421,7 +412,7 @@ struct ai_dip_intel *dai_diplomacy_get(struct ai_type *ait,
   return (struct ai_dip_intel *) *player_intel_slot;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free resources allocated for diplomacy information between two players.
 ****************************************************************************/
 static void dai_diplomacy_destroy(struct ai_type *ait,
@@ -442,7 +433,7 @@ static void dai_diplomacy_destroy(struct ai_type *ait,
   *player_intel_slot = NULL;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Adjust multiplier values.
 ****************************************************************************/
 void dai_adjust_policies(struct ai_type *ait, struct player *pplayer)
@@ -453,65 +444,67 @@ void dai_adjust_policies(struct ai_type *ait, struct player *pplayer)
   adv = adv_data_get(pplayer, NULL);
 
   multipliers_iterate(ppol) {
-    int orig_value = 0;
-    int mp_val = player_multiplier_value(pplayer, ppol);
-    int pidx = multiplier_index(ppol);
-    bool better_found = FALSE;
-
-    city_list_iterate(pplayer->cities, pcity) {
-      orig_value += dai_city_want(pplayer, pcity, adv, NULL);
-    } city_list_iterate_end;
-
-    /* Consider reducing policy value */
-    if (mp_val > ppol->start) {
-      int new_value = 0;
-
-      pplayer->multipliers[pidx] = MAX(mp_val - ppol->step, ppol->start);
-
-      city_list_iterate(pplayer->cities, acity) {
-        auto_arrange_workers(acity);
-      } city_list_iterate_end;
+    if (multiplier_can_be_changed(ppol, pplayer)) {
+      int orig_value = 0;
+      int mp_val = player_multiplier_value(pplayer, ppol);
+      int pidx = multiplier_index(ppol);
+      bool better_found = FALSE;
 
       city_list_iterate(pplayer->cities, pcity) {
-        new_value += dai_city_want(pplayer, pcity, adv, NULL);
+        orig_value += dai_city_want(pplayer, pcity, adv, NULL);
       } city_list_iterate_end;
 
-      if (new_value > orig_value) {
-        /* This is step to right direction, leave it in effect. */
-        pplayer->multipliers_target[pidx] = pplayer->multipliers[pidx];
+      /* Consider reducing policy value */
+      if (mp_val > ppol->start) {
+        int new_value = 0;
 
-        needs_back_rearrange = FALSE;
-        better_found = TRUE;
+        pplayer->multipliers[pidx] = MAX(mp_val - ppol->step, ppol->start);
+
+        city_list_iterate(pplayer->cities, acity) {
+          auto_arrange_workers(acity);
+        } city_list_iterate_end;
+
+        city_list_iterate(pplayer->cities, pcity) {
+          new_value += dai_city_want(pplayer, pcity, adv, NULL);
+        } city_list_iterate_end;
+
+        if (new_value > orig_value) {
+          /* This is step to right direction, leave it in effect. */
+          pplayer->multipliers_target[pidx] = pplayer->multipliers[pidx];
+
+          needs_back_rearrange = FALSE;
+          better_found = TRUE;
+        }
       }
-    }
 
-    /* Consider increasing policy value */
-    if (!better_found && mp_val < ppol->stop) {
-      int new_value = 0;
+      /* Consider increasing policy value */
+      if (!better_found && mp_val < ppol->stop) {
+        int new_value = 0;
 
-      pplayer->multipliers[pidx] = MIN(mp_val + ppol->step, ppol->stop);
+        pplayer->multipliers[pidx] = MIN(mp_val + ppol->step, ppol->stop);
 
-      city_list_iterate(pplayer->cities, acity) {
-        auto_arrange_workers(acity);
-      } city_list_iterate_end;
+        city_list_iterate(pplayer->cities, acity) {
+          auto_arrange_workers(acity);
+        } city_list_iterate_end;
 
-      city_list_iterate(pplayer->cities, pcity) {
-        new_value += dai_city_want(pplayer, pcity, adv, NULL);
-      } city_list_iterate_end;
+        city_list_iterate(pplayer->cities, pcity) {
+          new_value += dai_city_want(pplayer, pcity, adv, NULL);
+        } city_list_iterate_end;
 
-      if (new_value > orig_value) {
-        /* This is step to right direction, leave it in effect. */
-        pplayer->multipliers_target[pidx] = pplayer->multipliers[pidx];
+        if (new_value > orig_value) {
+          /* This is step to right direction, leave it in effect. */
+          pplayer->multipliers_target[pidx] = pplayer->multipliers[pidx];
 
-        needs_back_rearrange = FALSE;
-        better_found = TRUE;
+          needs_back_rearrange = FALSE;
+          better_found = TRUE;
+        }
       }
-    }
 
-    if (!better_found) {
-      /* Restore original multiplier value */
-      pplayer->multipliers[pidx] = mp_val;
-      needs_back_rearrange = TRUE;
+      if (!better_found) {
+        /* Restore original multiplier value */
+        pplayer->multipliers[pidx] = mp_val;
+        needs_back_rearrange = TRUE;
+      }
     }
   } multipliers_iterate_end;
 
@@ -522,7 +515,7 @@ void dai_adjust_policies(struct ai_type *ait, struct player *pplayer)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set value of the government.
 ****************************************************************************/
 void dai_gov_value(struct ai_type *ait, struct player *pplayer,

@@ -169,7 +169,7 @@ static struct {
   GEN_EV(E_UNIT_BUY,		E_S_UNIT,	N_("Bought")),
   GEN_EV(E_UNIT_BUILT,		E_S_UNIT,	N_("Built")),
   GEN_EV(E_UNIT_LOST_DEF,	E_S_UNIT,	N_("Defender Destroyed")),
-  GEN_EV(E_UNIT_WIN,		E_S_UNIT,	N_("Defender Survived")),
+  GEN_EV(E_UNIT_WIN_DEF,	E_S_UNIT,	N_("Defender Survived")),
   GEN_EV(E_UNIT_BECAME_VET,	E_S_UNIT,	N_("Promoted to Veteran")),
   GEN_EV(E_UNIT_LOST_MISC,      E_S_UNIT,       N_("Lost outside battle")),
   GEN_EV(E_UNIT_UPGRADED,	E_S_UNIT,	N_("Production Upgraded")),
@@ -216,6 +216,13 @@ static struct {
   GEN_EV(E_UNIT_ILLEGAL_ACTION, E_S_UNIT,       N_("Unit Illegal Action")),
   GEN_EV(E_UNIT_ESCAPED,        E_S_UNIT,       N_("Unit escaped")),
   GEN_EV(E_BEGINNER_HELP,       E_S_XYZZY,      N_("Help for beginners")),
+  GEN_EV(E_MY_UNIT_DID_HEAL,    E_S_UNIT,       N_("Unit did heal")),
+  GEN_EV(E_MY_UNIT_WAS_HEALED,  E_S_UNIT,       N_("Unit was healed")),
+  GEN_EV(E_MULTIPLIER,          E_S_NATION,     N_("Multiplier changed")),
+  GEN_EV(E_UNIT_ACTION_ACTOR_SUCCESS,  E_S_UNIT, N_("Your unit did")),
+  GEN_EV(E_UNIT_ACTION_ACTOR_FAILURE,  E_S_UNIT, N_("Your unit failed")),
+  GEN_EV(E_UNIT_ACTION_TARGET_HOSTILE, E_S_UNIT, N_("Unit did to you")),
+  GEN_EV(E_UNIT_ACTION_TARGET_OTHER,   E_S_UNIT, N_("Unit did")),
   /* The sound system also generates "e_game_quit", although there's no
    * corresponding identifier E_GAME_QUIT. */
 };
@@ -285,7 +292,7 @@ bool is_city_event(enum event_type event)
   case E_UNIT_LOST_DEF:  /* FIXME: Is this correct.
                           * I'd like to find now defendeseless city quickly! */
   case E_UNIT_LOST_MISC:
-  case E_UNIT_WIN:
+  case E_UNIT_WIN_DEF:
   case E_ENEMY_DIPLOMAT_FAILED:
   case E_ENEMY_DIPLOMAT_EMBASSY:
   case E_ENEMY_DIPLOMAT_POISON:

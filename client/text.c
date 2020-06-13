@@ -31,6 +31,7 @@
 #include "citizens.h"
 #include "clientutils.h"
 #include "combat.h"
+#include "culture.h"
 #include "fc_types.h" /* LINE_BREAK */
 #include "game.h"
 #include "government.h"
@@ -51,7 +52,7 @@
 
 static int get_bulbs_per_turn(int *pours, bool *pteam, int *ptheirs);
 
-/****************************************************************************
+/************************************************************************//**
   Return a (static) string with a tile's food/prod/trade
 ****************************************************************************/
 const char *get_tile_output_text(const struct tile *ptile)
@@ -83,7 +84,7 @@ const char *get_tile_output_text(const struct tile *ptile)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   For AIs, fill the buffer with their player name prefixed with "AI". For
   humans, just fill it with their username.
 ****************************************************************************/
@@ -107,7 +108,7 @@ static inline void get_full_username(char *buf, int buflen,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Fill the buffer with the player's nation name (in adjective form) and
   optionally add the player's team name.
 ****************************************************************************/
@@ -133,7 +134,7 @@ static inline void get_full_nation(char *buf, int buflen,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Text to popup on a middle-click in the mapview.
 ****************************************************************************/
 const char *popup_info_text(struct tile *ptile)
@@ -278,15 +279,19 @@ const char *popup_info_text(struct tile *ptile)
       int count = unit_list_size(ptile->units);
 
       if (count > 0) {
+        /* TRANS: preserve leading space */
         astr_add(&str, PL_(" | Occupied with %d unit.",
                                 " | Occupied with %d units.", count), count);
       } else {
+        /* TRANS: preserve leading space */
         astr_add(&str, _(" | Not occupied."));
       }
     } else {
       if (city_is_occupied(pcity)) {
+        /* TRANS: preserve leading space */
         astr_add(&str, _(" | Occupied."));
       } else {
+        /* TRANS: preserve leading space */
         astr_add(&str, _(" | Not occupied."));
       }
     }
@@ -333,7 +338,7 @@ const char *popup_info_text(struct tile *ptile)
   }
   if (punit && !pcity) {
     struct player *owner = unit_owner(punit);
-    struct unit_type *ptype = unit_type_get(punit);
+    const struct unit_type *ptype = unit_type_get(punit);
 
     get_full_username(username, sizeof(username), owner);
     get_full_nation(nation, sizeof(nation), owner);
@@ -454,7 +459,7 @@ const char *popup_info_text(struct tile *ptile)
 }
 
 #define FAR_CITY_SQUARE_DIST (2*(6*6))
-/****************************************************************************
+/************************************************************************//**
   Returns the text describing the city and its distance.
 ****************************************************************************/
 const char *get_nearest_city_text(struct city *pcity, int sq_dist)
@@ -485,7 +490,7 @@ const char *get_nearest_city_text(struct city *pcity, int sq_dist)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the unit description.
   Used in e.g. city report tooltips.
 
@@ -500,7 +505,7 @@ const char *unit_description(struct unit *punit)
   struct city *pcity =
       player_city_by_number(owner, punit->homecity);
   struct city *pcity_near = get_nearest_city(punit, &pcity_near_dist);
-  struct unit_type *ptype = unit_type_get(punit);
+  const struct unit_type *ptype = unit_type_get(punit);
   static struct astring str = ASTRING_INIT;
   const struct player *pplayer = client_player();
 
@@ -549,7 +554,7 @@ const char *unit_description(struct unit *punit)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Describe the airlift capacity of a city for the given units (from their
   current positions).
   If pdest is non-NULL, describe its capacity as a destination, otherwise
@@ -576,7 +581,7 @@ const char *get_airlift_text(const struct unit_list *punits,
     /* NULL will tell us about the capability of airlifting from source */
     result = test_unit_can_airlift_to(client_player(), punit, pdest);
 
-    switch(result) {
+    switch (result) {
     case AR_NO_MOVES:
     case AR_WRONG_UNITTYPE:
     case AR_OCCUPIED:
@@ -595,6 +600,7 @@ const char *get_airlift_text(const struct unit_list *punits,
        * later */
       {
         const struct city *pcity = src ? tile_city(unit_tile(punit)) : pdest;
+
         fc_assert_ret_val(pcity != NULL, fc_strdup("-"));
         if (!src && (game.info.airlifting_style & AIRLIFTING_UNLIMITED_DEST)) {
           /* No restrictions on destination (and we can infer this even for
@@ -603,6 +609,7 @@ const char *get_airlift_text(const struct unit_list *punits,
         } else if (client_player() == city_owner(pcity)) {
           /* A city we know about. */
           int this_cur = pcity->airlift, this_max = city_airlift_max(pcity);
+
           if (this_max <= 0) {
             /* City known not to be airlift-capable. */
             this = AL_IMPOSSIBLE;
@@ -635,7 +642,7 @@ const char *get_airlift_text(const struct unit_list *punits,
     best = MAX(best, this);
   } unit_list_iterate_end;
 
-  switch(best) {
+  switch (best) {
   case AL_IMPOSSIBLE:
     return NULL;
   case AL_UNKNOWN:
@@ -652,7 +659,7 @@ const char *get_airlift_text(const struct unit_list *punits,
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return total expected bulbs.
 ****************************************************************************/
 static int get_bulbs_per_turn(int *pours, bool *pteam, int *ptheirs)
@@ -695,7 +702,53 @@ static int get_bulbs_per_turn(int *pours, bool *pteam, int *ptheirs)
   return ours + theirs;
 }
 
-/****************************************************************************
+/************************************************************************//**
+  Return turns until research complete. -1 for never.
+****************************************************************************/
+static int turns_to_research_done(const struct research *presearch,
+                                  int per_turn)
+{
+  if (per_turn > 0) {
+    return ceil((double)(presearch->client.researching_cost
+                         - presearch->bulbs_researched) / per_turn);
+  } else {
+    return -1;
+  }
+}
+
+/************************************************************************//**
+  Return turns per advance (based on currently researched advance).
+  -1 for no progress.
+****************************************************************************/
+static int turns_per_advance(const struct research *presearch, int per_turn)
+{
+  if (per_turn > 0) {
+    return MAX(1, ceil((double)presearch->client.researching_cost) / per_turn);
+  } else {
+    return -1;
+  }
+}
+
+/************************************************************************//**
+  Return turns until an advance is lost due to tech upkeep.
+  -1 if we're not on the way to losing an advance.
+****************************************************************************/
+static int turns_to_tech_loss(const struct research *presearch, int per_turn)
+{
+  if (per_turn >= 0 || game.info.techloss_forgiveness == -1) {
+    /* With techloss_forgiveness == -1, we'll never lose a tech, just
+     * get further into debt. */
+    return -1;
+  } else {
+    int bulbs_to_loss = presearch->bulbs_researched
+                        + (presearch->client.researching_cost
+                           * game.info.techloss_forgiveness / 100);
+
+    return ceil((double)bulbs_to_loss / -per_turn);
+  }
+}
+
+/************************************************************************//**
   Returns the text to display in the science dialog.
 ****************************************************************************/
 const char *science_dialog_text(void)
@@ -721,25 +774,25 @@ const char *science_dialog_text(void)
   if (A_UNSET == research->researching) {
     astr_add(&str, _("Progress: no research"));
   } else {
-    int done = research->bulbs_researched;
-    int total = research->client.researching_cost;
+    int turns;
 
-    if (perturn > 0) {
-      int turns = MAX(1, ceil((double)total) / perturn);
-
+    if ((turns = turns_per_advance(research, perturn)) >= 0) {
       astr_add(&str, PL_("Progress: %d turn/advance",
                          "Progress: %d turns/advance",
                          turns), turns);
-    } else if (perturn < 0 ) {
-      /* negative number of bulbs per turn due to tech upkeep */
-      int turns = ceil((double) done / -perturn);
-
+    } else if ((turns = turns_to_tech_loss(research, perturn)) >= 0) {
+      /* FIXME: turns to next loss is not a good predictor of turns to
+       * following loss, due to techloss_restore etc. But it'll do. */
       astr_add(&str, PL_("Progress: %d turn/advance loss",
                          "Progress: %d turns/advance loss",
                          turns), turns);
     } else {
-      /* no research */
-      astr_add(&str, _("Progress: none"));
+      /* no forward progress -- no research, or tech loss disallowed */
+      if (perturn < 0) {
+        astr_add(&str, _("Progress: decreasing!"));
+      } else {
+        astr_add(&str, _("Progress: none"));
+      }
     }
   }
   astr_set(&ourbuf, PL_("%d bulb/turn", "%d bulbs/turn", ours), ours);
@@ -766,7 +819,7 @@ const char *science_dialog_text(void)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get the short science-target text.  This is usually shown directly in
   the progress bar.
 
@@ -794,20 +847,17 @@ const char *get_science_target_text(double *percent)
     int total = research->client.researching_cost;
     int done = research->bulbs_researched;
     int perturn = get_bulbs_per_turn(NULL, NULL, NULL);
+    int turns;
 
-    if (perturn > 0) {
-      int turns = ceil( (double)(total - done) / perturn );
-
+    if ((turns = turns_to_research_done(research, perturn)) >= 0) {
       astr_add(&str, PL_("%d/%d (%d turn)", "%d/%d (%d turns)", turns),
                done, total, turns);
-    } else if (perturn < 0 ) {
-      /* negative number of bulbs per turn due to tech upkeep */
-      int turns = ceil( (double)done / -perturn );
-
-      astr_add(&str, PL_("%d/%d (%d turn)", "%d/%d (%d turns)", turns),
-               done, perturn, turns);
+    } else if ((turns = turns_to_tech_loss(research, perturn)) >= 0) {
+      astr_add(&str, PL_("%d/%d (%d turn to loss)",
+                         "%d/%d (%d turns to loss)", turns),
+               done, total, turns);
     } else {
-      /* no research */
+      /* no forward progress -- no research, or tech loss disallowed */
       astr_add(&str, _("%d/%d (never)"), done, total);
     }
     if (percent) {
@@ -819,7 +869,7 @@ const char *get_science_target_text(double *percent)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set the science-goal-label text as if we're researching the given goal.
 ****************************************************************************/
 const char *get_science_goal_text(Tech_type_id goal)
@@ -865,7 +915,7 @@ const char *get_science_goal_text(Tech_type_id goal)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the text for the label on the info panel.  (This is traditionally
   shown to the left of the mapview.)
 
@@ -916,7 +966,7 @@ const char *get_info_label_text(bool moreinfo)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the text for the popup label on the info panel.  (This is
   traditionally done as a popup whenever the regular info text is clicked
   on.)
@@ -960,6 +1010,14 @@ const char *get_info_label_text_popup(void)
       fc_assert(upkeep == 0);
       astr_add_line(&str, _("Bulbs per turn: %d"), perturn);
     }
+    {
+      int history_perturn = nation_history_gain(client.conn.playing);
+      city_list_iterate(client.conn.playing->cities, pcity) {
+        history_perturn += city_history_gain(pcity);
+      } city_list_iterate_end;
+      astr_add_line(&str, _("Culture: %d (%+d/turn)"),
+                    client.conn.playing->client.culture, history_perturn);
+    }
   }
 
   /* See also get_global_warming_tooltip and get_nuclear_winter_tooltip. */
@@ -990,7 +1048,7 @@ const char *get_info_label_text_popup(void)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the title text for the unit info shown in the info panel.
 
   FIXME: this should be renamed.
@@ -1013,7 +1071,7 @@ const char *get_unit_info_label_text1(struct unit_list *punits)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the text body for the unit info shown in the info panel.
 
   FIXME: this should be renamed.
@@ -1188,7 +1246,7 @@ const char *get_unit_info_label_text2(struct unit_list *punits, int linebreaks)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return text about upgrading these unit lists.
 
   Returns TRUE iff any units can be upgraded.
@@ -1209,15 +1267,15 @@ bool get_units_upgrade_info(char *buf, size_t bufsz,
     unit_list_iterate(punits, punit) {
       if (unit_owner(punit) == client_player()
           && UU_OK == unit_upgrade_test(punit, FALSE)) {
-	struct unit_type *from_unittype = unit_type_get(punit);
-	struct unit_type *to_unittype = can_upgrade_unittype(client.conn.playing,
-							     from_unittype);
-	int cost = unit_upgrade_price(unit_owner(punit),
-					   from_unittype, to_unittype);
+        const struct unit_type *from_unittype = unit_type_get(punit);
+        const struct unit_type *to_unittype = can_upgrade_unittype(client.conn.playing,
+                                                                   from_unittype);
+        int cost = unit_upgrade_price(unit_owner(punit),
+                                      from_unittype, to_unittype);
 
-	num_upgraded++;
-	upgrade_cost += cost;
-	min_upgrade_cost = MIN(min_upgrade_cost, cost);
+        num_upgraded++;
+        upgrade_cost += cost;
+        min_upgrade_cost = MIN(min_upgrade_cost, cost);
       }
     } unit_list_iterate_end;
     if (num_upgraded == 0) {
@@ -1253,7 +1311,7 @@ bool get_units_upgrade_info(char *buf, size_t bufsz,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return text about disbanding these units.
 
   Returns TRUE iff any units can be disbanded.
@@ -1295,7 +1353,7 @@ bool get_units_disband_info(char *buf, size_t bufsz,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get a tooltip text for the info panel research indicator.  See
   client_research_sprite().
 ****************************************************************************/
@@ -1312,24 +1370,23 @@ const char *get_bulb_tooltip(void)
     struct research *research = research_get(client_player());
 
     if (research->researching == A_UNSET) {
-      astr_add_line(&str, _("no research target."));
+      astr_add_line(&str, _("No research target."));
     } else {
-      int turns = 0;
+      int turns;
       int perturn = get_bulbs_per_turn(NULL, NULL, NULL);
-      int done = research->bulbs_researched;
-      int total = research->client.researching_cost;
       struct astring buf1 = ASTRING_INIT, buf2 = ASTRING_INIT;
 
-      if (perturn > 0) {
-        turns = MAX(1, ceil((double) (total - done) / perturn));
-      } else if (perturn < 0 ) {
-        turns = ceil((double) done / -perturn);
-      }
-
-      if (turns == 0) {
-        astr_set(&buf1, _("No progress"));
-      } else {
+      if ((turns = turns_to_research_done(research, perturn)) >= 0) {
         astr_set(&buf1, PL_("%d turn", "%d turns", turns), turns);
+      } else if ((turns = turns_to_tech_loss(research, perturn)) >= 0) {
+        astr_set(&buf1, PL_("%d turn to loss", "%d turns to loss", turns),
+                 turns);
+      } else {
+        if (perturn < 0) {
+          astr_set(&buf1, _("Decreasing"));
+        } else {
+          astr_set(&buf1, _("No progress"));
+        }
       }
 
       /* TRANS: <perturn> bulbs/turn */
@@ -1350,7 +1407,7 @@ const char *get_bulb_tooltip(void)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get a tooltip text for the info panel global warning indicator.  See also
   client_warming_sprite().
 ****************************************************************************/
@@ -1374,7 +1431,7 @@ const char *get_global_warming_tooltip(void)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get a tooltip text for the info panel nuclear winter indicator.  See also
   client_cooling_sprite().
 ****************************************************************************/
@@ -1398,7 +1455,7 @@ const char *get_nuclear_winter_tooltip(void)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get a tooltip text for the info panel government indicator.  See also
   government_by_number(...)->sprite.
 ****************************************************************************/
@@ -1417,7 +1474,7 @@ const char *get_government_tooltip(void)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns a description of the given spaceship.  If there is no spaceship
   (pship is NULL) then text with dummy values is returned.
 ****************************************************************************/
@@ -1472,7 +1529,7 @@ const char *get_spaceship_descr(struct player_spaceship *pship)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get the text showing the timeout.  This is generally disaplyed on the info
   panel.
 ****************************************************************************/
@@ -1501,7 +1558,7 @@ const char *get_timeout_label_text(void)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Format a duration, in seconds, so it comes up in minutes or hours if
   that would be more meaningful.
 
@@ -1532,7 +1589,7 @@ const char *format_duration(int duration)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return text giving the ping time for the player.  This is generally used
   used in the playerdlg.  This should only be used in playerdlg_common.c.
 ****************************************************************************/
@@ -1559,8 +1616,8 @@ const char *get_ping_time_text(const struct player *pplayer)
   return astr_str(&str);
 }
 
-/****************************************************************************
-  Return text giving the score of the player. This should only be used 
+/************************************************************************//**
+  Return text giving the score of the player. This should only be used
   in playerdlg_common.c.
 ****************************************************************************/
 const char *get_score_text(const struct player *pplayer)
@@ -1580,7 +1637,7 @@ const char *get_score_text(const struct player *pplayer)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get the title for a "report".  This may include the city, economy,
   military, trade, player, etc., reports.  Some clients may generate the
   text themselves to get a better GUI layout.
@@ -1616,7 +1673,66 @@ const char *get_report_title(const char *report_name)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/**********************************************************************//**
+  Returns custom part of the action selection dialog button text for the
+  specified action (given that the action is possible).
+**************************************************************************/
+const char *get_act_sel_action_custom_text(struct action *paction,
+                                           const struct act_prob prob,
+                                           const struct unit *actor_unit,
+                                           const struct city *target_city)
+{
+  static struct astring custom = ASTRING_INIT;
+
+  struct city *actor_homecity = unit_home(actor_unit);
+
+  if (!action_prob_possible(prob)) {
+    /* No info since impossible. */
+    return NULL;
+  }
+
+  fc_assert_ret_val((action_get_target_kind(paction) != ATK_CITY
+                     || target_city != NULL),
+                    NULL);
+
+  if (action_has_result(paction, ACTRES_TRADE_ROUTE)) {
+    int revenue = get_caravan_enter_city_trade_bonus(actor_homecity,
+                                                     target_city,
+                                                     actor_unit->carrying,
+                                                     TRUE);
+
+    astr_set(&custom,
+             /* TRANS: Estimated one time bonus and recurring revenue for
+              * the Establish Trade _Route action. */
+             _("%d one time bonus + %d trade"),
+             revenue,
+             trade_base_between_cities(actor_homecity, target_city));
+  } else if (action_has_result(paction, ACTRES_MARKETPLACE)) {
+    int revenue = get_caravan_enter_city_trade_bonus(actor_homecity,
+                                                     target_city,
+                                                     actor_unit->carrying,
+                                                     FALSE);
+
+    astr_set(&custom,
+             /* TRANS: Estimated one time bonus for the Enter Marketplace
+              * action. */
+             _("%d one time bonus"), revenue);
+  } else if ((action_has_result(paction, ACTRES_HELP_WONDER)
+              || action_has_result(paction, ACTRES_RECYCLE_UNIT))
+             && city_owner(target_city) == client.conn.playing) {
+    /* Can only give remaining production for domestic and existing
+     * cities. */
+    int cost = city_production_build_shield_cost(target_city);
+    astr_set(&custom, _("%d remaining"), cost - target_city->shield_stock);
+  } else {
+    /* No info to add. */
+    return NULL;
+  }
+
+  return astr_str(&custom);
+}
+
+/************************************************************************//**
   Describing buildings that affect happiness.
 ****************************************************************************/
 const char *text_happiness_buildings(const struct city *pcity)
@@ -1642,7 +1758,7 @@ const char *text_happiness_buildings(const struct city *pcity)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Describing nationality effects that affect happiness.
 ****************************************************************************/
 const char *text_happiness_nationality(const struct city *pcity)
@@ -1680,7 +1796,7 @@ const char *text_happiness_nationality(const struct city *pcity)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Describing wonders that affect happiness.
 ****************************************************************************/
 const char *text_happiness_wonders(const struct city *pcity)
@@ -1703,11 +1819,12 @@ const char *text_happiness_wonders(const struct city *pcity)
 
   /* Add line breaks after 80 characters. */
   astr_break_lines(&str, 80);
+  effect_list_destroy(plist);
 
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Describing city factors that affect happiness.
 ****************************************************************************/
 const char *text_happiness_cities(const struct city *pcity)
@@ -1839,7 +1956,7 @@ const char *text_happiness_cities(const struct city *pcity)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Describing units that affect happiness.
 ****************************************************************************/
 const char *text_happiness_units(const struct city *pcity)
@@ -1874,7 +1991,7 @@ const char *text_happiness_units(const struct city *pcity)
   return astr_str(&str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Describing luxuries that affect happiness.
 ****************************************************************************/
 const char *text_happiness_luxuries(const struct city *pcity)

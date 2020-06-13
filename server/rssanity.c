@@ -34,13 +34,13 @@
 
 #include "rssanity.h"
 
-/**************************************************************************
+/**********************************************************************//**
   Is non-rule data in ruleset sane?
 **************************************************************************/
 static bool sanity_check_metadata(void)
 {
-  if (game.ruleset_summary != NULL &&
-      strlen(game.ruleset_summary) > MAX_LEN_CONTENT) {
+  if (game.ruleset_summary != NULL
+      && strlen(game.ruleset_summary) > MAX_LEN_CONTENT) {
     log_error("Too long ruleset summary. It can be only %d bytes long. "
               "Put longer explanations to ruleset description.",
               MAX_LEN_CONTENT);
@@ -50,7 +50,7 @@ static bool sanity_check_metadata(void)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Does nation have tech initially?
 **************************************************************************/
 static bool nation_has_initial_tech(struct nation_type *pnation,
@@ -78,7 +78,7 @@ static bool nation_has_initial_tech(struct nation_type *pnation,
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns TRUE iff the given server setting is visible enough to be
   allowed to appear in ServerSetting requirements.
 **************************************************************************/
@@ -87,7 +87,7 @@ static bool sanity_check_setting_is_seen(struct setting *pset)
   return setting_is_visible_at_level(pset, ALLOW_INFO);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns TRUE iff the specified server setting is a game rule and
  therefore may appear in a requirement.
 **************************************************************************/
@@ -114,7 +114,7 @@ static bool sanity_check_setting_is_game_rule(struct setting *pset)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns TRUE iff the given server setting and value combination is
   allowed to appear in ServerSetting requirements.
 **************************************************************************/
@@ -139,7 +139,7 @@ bool sanity_check_server_setting_value_in_req(ssetv ssetval)
           && sanity_check_setting_is_game_rule(pset));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Sanity checks on a requirement in isolation.
   This will generally be things that could only not be checked at
   ruleset load time because they would have referenced things not yet
@@ -154,7 +154,8 @@ static bool sanity_check_req_individual(struct requirement *preq,
      * It can't be done in req_from_str(), as we may not have
      * loaded all building information at that time. */
     {
-      struct impr_type *pimprove = preq->source.value.building;
+      const struct impr_type *pimprove = preq->source.value.building;
+
       if (preq->range == REQ_RANGE_WORLD && !is_great_wonder(pimprove)) {
         log_error("%s: World-ranged requirement not supported for "
                   "%s (only great wonders supported)", list_for,
@@ -220,7 +221,7 @@ static bool sanity_check_req_individual(struct requirement *preq,
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Helper function for sanity_check_req_list() and sanity_check_req_vec()
 **************************************************************************/
 static bool sanity_check_req_set(int reqs_of_type[], int local_reqs_of_type[],
@@ -277,9 +278,11 @@ static bool sanity_check_req_set(int reqs_of_type[], int local_reqs_of_type[],
      case VUT_UTYPE:
      case VUT_UCLASS:
      case VUT_ACTION:
+     case VUT_ACTIVITY:
      case VUT_OTYPE:
      case VUT_SPECIALIST:
      case VUT_MINSIZE: /* Breaks nothing, but has no sense either */
+     case VUT_MINFOREIGNPCT:
      case VUT_MINMOVES: /* Breaks nothing, but has no sense either */
      case VUT_MINVETERAN: /* Breaks nothing, but has no sense either */
      case VUT_MINHP: /* Breaks nothing, but has no sense either */
@@ -287,9 +290,9 @@ static bool sanity_check_req_set(int reqs_of_type[], int local_reqs_of_type[],
      case VUT_MINCALFRAG:
      case VUT_AI_LEVEL:
      case VUT_TERRAINALTER: /* Local range only */
-     case VUT_CITYTILE:
      case VUT_STYLE:
      case VUT_IMPR_GENUS:
+     case VUT_CITYSTATUS:
        /* There can be only one requirement of these types (with current
         * range limitations)
         * Requirements might be identical, but we consider multiple
@@ -356,6 +359,7 @@ static bool sanity_check_req_set(int reqs_of_type[], int local_reqs_of_type[],
      case VUT_TECHFLAG:
      case VUT_IMPROVEMENT:
      case VUT_UNITSTATE:
+     case VUT_CITYTILE:
      case VUT_GOOD:
        /* Can check different properties. */
      case VUT_UTFLAG:
@@ -384,7 +388,7 @@ static bool sanity_check_req_set(int reqs_of_type[], int local_reqs_of_type[],
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Sanity check requirement vector, including whether it's free of
   conflicting requirements.
   'conjunctive' should be TRUE if the vector is an AND vector (all requirements
@@ -430,7 +434,7 @@ static bool sanity_check_req_vec(const struct requirement_vector *preqs,
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Sanity check callback for iterating effects cache.
 **************************************************************************/
 static bool effect_list_sanity_cb(struct effect *peffect, void *data)
@@ -438,11 +442,61 @@ static bool effect_list_sanity_cb(struct effect *peffect, void *data)
   int one_tile = -1; /* TODO: Determine correct value from effect.
                       *       -1 disables checking */
 
+  if (peffect->type == EFT_ACTION_SUCCESS_TARGET_MOVE_COST) {
+    /* Only unit targets can pay in move fragments. */
+    requirement_vector_iterate(&peffect->reqs, preq) {
+      if (preq->source.kind == VUT_ACTION) {
+        if (action_get_target_kind(preq->source.value.action) != ATK_UNIT) {
+          /* TODO: support for ATK_UNITS could be added. That would require
+           * manually calling action_success_target_pay_mp() in each
+           * supported unit stack targeted action performer (like
+           * action_consequence_success() does) or to have the unit stack
+           * targeted actions return a list of targets. */
+          log_error("The effect Action_Success_Target_Move_Cost has the"
+                    " requirement {%s} but the action %s isn't"
+                    " (single) unit targeted.",
+                    req_to_fstring(preq),
+                    universal_rule_name(&preq->source));
+          return FALSE;
+        }
+      }
+    } requirement_vector_iterate_end;
+  } else if (peffect->type == EFT_ACTION_SUCCESS_MOVE_COST) {
+    /* Only unit actors can pay in move fragments. */
+    requirement_vector_iterate(&peffect->reqs, preq) {
+      if (preq->source.kind == VUT_ACTION && preq->present) {
+        if (action_get_actor_kind(preq->source.value.action) != AAK_UNIT) {
+          log_error("The effect Action_Success_Actor_Move_Cost has the"
+                    " requirement {%s} but the action %s isn't"
+                    " performed by a unit.",
+                    req_to_fstring(preq),
+                    universal_rule_name(&preq->source));
+          return FALSE;
+        }
+      }
+    } requirement_vector_iterate_end;
+  } else if (peffect->type == EFT_ACTION_ODDS_PCT) {
+    /* Catch trying to set Action_Odds_Pct for non supported actions. */
+    requirement_vector_iterate(&peffect->reqs, preq) {
+      if (preq->source.kind == VUT_ACTION && preq->present) {
+        if (action_dice_roll_initial_odds(preq->source.value.action)
+            == ACTION_ODDS_PCT_DICE_ROLL_NA) {
+          log_error("The effect Action_Odds_Pct has the"
+                    " requirement {%s} but the action %s doesn't"
+                    " roll the dice to see if it fails.",
+                    req_to_fstring(preq),
+                    universal_rule_name(&preq->source));
+          return FALSE;
+        }
+      }
+    } requirement_vector_iterate_end;
+  }
+
   return sanity_check_req_vec(&peffect->reqs, TRUE, one_tile,
                               effect_type_name(peffect->type));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Sanity check barbarian unit types
 **************************************************************************/
 static bool rs_barbarian_units(void)
@@ -514,7 +568,7 @@ static bool rs_barbarian_units(void)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Sanity check common unit types
 **************************************************************************/
 static bool rs_common_units(void)
@@ -564,7 +618,7 @@ static bool rs_common_units(void)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Sanity check buildings
 **************************************************************************/
 static bool rs_buildings(void)
@@ -590,7 +644,7 @@ static bool rs_buildings(void)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Check that boolean effect types have sensible effects.
 **************************************************************************/
 static bool sanity_check_boolean_effects(void)
@@ -616,12 +670,7 @@ static bool sanity_check_boolean_effects(void)
       EFT_HAPPINESS_TO_GOLD,
       EFT_FANATICS,
       EFT_NO_DIPLOMACY,
-      EFT_IRRIG_POSSIBLE,
       EFT_GOV_CENTER,
-      EFT_TRANSFORM_POSSIBLE,
-      EFT_MINING_POSSIBLE,
-      EFT_IRRIG_TF_POSSIBLE,
-      EFT_MINING_TF_POSSIBLE,
       EFT_NOT_TECH_SOURCE,
       EFT_VICTORY,
       EFT_HAVE_CONTACTS,
@@ -642,7 +691,7 @@ static bool sanity_check_boolean_effects(void)
   return ret;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Some more sanity checking once all rulesets are loaded. These check
   for some cross-referencing which was impossible to do while only one
   party was loaded in load_ruleset_xxx()
@@ -801,7 +850,7 @@ bool sanity_check_ruleset_data(bool ignore_retired)
 
     /* Check national initial buildings */
     if (nation_barbarian_type(pnation) != NOT_A_BARBARIAN
-        && pnation->init_buildings[0] != A_LAST) {
+        && pnation->init_buildings[0] != B_LAST) {
       ruleset_error(LOG_ERROR,
                     "Barbarian nation %s has init_buildings set but will "
                     "never see them", nation_rule_name(pnation));
@@ -821,7 +870,7 @@ bool sanity_check_ruleset_data(bool ignore_retired)
   num_utypes = game.control.num_unit_types;
   unit_type_iterate(putype) {
     int chain_length = 0;
-    struct unit_type *upgraded = putype;
+    const struct unit_type *upgraded = putype;
 
     while (upgraded != NULL) {
       upgraded = upgraded->obsoleted_by;
@@ -950,6 +999,14 @@ bool sanity_check_ruleset_data(bool ignore_retired)
       ruleset_error(LOG_ERROR,
                     "Extras have conflicting or invalid removal requirements!");
       ok = FALSE;
+    }
+    if ((requirement_vector_size(&pextra->rmreqs) > 0)
+        && !(pextra->rmcauses
+             & (ERM_ENTER | ERM_CLEANPOLLUTION
+                | ERM_CLEANFALLOUT | ERM_PILLAGE))) {
+      ruleset_error(LOG_WARN,
+                    "Requirements for extra removal defined but not "
+                    "a valid remove cause!");
     }
   } extra_type_iterate_end;
 
@@ -1116,6 +1173,30 @@ bool sanity_check_ruleset_data(bool ignore_retired)
     } action_enabler_list_iterate_end;
   } action_iterate_end;
 
+  /* Auto attack */
+  {
+    struct action_auto_perf *auto_perf;
+
+    auto_perf = action_auto_perf_slot_number(ACTION_AUTO_MOVED_ADJ);
+
+    action_auto_perf_actions_iterate(auto_perf, act_id) {
+      struct action *paction = action_by_number(act_id);
+
+      if (!(action_has_result(paction, ACTRES_CAPTURE_UNITS)
+            || action_has_result(paction, ACTRES_BOMBARD)
+            || action_has_result(paction, ACTRES_ATTACK))) {
+        /* Only allow removing and changing the order of old auto
+         * attack actions for now. Other actions need more testing and
+         * fixing of issues caused by a worst case action probability of
+         * 0%. */
+        ruleset_error(LOG_ERROR, "auto_attack: %s not supported in"
+                                 " attack_actions.",
+                      action_rule_name(paction));
+        ok = FALSE;
+      }
+    } action_auto_perf_actions_iterate_end;
+  }
+
   /* There must be basic city style for each nation style to start with */
   styles_iterate(pstyle) {
     if (basic_city_style_for_style(pstyle) < 0) {
@@ -1217,7 +1298,7 @@ bool sanity_check_ruleset_data(bool ignore_retired)
   return ok;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Apply some automatic defaults to already loaded rulesets.
 
   Returns TRUE iff everything ok.
@@ -1243,8 +1324,8 @@ bool autoadjust_ruleset_data(void)
   /* Hard coded action blocking. */
   {
     const struct {
-      const enum gen_action blocked;
-      const enum gen_action blocker;
+      const enum action_result blocked;
+      const enum action_result blocker;
     } must_block[] = {
       /* Hard code that Help Wonder blocks Recycle Unit. This must be done
        * because caravan_shields makes it possible to avoid the
@@ -1265,42 +1346,46 @@ bool autoadjust_ruleset_data(void)
        * therefore get 100% of them by changing its production. This trick
        * makes the ability to select Recycle Unit when Help Wonder is legal
        * pointless. */
-      { ACTION_RECYCLE_UNIT, ACTION_HELP_WONDER },
+      { ACTRES_RECYCLE_UNIT, ACTRES_HELP_WONDER },
 
       /* Allowing regular disband when ACTION_HELP_WONDER or
        * ACTION_RECYCLE_UNIT is legal while ACTION_HELP_WONDER always
        * blocks ACTION_RECYCLE_UNIT doesn't work well with the force_*
        * semantics. Should move to the ruleset once it has blocked_by
        * semantics. */
-      { ACTION_DISBAND_UNIT, ACTION_HELP_WONDER },
-      { ACTION_DISBAND_UNIT, ACTION_RECYCLE_UNIT },
+      { ACTRES_DISBAND_UNIT, ACTRES_HELP_WONDER },
+      { ACTRES_DISBAND_UNIT, ACTRES_RECYCLE_UNIT },
 
       /* Hard code that the ability to perform a regular attack blocks city
        * conquest. Is redundant as long as the requirement that the target
        * tile has no units remains hard coded. Kept "just in case" that
        * changes. */
-      { ACTION_CONQUER_CITY, ACTION_ATTACK },
+      { ACTRES_CONQUER_CITY, ACTRES_ATTACK },
     };
 
     int i;
 
     for (i = 0; i < ARRAY_SIZE(must_block); i++) {
-      enum gen_action blocked = must_block[i].blocked;
-      enum gen_action blocker = must_block[i].blocker;
+      enum action_result blocked_result = must_block[i].blocked;
+      enum action_result blocker_result = must_block[i].blocker;
 
-      if (!action_id_would_be_blocked_by(blocked, blocker)) {
-        log_verbose("Autoblocking %s with %s",
-                    action_id_rule_name(blocked),
-                    action_id_rule_name(blocker));
-        BV_SET(action_by_number(blocked)->blocked_by, blocker);
-      }
+      action_by_result_iterate (blocked, blocker_id, blocked_result) {
+        action_by_result_iterate (blocker, blocked_id, blocker_result) {
+          if (!action_would_be_blocked_by(blocked, blocker)) {
+            log_verbose("Autoblocking %s with %s",
+                        action_rule_name(blocked),
+                        action_rule_name(blocker));
+            BV_SET(blocked->blocked_by, blocker->id);
+          }
+        } action_by_result_iterate_end;
+      } action_by_result_iterate_end;
     }
   }
 
   return ok;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set and lock settings that must have certain value.
 **************************************************************************/
 bool autolock_settings(void)

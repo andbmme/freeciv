@@ -76,9 +76,9 @@ do {								  \
 #define load_order_theme_surface(pSpr, pSurf, tag)	\
         load_GUI_surface(pSpr, current_theme, pSurf, tag);
 
-/*******************************************************************************
- * reload small citizens "style" icons.
- *******************************************************************************/
+/***************************************************************************//**
+  Reload small citizens "style" icons.
+*******************************************************************************/
 static void reload_small_citizens_icons(int style)
 {
   int i;
@@ -118,19 +118,19 @@ static void reload_small_citizens_icons(int style)
 /* ===================================== Public ==================================== */
 /* ================================================================================= */
 
-/**********************************************************************
+/***************************************************************************//**
   Set city citizens icons sprite value; should only happen after
   start of game (city style struct was filled ).
-***********************************************************************/
+*******************************************************************************/
 void reload_citizens_icons(int style)
 {
   reload_small_citizens_icons(style);
   pIcons->style = style;
 }
 
-/**************************************************************************
+/***************************************************************************//**
   Load theme city screen graphics.
-**************************************************************************/
+*******************************************************************************/
 void tilespec_setup_city_gfx(void) {
   struct sprite *pSpr =
     theme_lookup_sprite_tag_alt(theme, LOG_FATAL, "theme.city", "", "", "");
@@ -140,9 +140,9 @@ void tilespec_setup_city_gfx(void) {
   fc_assert(city_surf != NULL);
 }
 
-/**************************************************************************
+/***************************************************************************//**
   Free theme city screen graphics.
-**************************************************************************/
+*******************************************************************************/
 void tilespec_free_city_gfx(void)
 {
   /* There was two copies of this. One is freed from the sprite hash, but
@@ -150,10 +150,10 @@ void tilespec_free_city_gfx(void)
   FREESURFACE(city_surf);
 }
 
-/**********************************************************************
+/***************************************************************************//**
   Set city icons sprite value; should only happen after
   tileset_load_tiles(tileset).
-***********************************************************************/
+*******************************************************************************/
 void tilespec_setup_city_icons(void)
 {
   struct sprite *pSpr = NULL;
@@ -218,9 +218,9 @@ void tilespec_setup_city_icons(void)
   pIcons->style = 999;
 }
 
-/**********************************************************************
+/***************************************************************************//**
   Free resources associated with city screen icons.
-***********************************************************************/
+*******************************************************************************/
 void tilespec_free_city_icons(void)
 {
   int i;
@@ -252,9 +252,9 @@ void tilespec_free_city_icons(void)
 /* ===================== THEME ======================= */
 /* =================================================== */
 
-/**********************************************************************
+/***************************************************************************//**
   Alloc and fill Theme struct
-***********************************************************************/
+*******************************************************************************/
 void tilespec_setup_theme(void)
 {
   struct sprite *pBuf = NULL;
@@ -328,6 +328,8 @@ void tilespec_setup_theme(void)
   load_order_theme_surface(pBuf, OPlantForest_Icon, "theme.order_plant_forest");
   load_order_theme_surface(pBuf, OMine_Icon, "theme.order_build_mining");
   load_order_theme_surface(pBuf, OIrrigation_Icon, "theme.order_irrigation");
+  load_order_theme_surface(pBuf, OCultivate_Icon, "theme.order_cutdown_forest");
+  load_order_theme_surface(pBuf, OPlant_Icon, "theme.order_plant_forest");
   load_order_theme_surface(pBuf, ODone_Icon, "theme.order_done");
   load_order_theme_surface(pBuf, ODisband_Icon, "theme.order_disband");
   load_order_theme_surface(pBuf, OFortify_Icon, "theme.order_fortify");
@@ -358,9 +360,9 @@ void tilespec_setup_theme(void)
   load_order_theme_surface(pBuf, OLoad_Icon, "theme.order_load");
 }
 
-/**********************************************************************
+/***************************************************************************//**
   Free theme memory
-***********************************************************************/
+*******************************************************************************/
 void tilespec_free_theme(void)
 {
   if (!current_theme) {
@@ -371,9 +373,9 @@ void tilespec_free_theme(void)
   current_theme = NULL;
 }
 
-/**************************************************************************
+/***************************************************************************//**
   Setup icons for special (non-real) technologies.
-**************************************************************************/
+*******************************************************************************/
 void setup_auxiliary_tech_icons(void)
 {
   SDL_Color bg_color = {255, 255, 255, 136};
@@ -411,9 +413,9 @@ void setup_auxiliary_tech_icons(void)
   FREEUTF8STR(pstr);
 }
 
-/**************************************************************************
+/***************************************************************************//**
   Free resources associated with aux tech icons.
-**************************************************************************/
+*******************************************************************************/
 void free_auxiliary_tech_icons(void)
 {
   FREESURFACE(pNeutral_Tech_Icon);
@@ -421,64 +423,63 @@ void free_auxiliary_tech_icons(void)
   FREESURFACE(pFuture_Tech_Icon);
 }
 
-/**************************************************************************
+/***************************************************************************//**
   Return tech icon surface.
-**************************************************************************/
+*******************************************************************************/
 SDL_Surface *get_tech_icon(Tech_type_id tech)
 {
-  switch(tech)
-  {
-    case A_NONE:
-    case A_UNSET:
-    case A_UNKNOWN:
-    case A_LAST:
-      return adj_surf(pNone_Tech_Icon);
-    case A_FUTURE:
-      return adj_surf(pFuture_Tech_Icon);
-    default:
-      if (get_tech_sprite(tileset, tech)) {
-        return adj_surf(GET_SURF(get_tech_sprite(tileset, tech)));
-      } else {
-        return adj_surf(pNeutral_Tech_Icon);
-      }
+  switch (tech) {
+  case A_NONE:
+  case A_UNSET:
+  case A_UNKNOWN:
+  case A_LAST:
+    return adj_surf(pNone_Tech_Icon);
+  case A_FUTURE:
+    return adj_surf(pFuture_Tech_Icon);
+  default:
+    if (get_tech_sprite(tileset, tech)) {
+      return adj_surf(GET_SURF(get_tech_sprite(tileset, tech)));
+    } else {
+      return adj_surf(pNeutral_Tech_Icon);
+    }
   }
 
   return NULL;
 }
 
-/**************************************************************************
+/***************************************************************************//**
   Return color associated with current tech knowledge state.
-**************************************************************************/
+*******************************************************************************/
 SDL_Color *get_tech_color(Tech_type_id tech_id)
 {
   if (research_invention_gettable(research_get(client_player()),
                                   tech_id, TRUE)) {
     switch (research_invention_state(research_get(client_player()),
                                      tech_id)) {
-      case TECH_UNKNOWN:
-        return get_game_color(COLOR_REQTREE_UNKNOWN);
-      case TECH_KNOWN:
-        return get_game_color(COLOR_REQTREE_KNOWN);
-      case TECH_PREREQS_KNOWN:
-        return get_game_color(COLOR_REQTREE_PREREQS_KNOWN);
-      default:
-        return get_game_color(COLOR_REQTREE_BACKGROUND);
+    case TECH_UNKNOWN:
+      return get_game_color(COLOR_REQTREE_UNKNOWN);
+    case TECH_KNOWN:
+      return get_game_color(COLOR_REQTREE_KNOWN);
+    case TECH_PREREQS_KNOWN:
+      return get_game_color(COLOR_REQTREE_PREREQS_KNOWN);
+    default:
+      return get_game_color(COLOR_REQTREE_BACKGROUND);
     }
   }
   return get_game_color(COLOR_REQTREE_UNREACHABLE);
 }
 
-/**************************************************************************
+/***************************************************************************//**
   Return current city screen graphics
-**************************************************************************/
+*******************************************************************************/
 SDL_Surface *get_city_gfx(void)
 {
   return city_surf;
 }
 
-/**************************************************************************
+/***************************************************************************//**
   Draw theme intro gfx.
-**************************************************************************/
+*******************************************************************************/
 void draw_intro_gfx(void)
 {
   SDL_Surface *pIntro = theme_get_background(theme, BACKGROUND_MAINPAGE);

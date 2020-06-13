@@ -65,22 +65,16 @@ static int (*baseclass_redraw)(struct widget *pwidget);
 /* ===================== VSCROOLBAR ================== */
 /* =================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Create background image for vscrollbars
   then return pointer to this image.
 
   Graphic is taken from pVert_theme surface and blit to new created image.
 
   height depend of 'High' parameter.
-
-  Type of image depend of "state" parameter.
-    state = 0 - normal
-    state = 1 - selected
-    state = 2 - pressed
-    state = 3 - disabled
 **************************************************************************/
 static SDL_Surface *create_vertical_surface(SDL_Surface *pVert_theme,
-                                            Uint8 state, Uint16 High)
+                                            enum widget_state state, Uint16 High)
 {
   SDL_Surface *pVerSurf = NULL;
   SDL_Rect src, des;
@@ -133,7 +127,7 @@ static SDL_Surface *create_vertical_surface(SDL_Surface *pVert_theme,
   return pVerSurf;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Blit vertical scrollbar gfx to surface its on.
 **************************************************************************/
 static int redraw_vert(struct widget *pVert)
@@ -158,7 +152,7 @@ static int redraw_vert(struct widget *pVert)
   return ret;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create ( malloc ) VScrollBar Widget structure.
 
   Theme graphic is taken from pVert_theme surface;
@@ -189,7 +183,7 @@ struct widget *create_vertical(SDL_Surface *pVert_theme, struct gui_layer *pDest
   return pVer;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Draw vertical scrollbar.
 **************************************************************************/
 int draw_vert(struct widget *pVert, Sint16 x, Sint16 y)
@@ -205,7 +199,7 @@ int draw_vert(struct widget *pVert, Sint16 x, Sint16 y)
 /* ===================== HSCROOLBAR ================== */
 /* =================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Create background image for hscrollbars
   then return pointer to this image.
 
@@ -273,7 +267,7 @@ static SDL_Surface *create_horizontal_surface(SDL_Surface *pHoriz_theme,
   return pHorSurf;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Blit horizontal scrollbar gfx to surface its on.
 **************************************************************************/
 static int redraw_horiz(struct widget *pHoriz)
@@ -297,7 +291,7 @@ static int redraw_horiz(struct widget *pHoriz)
   return ret;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create ( malloc ) HScrollBar Widget structure.
 
   Theme graphic is taken from pHoriz_theme surface;
@@ -329,7 +323,7 @@ struct widget *create_horizontal(SDL_Surface *pHoriz_theme,
   return pHor;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Draw horizontal scrollbar.
 **************************************************************************/
 int draw_horiz(struct widget *pHoriz, Sint16 x, Sint16 y)
@@ -345,7 +339,7 @@ int draw_horiz(struct widget *pHoriz, Sint16 x, Sint16 y)
 /* =====================            ================== */
 /* =================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Get step of the scrollbar.
 **************************************************************************/
 static int get_step(struct ScrollBar *pScroll)
@@ -361,7 +355,7 @@ static int get_step(struct ScrollBar *pScroll)
   return (int)step;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Get current active position of the scrollbar.
 **************************************************************************/
 static int get_position(struct ADVANCED_DLG *pDlg)
@@ -414,12 +408,12 @@ static struct widget *vertic_scroll_widget_list(struct ScrollBar *pVscroll,
                                                 struct widget *pBeginWidgetLIST,
                                                 struct widget *pEndWidgetLIST);
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with up button of advanced dialog.
 **************************************************************************/
 static int std_up_advanced_dlg_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     struct ADVANCED_DLG *pDlg = pWidget->private_data.adv_dlg;
     struct widget *pBegin = up_scroll_widget_list(
                           pDlg->pScroll,
@@ -441,12 +435,12 @@ static int std_up_advanced_dlg_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with down button of advanced dialog.
 **************************************************************************/
 static int std_down_advanced_dlg_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     struct ADVANCED_DLG *pDlg = pWidget->private_data.adv_dlg;
     struct widget *pBegin = down_scroll_widget_list(
                               pDlg->pScroll,
@@ -468,12 +462,12 @@ static int std_down_advanced_dlg_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   FIXME : fix main funct : vertic_scroll_widget_list(...)
 **************************************************************************/
 static int std_vscroll_advanced_dlg_callback(struct widget *pScrollBar)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     struct ADVANCED_DLG *pDlg = pScrollBar->private_data.adv_dlg;
     struct widget *pBegin = vertic_scroll_widget_list(
                               pDlg->pScroll,
@@ -495,7 +489,7 @@ static int std_vscroll_advanced_dlg_callback(struct widget *pScrollBar)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create a new vertical scrollbar to active widgets list.
 **************************************************************************/
 Uint32 create_vertical_scrollbar(struct ADVANCED_DLG *pDlg,
@@ -576,7 +570,7 @@ Uint32 create_vertical_scrollbar(struct ADVANCED_DLG *pDlg,
   return count;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Setup area for the vertical scrollbar.
 **************************************************************************/
 void setup_vertical_scrollbar_area(struct ScrollBar *pScroll,
@@ -641,7 +635,7 @@ void setup_vertical_scrollbar_area(struct ScrollBar *pScroll,
 /* ============ Vertical Scroll Group List =========== */
 /* =================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   scroll pointers on list.
   dir == directions: up == -1, down == 1.
 **************************************************************************/
@@ -877,7 +871,7 @@ static struct widget *vertical_scroll_widget_list(struct widget *pActiveWidgetLI
   return pBegin;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Callback for the scroll-down event loop.
 **************************************************************************/
 static void inside_scroll_down_loop(void *pData)
@@ -924,7 +918,7 @@ static void inside_scroll_down_loop(void *pData)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Callback for the scroll-up event loop.
 **************************************************************************/
 static void inside_scroll_up_loop(void *pData)
@@ -966,7 +960,7 @@ static void inside_scroll_up_loop(void *pData)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle mouse motion events of the vertical scrollbar event loop.
 **************************************************************************/
 static Uint16 scroll_mouse_motion_handler(SDL_MouseMotionEvent *pMotionEvent,
@@ -1054,7 +1048,7 @@ static Uint16 scroll_mouse_motion_handler(SDL_MouseMotionEvent *pMotionEvent,
   return ID_ERROR;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Callback for scrollbar event loops' mouse up events.
 **************************************************************************/
 static Uint16 scroll_mouse_button_up(SDL_MouseButtonEvent *pButtonEvent,
@@ -1063,7 +1057,7 @@ static Uint16 scroll_mouse_button_up(SDL_MouseButtonEvent *pButtonEvent,
   return (Uint16)ID_SCROLLBAR;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Scroll widgets down.
 **************************************************************************/
 static struct widget *down_scroll_widget_list(struct ScrollBar *pVscroll,
@@ -1086,13 +1080,13 @@ static struct widget *down_scroll_widget_list(struct ScrollBar *pVscroll,
   pDown.pEndWidgetLIST = pEndWidgetLIST;
   pDown.pVscroll = pVscroll;
 
-  gui_event_loop((void *)&pDown, inside_scroll_down_loop,
+  gui_event_loop((void *)&pDown, inside_scroll_down_loop, NULL, NULL, NULL,
                  NULL, NULL, NULL, NULL, scroll_mouse_button_up, NULL);
 
   return pDown.pBegin;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Scroll widgets up.
 **************************************************************************/
 static struct widget *up_scroll_widget_list(struct ScrollBar *pVscroll,
@@ -1108,13 +1102,13 @@ static struct widget *up_scroll_widget_list(struct ScrollBar *pVscroll,
   pUp.pEndWidgetLIST = pEndWidgetLIST;
   pUp.pVscroll = pVscroll;
 
-  gui_event_loop((void *)&pUp, inside_scroll_up_loop,
+  gui_event_loop((void *)&pUp, inside_scroll_up_loop, NULL, NULL, NULL,
                  NULL, NULL, NULL, NULL, scroll_mouse_button_up, NULL);
 
   return pUp.pBegin;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Scroll vertical widget list with the mouse movement.
 **************************************************************************/
 static struct widget *vertic_scroll_widget_list(struct ScrollBar *pVscroll,
@@ -1137,7 +1131,7 @@ static struct widget *vertic_scroll_widget_list(struct ScrollBar *pVscroll,
   MOVE_STEP_Y = 3;
   /* Filter mouse motion events */
   SDL_SetEventFilter(FilterMouseMotionEvents, NULL);
-  gui_event_loop((void *)&pMotion, NULL, NULL, NULL, NULL, NULL,
+  gui_event_loop((void *)&pMotion, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
                  scroll_mouse_button_up, scroll_mouse_motion_handler);
   /* Turn off Filter mouse motion events */
   SDL_SetEventFilter(NULL, NULL);
@@ -1149,7 +1143,7 @@ static struct widget *vertic_scroll_widget_list(struct ScrollBar *pVscroll,
 
 /* ==================================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Add new widget to scrolled list and set draw position of all changed widgets.
   dir :
     TRUE - upper add => pAdd_Dock->next = pNew_Widget.
@@ -1349,7 +1343,7 @@ bool add_widget_to_vertical_scroll_widget_list(struct ADVANCED_DLG *pDlg,
   return last;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Delete widget from scrolled list and set draw position of all changed
   widgets.
   Don't free pDlg and pDlg->pScroll (if exist)
@@ -1528,7 +1522,7 @@ STD:  while (pBuf != pWidget) {
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set default vertical scrollbar handling for scrollbar.
 **************************************************************************/
 void setup_vertical_scrollbar_default_callbacks(struct ScrollBar *pScroll)
@@ -1551,7 +1545,7 @@ void setup_vertical_scrollbar_default_callbacks(struct ScrollBar *pScroll)
 **************************************************************************/
 
 
-/**************************************************************************
+/**********************************************************************//**
   Create a new horizontal scrollbar to active widgets list.
 **************************************************************************/
 Uint32 create_horizontal_scrollbar(struct ADVANCED_DLG *pDlg,

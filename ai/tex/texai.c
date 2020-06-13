@@ -18,8 +18,7 @@
 /* common */
 #include "ai.h"
 
-/* default ai */
-#include "aicity.h"
+/* ai/default */
 #include "aidata.h"
 #include "aiferry.h"
 #include "aihand.h"
@@ -27,6 +26,7 @@
 #include "aiplayer.h"
 #include "aisettler.h"
 #include "aitools.h"
+#include "daicity.h"
 #include "daidiplomacy.h"
 #include "daidomestic.h"
 #include "daimilitary.h"
@@ -41,11 +41,10 @@ const char *fc_ai_tex_capstr(void);
 bool fc_ai_tex_setup(struct ai_type *ai);
 
 static void texai_init_self(struct ai_type *ai);
-static struct ai_type *texai_get_self(void);
 
 static struct ai_type *self = NULL;
 
-/**************************************************************************
+/**********************************************************************//**
   Set pointer to ai type of the tex ai.
 **************************************************************************/
 static void texai_init_self(struct ai_type *ai)
@@ -55,10 +54,10 @@ static void texai_init_self(struct ai_type *ai)
   texai_init_threading();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Get pointer to ai type of the tex ai.
 **************************************************************************/
-static struct ai_type *texai_get_self(void)
+struct ai_type *texai_get_self(void)
 {
   return self;
 }
@@ -67,7 +66,7 @@ static struct ai_type *texai_get_self(void)
 #define TEXAI_TFUNC(_func, ...) _func(ait, ## __VA_ARGS__ );
 #define TEXAI_DFUNC(_func, ...) _func(ait, ## __VA_ARGS__ );
 
-/**************************************************************************
+/**********************************************************************//**
   Free resources allocated by the tex AI module
 **************************************************************************/
 static void texai_module_close(void)
@@ -77,7 +76,7 @@ static void texai_module_close(void)
   FC_FREE(ait->private);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_player_alloc(struct player *pplayer)
@@ -87,7 +86,7 @@ static void texwai_player_alloc(struct player *pplayer)
   /* Do not call default AI here, texai_player_alloc() does necessary parts */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_player_free(struct player *pplayer)
@@ -97,7 +96,7 @@ static void texwai_player_free(struct player *pplayer)
   /* Do not call default AI here, texai_player_free() does necessary parts */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_player_save(struct player *pplayer,
@@ -107,7 +106,7 @@ static void texwai_player_save(struct player *pplayer,
   TEXAI_DFUNC(dai_player_save, "texai", pplayer, file, plrno);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_player_load(struct player *pplayer,
@@ -118,7 +117,7 @@ static void texwai_player_load(struct player *pplayer,
   TEXAI_DFUNC(dai_player_load, "texai", pplayer, file, plrno);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_control_gained(struct player *pplayer)
@@ -128,7 +127,7 @@ static void texwai_control_gained(struct player *pplayer)
   TEXAI_DFUNC(dai_gained_control, pplayer);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_control_lost(struct player *pplayer)
@@ -137,7 +136,7 @@ static void texwai_control_lost(struct player *pplayer)
   TEXAI_TFUNC(texai_control_lost, pplayer);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_split_by_civil_war(struct player *original,
@@ -147,7 +146,7 @@ static void texwai_split_by_civil_war(struct player *original,
   TEXAI_DFUNC(dai_assess_danger_player, original, &(wld.map));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_created_by_civil_war(struct player *original,
@@ -157,7 +156,7 @@ static void texwai_created_by_civil_war(struct player *original,
   TEXAI_DFUNC(dai_player_copy, original, created);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_phase_begin(struct player *pplayer, bool is_new_phase)
@@ -166,7 +165,7 @@ static void texwai_phase_begin(struct player *pplayer, bool is_new_phase)
   TEXAI_DFUNC(dai_data_phase_begin, pplayer, is_new_phase);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_phase_finished(struct player *pplayer)
@@ -176,7 +175,7 @@ static void texwai_phase_finished(struct player *pplayer)
   TEXAI_DFUNC(dai_data_phase_finished, pplayer);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_city_alloc(struct city *pcity)
@@ -185,7 +184,7 @@ static void texwai_city_alloc(struct city *pcity)
   TEXAI_DFUNC(texai_city_alloc, pcity);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_city_free(struct city *pcity)
@@ -194,7 +193,7 @@ static void texwai_city_free(struct city *pcity)
   TEXAI_DFUNC(texai_city_free, pcity);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_city_save(struct section_file *file,
@@ -204,7 +203,7 @@ static void texwai_city_save(struct section_file *file,
   TEXAI_DFUNC(dai_city_save, "texai", file, pcity, citystr);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_city_load(const struct section_file *file,
@@ -214,7 +213,7 @@ static void texwai_city_load(const struct section_file *file,
   TEXAI_DFUNC(dai_city_load, "texai", file, pcity, citystr);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_build_adv_override(struct city *pcity,
@@ -224,7 +223,7 @@ static void texwai_build_adv_override(struct city *pcity,
   TEXAI_DFUNC(dai_build_adv_override, pcity, choice);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_wonder_city_distance(struct player *pplayer,
@@ -234,7 +233,7 @@ static void texwai_wonder_city_distance(struct player *pplayer,
   TEXAI_DFUNC(dai_wonder_city_distance, pplayer, adv);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_build_adv_init(struct player *pplayer)
@@ -243,7 +242,7 @@ static void texwai_build_adv_init(struct player *pplayer)
   TEXAI_DFUNC(dai_build_adv_init, pplayer);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_build_adv_adjust(struct player *pplayer,
@@ -253,7 +252,7 @@ static void texwai_build_adv_adjust(struct player *pplayer,
   TEXAI_DFUNC(dai_build_adv_adjust, pplayer, wonder_city);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_gov_value(struct player *pplayer, struct government *gov,
@@ -263,7 +262,7 @@ static void texwai_gov_value(struct player *pplayer, struct government *gov,
   TEXAI_DFUNC(dai_gov_value, pplayer, gov, val, override);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_units_ruleset_init(void)
@@ -272,7 +271,7 @@ static void texwai_units_ruleset_init(void)
   TEXAI_DFUNC(dai_units_ruleset_init);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_units_ruleset_close(void)
@@ -281,7 +280,7 @@ static void texwai_units_ruleset_close(void)
   TEXAI_DFUNC(dai_units_ruleset_close);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_unit_alloc(struct unit *punit)
@@ -290,7 +289,7 @@ static void texwai_unit_alloc(struct unit *punit)
   TEXAI_DFUNC(dai_unit_init, punit);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_unit_free(struct unit *punit)
@@ -299,7 +298,7 @@ static void texwai_unit_free(struct unit *punit)
   TEXAI_DFUNC(dai_unit_close, punit);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_ferry_init_ferry(struct unit *ferry)
@@ -308,17 +307,17 @@ static void texwai_ferry_init_ferry(struct unit *ferry)
   TEXAI_DFUNC(dai_ferry_init_ferry, ferry);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_ferry_transformed(struct unit *ferry,
-                                     struct unit_type *old)
+                                     const struct unit_type *old)
 {
   TEXAI_AIT;
   TEXAI_DFUNC(dai_ferry_transformed, ferry, old);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_ferry_lost(struct unit *punit)
@@ -327,7 +326,7 @@ static void texwai_ferry_lost(struct unit *punit)
   TEXAI_DFUNC(dai_ferry_lost, punit);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_unit_turn_end(struct unit *punit)
@@ -336,7 +335,7 @@ static void texwai_unit_turn_end(struct unit *punit)
   TEXAI_DFUNC(dai_unit_turn_end, punit);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_unit_move_or_attack(struct unit *punit,
@@ -347,7 +346,7 @@ static void texwai_unit_move_or_attack(struct unit *punit,
   TEXAI_DFUNC(dai_unit_move_or_attack, punit, ptile, path, step);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_unit_new_adv_task(struct unit *punit,
@@ -358,7 +357,7 @@ static void texwai_unit_new_adv_task(struct unit *punit,
   TEXAI_DFUNC(dai_unit_new_adv_task, punit, task, ptile);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_unit_save(struct section_file *file,
@@ -368,7 +367,7 @@ static void texwai_unit_save(struct section_file *file,
   TEXAI_DFUNC(dai_unit_save, "texai", file, punit, unitstr);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_unit_load(const struct section_file *file,
@@ -378,7 +377,7 @@ static void texwai_unit_load(const struct section_file *file,
   TEXAI_DFUNC(dai_unit_load, "texai", file, punit, unitstr);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_auto_settler_reset(struct player *pplayer)
@@ -387,7 +386,7 @@ static void texwai_auto_settler_reset(struct player *pplayer)
   TEXAI_DFUNC(dai_auto_settler_reset, pplayer);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_auto_settler_run(struct player *pplayer, struct unit *punit,
@@ -397,7 +396,7 @@ static void texwai_auto_settler_run(struct player *pplayer, struct unit *punit,
   TEXAI_DFUNC(dai_auto_settler_run, pplayer, punit, state);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_auto_settler_cont(struct player *pplayer,
@@ -408,7 +407,7 @@ static void texwai_auto_settler_cont(struct player *pplayer,
   TEXAI_DFUNC(dai_auto_settler_cont, pplayer, punit, state);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_switch_to_explore(struct unit *punit, struct tile *target,
@@ -418,7 +417,7 @@ static void texwai_switch_to_explore(struct unit *punit, struct tile *target,
   TEXAI_DFUNC(dai_switch_to_explore, punit, target, allow);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_first_activities(struct player *pplayer)
@@ -428,7 +427,16 @@ static void texwai_first_activities(struct player *pplayer)
   TEXAI_DFUNC(dai_do_first_activities, pplayer);
 }
 
-/**************************************************************************
+/**********************************************************************//**
+  Start working on the thread again.
+**************************************************************************/
+static void texwai_restart_phase(struct player *pplayer)
+{
+  TEXAI_AIT;
+  TEXAI_TFUNC(texai_first_activities, pplayer);
+}
+
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_diplomacy_actions(struct player *pplayer)
@@ -437,7 +445,7 @@ static void texwai_diplomacy_actions(struct player *pplayer)
   TEXAI_DFUNC(dai_diplomacy_actions, pplayer);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_last_activities(struct player *pplayer)
@@ -446,7 +454,7 @@ static void texwai_last_activities(struct player *pplayer)
   TEXAI_DFUNC(dai_do_last_activities, pplayer);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_treaty_evaluate(struct player *pplayer,
@@ -457,7 +465,7 @@ static void texwai_treaty_evaluate(struct player *pplayer,
   TEXAI_DFUNC(dai_treaty_evaluate, pplayer, aplayer, ptreaty);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_treaty_accepted(struct player *pplayer,
@@ -468,7 +476,7 @@ static void texwai_treaty_accepted(struct player *pplayer,
   TEXAI_DFUNC(dai_treaty_accepted, pplayer, aplayer, ptreaty);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_diplomacy_first_contact(struct player *pplayer,
@@ -478,17 +486,21 @@ static void texwai_diplomacy_first_contact(struct player *pplayer,
   TEXAI_DFUNC(dai_diplomacy_first_contact, pplayer, aplayer);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
-static void texwai_incident(enum incident_type type, struct player *violator,
-                            struct player *victim)
+static void texwai_incident(enum incident_type type,
+                            enum casus_belli_range scope,
+                            const struct action *paction,
+                            struct player *receiver,
+                            struct player *violator, struct player *victim)
 {
   TEXAI_AIT;
-  TEXAI_DFUNC(dai_incident, type, violator, victim);
+  TEXAI_DFUNC(dai_incident, type, scope, paction,
+              receiver, violator, victim);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_city_log(char *buffer, int buflength,
@@ -498,7 +510,7 @@ static void texwai_city_log(char *buffer, int buflength,
   TEXAI_DFUNC(dai_city_log, buffer, buflength, pcity);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_unit_log(char *buffer, int buflength,
@@ -508,7 +520,7 @@ static void texwai_unit_log(char *buffer, int buflength,
   TEXAI_DFUNC(dai_unit_log, buffer, buflength, punit);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_consider_plr_dangerous(struct player *plr1,
@@ -519,7 +531,7 @@ static void texwai_consider_plr_dangerous(struct player *plr1,
   TEXAI_DFUNC(dai_consider_plr_dangerous, plr1, plr2, result);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_consider_tile_dangerous(struct tile *ptile,
@@ -530,7 +542,7 @@ static void texwai_consider_tile_dangerous(struct tile *ptile,
   TEXAI_DFUNC(dai_consider_tile_dangerous, ptile, punit, result);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_consider_wonder_city(struct city *pcity, bool *result)
@@ -539,7 +551,7 @@ static void texwai_consider_wonder_city(struct city *pcity, bool *result)
   TEXAI_DFUNC(dai_consider_wonder_city, pcity, result);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call default ai with tex ai type as parameter.
 **************************************************************************/
 static void texwai_refresh(struct player *pplayer)
@@ -548,7 +560,7 @@ static void texwai_refresh(struct player *pplayer)
   TEXAI_TFUNC(texai_refresh, pplayer);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return module capability string
 **************************************************************************/
 const char *fc_ai_tex_capstr(void)
@@ -556,7 +568,7 @@ const char *fc_ai_tex_capstr(void)
   return FC_AI_MOD_CAPSTR;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Setup player ai_funcs function pointers.
 **************************************************************************/
 bool fc_ai_tex_setup(struct ai_type *ai)
@@ -623,6 +635,7 @@ bool fc_ai_tex_setup(struct ai_type *ai)
 
   ai->funcs.unit_turn_end = texwai_unit_turn_end;
   ai->funcs.unit_move = texwai_unit_move_or_attack;
+  ai->funcs.unit_move_seen = texai_unit_move_seen;
   ai->funcs.unit_task = texwai_unit_new_adv_task;
 
   ai->funcs.unit_save = texwai_unit_save;
@@ -635,9 +648,7 @@ bool fc_ai_tex_setup(struct ai_type *ai)
   ai->funcs.want_to_explore = texwai_switch_to_explore;
 
   ai->funcs.first_activities = texwai_first_activities;
-  /* Do complete run after savegame loaded - we don't know what has been
-     done before. */
-  ai->funcs.restart_phase = texwai_first_activities;
+  ai->funcs.restart_phase = texwai_restart_phase;
   ai->funcs.diplomacy_actions = texwai_diplomacy_actions;
   ai->funcs.last_activities = texwai_last_activities;
 
@@ -656,6 +667,8 @@ bool fc_ai_tex_setup(struct ai_type *ai)
   ai->funcs.refresh = texwai_refresh;
 
   ai->funcs.tile_info = texai_tile_info;
-  
+  ai->funcs.city_info = texai_city_changed;
+  ai->funcs.unit_info = texai_unit_changed;
+
   return TRUE;
 }

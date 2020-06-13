@@ -6,6 +6,7 @@ cat <<EOF
 ; Freeciv Windows installer script
 ; some parts adapted from Wesnoth installer script
 
+Unicode true
 SetCompressor /SOLID lzma
 
 !define APPNAME "Freeciv-ruledit"
@@ -278,6 +279,14 @@ Section "Uninstall"
 EOF
 
 find $1 -type f |
+grep -v '/$' |
+sed 's|[^/]*||' |
+while read -r name
+do
+echo "  Delete \"\$INSTDIR$name\"" | sed 's,/,\\,g'
+done
+
+find $1 -type l |
 grep -v '/$' |
 sed 's|[^/]*||' |
 while read -r name

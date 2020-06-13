@@ -16,14 +16,14 @@
 [spec]
 
 ; Format and options of this spec file:
-options = "+Freeciv-spec-Devel-2015-Mar-25"
+options = "+Freeciv-spec-Devel-2019-Jul-03"
 
 [info]
 
 artists = "
     Hogne Håskjold <hogne@freeciv.org>[HH]
     Eleazar [El](buoy)
-    Vincent Croisier <vincent.croisier@advalvas.be>[VC] (ruins)
+    Anton Ecker (Kaldred) (ruins)
     GriffonSpade [GS]
 "
 

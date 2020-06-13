@@ -22,7 +22,7 @@
 /* ai/default */
 #include "aidata.h"
 
-/* ai/threxpt */
+/* ai/tex */
 #include "texaimsg.h"
 
 struct player;
@@ -42,7 +42,10 @@ struct texai_reqs
 struct texai_plr
 {
   struct ai_plr defai; /* Keep this first so default ai finds it */
+  struct unit_list *units;
 };
+
+struct ai_type *texai_get_self(void); /* Actually in texai.c */
 
 void texai_init_threading(void);
 
@@ -66,5 +69,7 @@ static inline struct texai_plr *texai_player_data(struct ai_type *ait,
 {
   return (struct texai_plr *)player_ai_data(pplayer, ait);
 }
+
+struct unit_list *texai_player_units(struct player *pplayer);
 
 #endif /* FC__TEXAIPLAYER_H */

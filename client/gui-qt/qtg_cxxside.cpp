@@ -23,7 +23,7 @@
 
 #include "qtg_cxxside.h"
 
-/***********************************************************************
+/*******************************************************************//**
   Setup the gui callback table.
 ***********************************************************************/
 void setup_gui_funcs()
@@ -36,7 +36,6 @@ void setup_gui_funcs()
 
   funcs->get_gui_type = qtg_get_gui_type;
   funcs->insert_client_build_info = qtg_insert_client_build_info;
-  funcs->adjust_default_options = qtg_adjust_default_options;
 
   funcs->version_message = qtg_version_message;
   funcs->real_output_window_append = qtg_real_output_window_append;
@@ -85,7 +84,6 @@ void setup_gui_funcs()
   funcs->set_unit_icons_more_arrow = qtg_set_unit_icons_more_arrow;
   funcs->real_focus_units_changed = qtg_real_focus_units_changed;
   funcs->gui_update_font = qtg_gui_update_font;
-  funcs->set_city_names_font_sizes = qtg_set_city_names_font_sizes;
 
   funcs->editgui_refresh = qtg_editgui_refresh;
   funcs->editgui_notify_object_created = qtg_editgui_notify_object_created;
@@ -96,6 +94,7 @@ void setup_gui_funcs()
 
   funcs->popup_combat_info = qtg_popup_combat_info;
   funcs->update_timeout_label = qtg_update_timeout_label;
+  funcs->start_turn = qtg_start_turn;
   funcs->real_city_dialog_popup = qtg_real_city_dialog_popup;
   funcs->real_city_dialog_refresh = qtg_real_city_dialog_refresh;
   funcs->popdown_city_dialog = qtg_popdown_city_dialog;
@@ -105,6 +104,8 @@ void setup_gui_funcs()
   funcs->city_dialog_is_open = qtg_city_dialog_is_open;
 
   funcs->request_transport = qtg_request_transport;
+
+  funcs->update_infra_dialog = qtg_update_infra_dialog;
 
   funcs->gui_load_theme = qtg_gui_load_theme;
   funcs->gui_clear_theme = qtg_gui_clear_theme;

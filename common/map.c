@@ -355,6 +355,7 @@ static void tile_init(struct tile *ptile)
   ptile->units    = unit_list_new();
   ptile->owner    = NULL; /* Not claimed by any player. */
   ptile->extras_owner = NULL;
+  ptile->placing  = NULL;
   ptile->claimer  = NULL;
   ptile->worked   = NULL; /* No city working here. */
   ptile->spec_sprite = NULL;
@@ -673,22 +674,6 @@ bool is_safe_ocean(const struct civ_map *nmap, const struct tile *ptile)
 }
 
 /*******************************************************************//**
-  Can tile be irrigated by given unit? Unit can be NULL to check if
-  any settler type unit of any player can irrigate.
-***********************************************************************/
-bool can_be_irrigated(const struct tile *ptile,
-                      const struct unit *punit)
-{
-  struct terrain* pterrain = tile_terrain(ptile);
-
-  if (T_UNKNOWN == pterrain) {
-    return FALSE;
-  }
-
-  return get_tile_bonus(ptile, punit, EFT_IRRIG_POSSIBLE) > 0;
-}
-
-/*******************************************************************//**
   This function returns true if the tile at the given location can be
   "reclaimed" from ocean into land.  This is the case only when there are
   a sufficient number of adjacent tiles that are not ocean.
@@ -798,29 +783,31 @@ int tile_move_cost_ptrs(const struct civ_map *nmap,
     return SINGLE_MOVE;
 
   } else if (!is_native_tile_to_class(pclass, t2)) {
-    /* Loading to transport or entering port.
-     * UTYF_IGTER units get move benefit. */
-    return (utype_has_flag(punittype, UTYF_IGTER)
-            ? MOVE_COST_IGTER : SINGLE_MOVE);
+    if (tile_city(t2) == NULL) {
+      /* Loading to transport. */
+
+      /* UTYF_IGTER units get move benefit. */
+      return (utype_has_flag(punittype, UTYF_IGTER)
+              ? MOVE_COST_IGTER : SINGLE_MOVE);
+    } else {
+      /* Entering port. (Could be "Conquer City") */
+
+      /* UTYF_IGTER units get move benefit. */
+      return (utype_has_flag(punittype, UTYF_IGTER)
+              ? MOVE_COST_IGTER : SINGLE_MOVE);
+    }
 
   } else if (!is_native_tile_to_class(pclass, t1)) {
-    if (game.info.slow_invasions
-        && !(punit && unit_has_type_flag(punit, UTYF_BEACH_LANDER))
-        && tile_city(t1) == NULL) {
-      /* If "slowinvasions" option is turned on, units moving from
-       * non-native terrain (from transport) to native terrain lose all
-       * their movement unless they have the BeachLander unit type flag.
-       * e.g. ground units moving from sea to land */
-      if (punit != NULL) {
-        return punit->moves_left;
-      } else {
-        /* Needs to be bigger than SINGLE_MOVE * move_rate * MAX(1, fuel)
-         * for the most mobile unit possible. */
-        return FC_INFINITY;
-      }
+    if (tile_city(t1) == NULL) {
+      /* Disembarking from transport. */
+
+      /* UTYF_IGTER units get move benefit. */
+      return (utype_has_flag(punittype, UTYF_IGTER)
+              ? MOVE_COST_IGTER : SINGLE_MOVE);
     } else {
-      /* Disembarking from transport or leaving port.
-       * UTYF_IGTER units get move benefit. */
+      /* Leaving port. */
+
+      /* UTYF_IGTER units get move benefit. */
       return (utype_has_flag(punittype, UTYF_IGTER)
               ? MOVE_COST_IGTER : SINGLE_MOVE);
     }
@@ -992,7 +979,7 @@ bool normalize_map_pos(const struct civ_map *nmap, int *x, int *y)
 }
 
 /*******************************************************************//**
-  Twiddle *x and *y to point the the nearest real tile, and ensure that the
+  Twiddle *x and *y to point to the nearest real tile, and ensure that the
   position is normalized.
 ***********************************************************************/
 struct tile *nearest_real_tile(const struct civ_map *nmap, int x, int y)

@@ -2,7 +2,7 @@
 [spec]
 
 ; Format and options of this spec file:
-options = "+Freeciv-spec-Devel-2015-Mar-25"
+options = "+Freeciv-spec-Devel-2019-Jul-03"
 
 [info]
 
@@ -82,9 +82,11 @@ tiles = { "row", "column", "tag"
  
   3,  0,  "e_unit_lost_att"
   3,  1,  "e_unit_win_att"
+  3,  1,  "e_unit_action_actor_success"
   3,  2,  "e_unit_buy"
   3,  3,  "e_unit_built"
   3,  4,  "e_unit_lost_def"
+  3,  4,  "e_unit_action_target_hostile"
   3,  5,  "e_unit_lost_misc"
   3,  6,  "e_unit_became_vet"
   3,  7,  "e_unit_upgraded"
@@ -92,11 +94,15 @@ tiles = { "row", "column", "tag"
   3,  9,  "e_unit_orders"
   3, 10,  "e_unit_illegal_action"
   3, 11,  "e_caravan_action"
-  3, 12,  "e_unit_win"
+  3, 12,  "e_unit_win_def"
   3, 13,  "e_unit_escaped"
   3, 14,  "e_unit_was_expelled"
   3, 15,  "e_unit_did_expel"
   3, 16,  "e_unit_action_failed"
+  3, 17,  "e_my_unit_did_heal"
+  3, 18,  "e_my_unit_was_healed"
+  3, 19,  "e_unit_action_target_other"
+  3, 20,  "e_unit_action_actor_failure"
 
   4,  0, "e_my_diplomat_escape" ; base sprite for my diplomats
   4,  1, "e_my_diplomat_bribe"
@@ -138,6 +144,7 @@ tiles = { "row", "column", "tag"
   6,  4, "e_setting"
   6,  4, "e_message_wall"
   6,  4, "e_connection"
+  6,  4, "e_multiplier"
   6,  5, "e_destroyed"
   6,  6, "e_low_on_funds"
   6,  7, "e_pollution" ; copy from small.png

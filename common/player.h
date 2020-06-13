@@ -23,6 +23,7 @@ extern "C" {
 /* common */
 #include "city.h"
 #include "connection.h"
+#include "effects.h"
 #include "fc_types.h"
 #include "multipliers.h"
 #include "nation.h"
@@ -69,6 +70,7 @@ struct player_economic {
   int tax;
   int science;
   int luxury;
+  int infra_points;
 };
 
 #define SPECENUM_NAME player_status
@@ -296,7 +298,7 @@ struct player {
   /* Values to be used next turn. */
   int multipliers_target[MAX_NUM_MULTIPLIERS];
 
-  int culture; /* National level culture - does not include culture of individual
+  int history; /* National level culture - does not include culture of individual
                 * cities. */
 
   union {
@@ -350,6 +352,8 @@ struct player {
       int tech_upkeep;
 
       bool color_changeable;
+
+      int culture;
     } client;
   };
 };
@@ -484,6 +488,12 @@ bool is_diplrel_to_other(const struct player *pplayer, int diplrel);
 int diplrel_by_rule_name(const char *value);
 const char *diplrel_rule_name(int value);
 const char *diplrel_name_translation(int value);
+
+enum casus_belli_range casus_belli_range_for(const struct player *offender,
+                                             const struct player *tgt_plr,
+                                             const enum effect_type outcome,
+                                             const struct action *paction,
+                                             const struct tile *tgt_tile);
 
 bv_diplrel_all_reqs diplrel_req_contradicts(const struct requirement *req);
 

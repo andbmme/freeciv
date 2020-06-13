@@ -44,6 +44,7 @@
 #include "notify.h"
 #include "plrhand.h"
 #include "srv_main.h"
+#include "stdinhand.h"
 #include "unittools.h"
 
 /* server/advisors */
@@ -78,9 +79,7 @@ struct team_placement_state {
 #define SPECPQ_PRIORITY_TYPE long
 #include "specpq.h"
 
-static struct strvec *ruleset_choices = NULL;
-
-/****************************************************************************
+/************************************************************************//**
   Get role_id for given role character
 ****************************************************************************/
 enum unit_role_id crole_to_role_id(char crole)
@@ -111,7 +110,7 @@ enum unit_role_id crole_to_role_id(char crole)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get unit_type for given role character
 ****************************************************************************/
 struct unit_type *crole_to_unit_type(char crole, struct player *pplayer)
@@ -137,17 +136,24 @@ struct unit_type *crole_to_unit_type(char crole, struct player *pplayer)
   return utype;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Place a starting unit for the player. Returns tile where unit was really
-  placed.
+  placed. By default the ptype is used and crole does not matter, but if
+  former is NULL, crole will be used instead.
 ****************************************************************************/
 static struct tile *place_starting_unit(struct tile *starttile,
                                         struct player *pplayer,
-                                        char crole)
+                                        struct unit_type *ptype, char crole)
 {
   struct tile *ptile = NULL;
-  struct unit_type *utype = crole_to_unit_type(crole, pplayer);
+  struct unit_type *utype;
   bool hut_present = FALSE;
+
+  if (ptype != NULL) {
+    utype = ptype;
+  } else {
+    utype = crole_to_unit_type(crole, pplayer);
+  }
 
   if (utype != NULL) {
     iterate_outward(&(wld.map), starttile,
@@ -171,12 +177,13 @@ static struct tile *place_starting_unit(struct tile *starttile,
    * other cases, huts are avoided as start positions).  Remove any such hut,
    * and make sure to tell the client, since we may have already sent this
    * tile (with the hut) earlier: */
-  extra_type_by_cause_iterate(EC_HUT, pextra) {
+  /* FIXME: don't remove under a HUT_NOTHING unit */
+  extra_type_by_rmcause_iterate(ERM_ENTER, pextra) {
     if (tile_has_extra(ptile, pextra)) {
       tile_extra_rm_apply(ptile, pextra);
       hut_present = TRUE;
     }
-  } extra_type_by_cause_iterate_end;
+  } extra_type_by_rmcause_iterate_end;
 
   if (hut_present) {
     update_tile_knowledge(ptile);
@@ -195,7 +202,7 @@ static struct tile *place_starting_unit(struct tile *starttile,
   return NULL;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Find a valid position not far from our starting position.
 ****************************************************************************/
 static struct tile *find_dispersed_position(struct player *pplayer,
@@ -211,6 +218,8 @@ static struct tile *find_dispersed_position(struct player *pplayer,
   } while (!((ptile = map_pos_to_tile(&(wld.map), x, y))
              && tile_continent(pcenter) == tile_continent(ptile)
              && !is_ocean_tile(ptile)
+             && real_map_distance(pcenter, ptile) < game.server.dispersion
+                + 1
              && !is_non_allied_unit_tile(ptile, pplayer)));
 
   return ptile;
@@ -220,7 +229,7 @@ static struct tile *find_dispersed_position(struct player *pplayer,
  * setting set to 'CLOSEST'. */
 #define team_placement_closest sq_map_distance
 
-/****************************************************************************
+/************************************************************************//**
   Calculate the distance between tiles, according to the 'teamplacement'
   setting set to 'CONTINENT'.
 ****************************************************************************/
@@ -232,7 +241,7 @@ static int team_placement_continent(const struct tile *ptile1,
           : sq_map_distance(ptile1, ptile2) + MAP_INDEX_SIZE);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Calculate the distance between tiles, according to the 'teamplacement'
   setting set to 'HORIZONTAL'.
 ****************************************************************************/
@@ -246,7 +255,7 @@ static int team_placement_horizontal(const struct tile *ptile1,
   return abs(MAP_IS_ISOMETRIC ? dx + dy : dy);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Calculate the distance between tiles, according to the 'teamplacement'
   setting set to 'VERTICAL'.
 ****************************************************************************/
@@ -260,7 +269,7 @@ static int team_placement_vertical(const struct tile *ptile1,
   return abs(MAP_IS_ISOMETRIC ? dx - dy : dy);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Destroys a team_placement_state structure.
 ****************************************************************************/
 static void team_placement_state_destroy(struct team_placement_state *pstate)
@@ -269,7 +278,7 @@ static void team_placement_state_destroy(struct team_placement_state *pstate)
   free(pstate);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Find the best team placement, according to the 'team_placement' setting.
 ****************************************************************************/
 static void do_team_placement(const struct team_placement_config *pconfig,
@@ -410,7 +419,7 @@ static void do_team_placement(const struct team_placement_config *pconfig,
   team_placement_pq_destroy_full(pqueue, team_placement_state_destroy);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Initialize a new game: place the players' units onto the map, etc.
 ****************************************************************************/
 void init_new_game(void)
@@ -777,7 +786,7 @@ void init_new_game(void)
 
     if (sulen > 0) {
       /* Place the first unit. */
-      if (place_starting_unit(ptile, pplayer,
+      if (place_starting_unit(ptile, pplayer, NULL,
                               game.server.start_units[0]) != NULL) {
         placed_units[player_index(pplayer)] = 1;
       } else {
@@ -801,7 +810,7 @@ void init_new_game(void)
       struct tile *rand_tile = find_dispersed_position(pplayer, ptile);
 
       /* Create the unit of an appropriate type. */
-      if (place_starting_unit(rand_tile, pplayer,
+      if (place_starting_unit(rand_tile, pplayer, NULL,
                               game.server.start_units[i]) != NULL) {
         placed_units[player_index(pplayer)]++;
       }
@@ -812,8 +821,10 @@ void init_new_game(void)
     while (NULL != nation->init_units[i] && MAX_NUM_UNIT_LIST > i) {
       struct tile *rand_tile = find_dispersed_position(pplayer, ptile);
 
-      create_unit(pplayer, rand_tile, nation->init_units[i], FALSE, 0, 0);
-      placed_units[player_index(pplayer)]++;
+      if (place_starting_unit(rand_tile, pplayer,
+                              nation->init_units[i], '\0') != NULL) {
+        placed_units[player_index(pplayer)]++;
+      }
       i++;
     }
   } players_iterate_end;
@@ -827,14 +838,12 @@ void init_new_game(void)
     fc_assert_msg(game.server.start_city || 0 < placed_units[player_index(pplayer)],
                   _("No units placed for %s!"), player_name(pplayer));
   } players_iterate_end;
-
-  shuffle_players();
 }
 
-/**************************************************************************
+/************************************************************************//**
   Tell clients the year, and also update turn_done and nturns_idle fields
   for all players.
-**************************************************************************/
+****************************************************************************/
 void send_year_to_clients(void)
 {
   struct packet_new_year apacket;
@@ -853,14 +862,14 @@ void send_year_to_clients(void)
               _("Year: %s"), calendar_text());
 }
 
-/**************************************************************************
+/************************************************************************//**
   Send game_info packet; some server options and various stuff...
   dest == NULL means game.est_connections
 
   It may be sent at any time. It MUST be sent before any player info, 
   as it contains the number of players.  To avoid inconsistency, it
   SHOULD be sent after rulesets and any other server settings.
-**************************************************************************/
+****************************************************************************/
 void send_game_info(struct conn_list *dest)
 {
   struct packet_timeout_info tinfo;
@@ -901,9 +910,9 @@ void send_game_info(struct conn_list *dest)
   conn_list_iterate_end;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Send current scenario info. dest NULL causes send to everyone
-**************************************************************************/
+****************************************************************************/
 void send_scenario_info(struct conn_list *dest)
 {
   if (!dest) {
@@ -915,9 +924,9 @@ void send_scenario_info(struct conn_list *dest)
   } conn_list_iterate_end;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Send description of the current scenario. dest NULL causes send to everyone
-**************************************************************************/
+****************************************************************************/
 void send_scenario_description(struct conn_list *dest)
 {
   if (!dest) {
@@ -929,7 +938,7 @@ void send_scenario_description(struct conn_list *dest)
   } conn_list_iterate_end;
 }
 
-/**************************************************************************
+/************************************************************************//**
   adjusts game.info.timeout based on various server options
 
   timeoutint: adjust game.info.timeout every timeoutint turns
@@ -938,7 +947,7 @@ void send_scenario_description(struct conn_list *dest)
                  to timeoutint.
   timeoutincmult: every time we adjust game.info.timeout, we multiply timeoutinc
                   by timeoutincmult
-**************************************************************************/
+****************************************************************************/
 int update_timeout(void)
 {
   /* if there's no timer or we're doing autogame, do nothing */
@@ -982,14 +991,14 @@ int update_timeout(void)
   return game.info.timeout;
 }
 
-/**************************************************************************
+/************************************************************************//**
   adjusts game.seconds_to_turn_done when enemy moves a unit, we see it and
   the remaining timeout is smaller than the timeoutaddenemymove option.
 
   It's possible to use a similar function to do that per-player.  In
   theory there should be a separate timeout for each player and the
   added time should only go onto the victim's timer.
-**************************************************************************/
+****************************************************************************/
 void increase_timeout_because_unit_moved(void)
 {
   if (current_turn_timeout() > 0 && game.server.timeoutaddenemymove > 0) {
@@ -1003,16 +1012,16 @@ void increase_timeout_because_unit_moved(void)
   }
 }
 
-/************************************************************************** 
-  generate challenge filename for this connection, cannot fail.
-**************************************************************************/
+/************************************************************************//**
+  Generate challenge filename for this connection, cannot fail.
+****************************************************************************/
 static void gen_challenge_filename(struct connection *pc)
 {
 }
 
-/************************************************************************** 
-  get challenge filename for this connection.
-**************************************************************************/
+/************************************************************************//**
+  Get challenge filename for this connection.
+****************************************************************************/
 static const char *get_challenge_filename(struct connection *pc)
 {
   static char filename[MAX_LEN_PATH];
@@ -1023,9 +1032,9 @@ static const char *get_challenge_filename(struct connection *pc)
   return filename;
 }
 
-/************************************************************************** 
-  get challenge full filename for this connection.
-**************************************************************************/
+/************************************************************************//**
+  Get challenge full filename for this connection.
+****************************************************************************/
 static const char *get_challenge_fullname(struct connection *pc)
 {
   static char fullname[MAX_LEN_PATH];
@@ -1047,52 +1056,49 @@ static const char *get_challenge_fullname(struct connection *pc)
   return fullname;
 }
 
-/************************************************************************** 
-  find a file that we can write too, and return it's name.
-**************************************************************************/
+/************************************************************************//**
+  Find a file that we can write too, and return it's name.
+****************************************************************************/
 const char *new_challenge_filename(struct connection *pc)
 {
   gen_challenge_filename(pc);
   return get_challenge_filename(pc);
 }
 
-
-/************************************************************************** 
+/************************************************************************//**
   Call this on a connection with HACK access to send it a set of ruleset
   choices.  Probably this should be called immediately when granting
   HACK access to a connection.
-**************************************************************************/
+****************************************************************************/
 static void send_ruleset_choices(struct connection *pc)
 {
+  struct strvec *ruleset_choices;
   struct packet_ruleset_choices packet;
-  size_t i;
+  size_t i = 0;
 
-  if (ruleset_choices == NULL) {
-    /* This is only read once per server invocation.  Add a new ruleset
-     * and you have to restart the server. */
-    ruleset_choices = fileinfolist(get_data_dirs(), RULESET_SUFFIX);
-  }
+  ruleset_choices = get_init_script_choices();
 
-  packet.ruleset_count = MIN(MAX_NUM_RULESETS, strvec_size(ruleset_choices));
-  for (i = 0; i < packet.ruleset_count; i++) {
-    sz_strlcpy(packet.rulesets[i], strvec_get(ruleset_choices, i));
-  }
+  strvec_iterate(ruleset_choices, s) {
+    const int maxlen = sizeof packet.rulesets[i];
+    if (i >= MAX_NUM_RULESETS) {
+      log_verbose("Can't send more than %d ruleset names to client, "
+                  "skipping some", MAX_NUM_RULESETS);
+      break;
+    }
+    if (fc_strlcpy(packet.rulesets[i], s, maxlen) < maxlen) {
+      i++;
+    } else {
+      log_verbose("Ruleset name '%s' too long to send to client, skipped", s);
+    }
+  } strvec_iterate_end;
+  packet.ruleset_count = i;
 
   send_packet_ruleset_choices(pc, &packet);
+
+  strvec_destroy(ruleset_choices);
 }
 
-/************************************************************************** 
-  Free list of ruleset choices.
-**************************************************************************/
-void ruleset_choices_free(void)
-{
-  if (ruleset_choices != NULL) {
-    strvec_destroy(ruleset_choices);
-    ruleset_choices = NULL;
-  }
-}
-
-/**************************************************************************** 
+/************************************************************************//**
   Opens a file specified by the packet and compares the packet values with
   the file values. Sends an answer to the client once it's done.
 ****************************************************************************/

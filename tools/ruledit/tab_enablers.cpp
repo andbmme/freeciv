@@ -40,7 +40,7 @@
 
 #include "tab_enablers.h"
 
-/**************************************************************************
+/**********************************************************************//**
   Setup tab_enabler object
 **************************************************************************/
 tab_enabler::tab_enabler(ruledit_gui *ui_in) : QWidget()
@@ -108,7 +108,7 @@ tab_enabler::tab_enabler(ruledit_gui *ui_in) : QWidget()
   setLayout(main_layout);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh the information.
 **************************************************************************/
 void tab_enabler::refresh()
@@ -132,7 +132,7 @@ void tab_enabler::refresh()
   } action_enablers_iterate_end;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update info of the enabler
 **************************************************************************/
 void tab_enabler::update_enabler_info(struct action_enabler *enabler)
@@ -148,7 +148,7 @@ void tab_enabler::update_enabler_info(struct action_enabler *enabler)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected enabler from the list.
 **************************************************************************/
 void tab_enabler::select_enabler()
@@ -164,7 +164,7 @@ void tab_enabler::select_enabler()
   } action_enablers_iterate_end;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested enabler deletion 
 **************************************************************************/
 void tab_enabler::delete_now()
@@ -177,7 +177,7 @@ void tab_enabler::delete_now()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Initialize new enabler for use.
 **************************************************************************/
 bool tab_enabler::initialize_new_enabler(struct action_enabler *enabler)
@@ -185,7 +185,7 @@ bool tab_enabler::initialize_new_enabler(struct action_enabler *enabler)
   return true;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested new enabler
 **************************************************************************/
 void tab_enabler::add_now()
@@ -207,7 +207,9 @@ void tab_enabler::add_now()
   // Try to add completely new enabler
   new_enabler = action_enabler_new();
 
-  new_enabler->action = (enum gen_action)(NUM_ACTIONS - 1);
+  fc_assert_ret(NUM_ACTIONS > 0);
+  fc_assert_ret(action_id_exists(NUM_ACTIONS - 1));
+  new_enabler->action = (NUM_ACTIONS - 1);
 
   action_enabler_add(new_enabler);
 
@@ -215,18 +217,20 @@ void tab_enabler::add_now()
   refresh();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected action to enable
 **************************************************************************/
 void tab_enabler::edit_type(QAction *action)
 {
   struct action *paction;
+  QByteArray an_bytes;
 
-  paction = action_by_rule_name(action->text().toUtf8().data());
+  an_bytes = action->text().toUtf8();
+  paction = action_by_rule_name(an_bytes.data());
 
   if (selected != nullptr && paction != nullptr) {
     /* Store the old action so it can be changed back. */
-    const enum gen_action old_action = selected->action;
+    const action_id old_action = selected->action;
 
     /* Handle the new action's hard obligatory requirements. */
     selected->action = paction->id;
@@ -266,7 +270,7 @@ void tab_enabler::edit_type(QAction *action)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User wants to edit target reqs
 **************************************************************************/
 void tab_enabler::edit_target_reqs()
@@ -277,7 +281,7 @@ void tab_enabler::edit_target_reqs()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User wants to edit actor reqs
 **************************************************************************/
 void tab_enabler::edit_actor_reqs()
@@ -287,4 +291,3 @@ void tab_enabler::edit_actor_reqs()
                       &selected->actor_reqs);
   }
 }
-

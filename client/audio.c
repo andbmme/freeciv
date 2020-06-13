@@ -44,7 +44,7 @@
 #define SNDSPEC_SUFFIX		".soundspec"
 #define MUSICSPEC_SUFFIX        ".musicspec"
 
-#define SOUNDSPEC_CAPSTR "+Freeciv-2.6-soundset"
+#define SOUNDSPEC_CAPSTR "+Freeciv-3.0-soundset"
 #define MUSICSPEC_CAPSTR "+Freeciv-2.6-musicset"
 
 /* keep it open throughout */
@@ -56,6 +56,7 @@ static int num_plugins_used = 0;
 static int selected_plugin = -1;
 static int current_track = -1;
 static enum music_usage current_usage;
+static bool switching_usage = FALSE;
 
 static struct mfcb_data
 {
@@ -67,11 +68,11 @@ static int audio_play_tag(struct section_file *sfile,
                           const char *tag, bool repeat,
                           int exclude, bool keepstyle);
 
-/**********************************************************************
+/**********************************************************************//**
   Returns a static string vector of all sound plugins
   available on the system.  This function is unfortunately similar to
   audio_get_all_plugin_names().
-***********************************************************************/
+**************************************************************************/
 const struct strvec *get_soundplugin_list(const struct option *poption)
 {
   static struct strvec *plugin_list = NULL;
@@ -89,12 +90,12 @@ const struct strvec *get_soundplugin_list(const struct option *poption)
   return plugin_list;
 }
 
-/**********************************************************************
+/**********************************************************************//**
   Returns a static string vector of audiosets of given type available
   on the system by searching all data directories for files matching
   suffix.
   The list is NULL-terminated.
-***********************************************************************/
+**************************************************************************/
 static const struct strvec *get_audio_speclist(const char *suffix,
                                                struct strvec **audio_list)
 {
@@ -105,9 +106,9 @@ static const struct strvec *get_audio_speclist(const char *suffix,
   return *audio_list;
 }
 
-/**********************************************************************
+/**********************************************************************//**
   Returns a static string vector of soundsets available on the system.
-***********************************************************************/
+**************************************************************************/
 const struct strvec *get_soundset_list(const struct option *poption)
 {
   static struct strvec *sound_list = NULL;
@@ -115,9 +116,9 @@ const struct strvec *get_soundset_list(const struct option *poption)
   return get_audio_speclist(SNDSPEC_SUFFIX, &sound_list);
 }
 
-/**********************************************************************
+/**********************************************************************//**
   Returns a static string vector of musicsets available on the system.
-***********************************************************************/
+**************************************************************************/
 const struct strvec *get_musicset_list(const struct option *poption)
 {
   static struct strvec *music_list = NULL;
@@ -125,7 +126,7 @@ const struct strvec *get_musicset_list(const struct option *poption)
   return get_audio_speclist(MUSICSPEC_SUFFIX, &music_list);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Add a plugin.
 **************************************************************************/
 void audio_add_plugin(struct audio_plugin *p)
@@ -135,7 +136,7 @@ void audio_add_plugin(struct audio_plugin *p)
   num_plugins_used++;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Choose plugin. Returns TRUE on success, FALSE if not
 **************************************************************************/
 bool audio_select_plugin(const char *const name)
@@ -173,7 +174,7 @@ bool audio_select_plugin(const char *const name)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Initialize base audio system. Note that this function is called very
   early at the client startup. So for example logging isn't available.
 **************************************************************************/
@@ -189,9 +190,9 @@ void audio_init(void)
   selected_plugin = 0;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns the filename for the given audio set. Returns NULL if
- set couldn't be found. Caller has to free the return value.
+  set couldn't be found. Caller has to free the return value.
 **************************************************************************/
 static const char *audiospec_fullname(const char *audioset_name,
                                       bool music)
@@ -221,7 +222,7 @@ static const char *audiospec_fullname(const char *audioset_name,
   return audiospec_fullname(audioset_default, music);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Check capabilities of the audio specfile
 **************************************************************************/
 static bool check_audiofile_capstr(struct section_file *sfile,
@@ -256,7 +257,7 @@ static bool check_audiofile_capstr(struct section_file *sfile,
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Initialize audio system and autoselect a plugin
 **************************************************************************/
 void audio_real_init(const char *const soundset_name,
@@ -352,7 +353,7 @@ void audio_real_init(const char *const soundset_name,
   log_normal(_("Proceeding with sound support disabled."));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Switch soundset
 **************************************************************************/
 void audio_restart(const char *soundset_name, const char *musicset_name)
@@ -364,12 +365,17 @@ void audio_restart(const char *soundset_name, const char *musicset_name)
   audio_real_init(sound_set_name, music_set_name, sound_plugin_name);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Callback to start new track
 **************************************************************************/
 static void music_finished_callback(void)
 {
   bool usage_enabled = TRUE;
+
+  if (switching_usage) {
+    switching_usage = FALSE;
+    return;
+  }
 
   switch (current_usage) {
   case MU_SINGLE:
@@ -389,7 +395,7 @@ static void music_finished_callback(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   INTERNAL. Returns id (>= 0) of the tag selected for playing, 0 when
   there's no alternative tags, or negative value in case of error.
 **************************************************************************/
@@ -453,11 +459,11 @@ static int audio_play_tag(struct section_file *sfile,
       }
     }
     if (NULL == soundfile) {
-      log_verbose("No sound file for tag %s (file %s)", tag, soundfile);
+      log_verbose("No sound file for tag %s", tag);
     } else {
       fullpath = fileinfoname(get_data_dirs(), soundfile);
       if (!fullpath) {
-        log_error("Cannot find audio file %s", soundfile);
+        log_error("Cannot find audio file %s for tag %s", soundfile, tag);
       }
     }
   }
@@ -469,7 +475,7 @@ static int audio_play_tag(struct section_file *sfile,
   return ret;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Play tag from sound set
 **************************************************************************/
 static bool audio_play_sound_tag(const char *tag, bool repeat)
@@ -477,7 +483,7 @@ static bool audio_play_sound_tag(const char *tag, bool repeat)
   return (audio_play_tag(ss_tagfile, tag, repeat, -1, FALSE) >= 0);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Play tag from music set
 **************************************************************************/
 static int audio_play_music_tag(const char *tag, bool repeat,
@@ -486,12 +492,12 @@ static int audio_play_music_tag(const char *tag, bool repeat,
   return audio_play_tag(ms_tagfile, tag, repeat, -1, keepstyle);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Play an audio sample as suggested by sound tags
 **************************************************************************/
-void audio_play_sound(const char *const tag, char *const alt_tag)
+void audio_play_sound(const char *const tag, const char *const alt_tag)
 {
-  char *pretty_alt_tag = alt_tag ? alt_tag : "(null)";
+  const char *pretty_alt_tag = alt_tag ? alt_tag : "(null)";
 
   if (gui_options.sound_enable_effects) {
     fc_assert_ret(tag != NULL);
@@ -506,7 +512,7 @@ void audio_play_sound(const char *const tag, char *const alt_tag)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Play music, either in loop or just one track in the middle of the style
   music.
 **************************************************************************/
@@ -531,7 +537,7 @@ static void real_audio_play_music(const char *const tag, char *const alt_tag,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Loop music as suggested by sound tags
 **************************************************************************/
 void audio_play_music(const char *const tag, char *const alt_tag,
@@ -542,7 +548,7 @@ void audio_play_music(const char *const tag, char *const alt_tag,
   real_audio_play_music(tag, alt_tag, FALSE);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Play single track as suggested by sound tags
 **************************************************************************/
 void audio_play_track(const char *const tag, char *const alt_tag)
@@ -552,23 +558,32 @@ void audio_play_track(const char *const tag, char *const alt_tag)
   real_audio_play_music(tag, alt_tag, TRUE);
 }
 
-/**************************************************************************
-  Stop looping sound. Music should die down in a few seconds.
+/**********************************************************************//**
+  Stop sound. Music should die down in a few seconds.
 **************************************************************************/
-void audio_stop()
+void audio_stop(void)
 {
   plugins[selected_plugin].stop();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Stop looping sound. Music should die down in a few seconds.
 **************************************************************************/
-double audio_get_volume()
+void audio_stop_usage(void)
+{
+  switching_usage = TRUE;
+  plugins[selected_plugin].stop();
+}
+
+/**********************************************************************//**
+  Stop looping sound. Music should die down in a few seconds.
+**************************************************************************/
+double audio_get_volume(void)
 {
   return plugins[selected_plugin].get_volume();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Stop looping sound. Music should die down in a few seconds.
 **************************************************************************/
 void audio_set_volume(double volume)
@@ -576,10 +591,10 @@ void audio_set_volume(double volume)
   plugins[selected_plugin].set_volume(volume);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Call this at end of program only.
 **************************************************************************/
-void audio_shutdown()
+void audio_shutdown(void)
 {
   /* avoid infinite loop at end of game */
   audio_stop();
@@ -598,11 +613,11 @@ void audio_shutdown()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns a string which list all available plugins. You don't have to
   free the string.
 **************************************************************************/
-const char *audio_get_all_plugin_names()
+const char *audio_get_all_plugin_names(void)
 {
   static char buffer[100];
   int i;

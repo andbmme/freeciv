@@ -1,4 +1,4 @@
-/********************************************************************** 
+/***********************************************************************
  Freeciv - Copyright (C) 1996 - A Kjeldberg, L Gregersen, P Unold
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -33,7 +33,6 @@
 #include "unittype.h"
 
 // ruledit
-#include "effect_edit.h"
 #include "edit_utype.h"
 #include "ruledit.h"
 #include "ruledit_qt.h"
@@ -41,8 +40,8 @@
 
 #include "tab_unit.h"
 
-/**************************************************************************
-  Setup tab_building object
+/**********************************************************************//**
+  Setup tab_unit object
 **************************************************************************/
 tab_unit::tab_unit(ruledit_gui *ui_in) : QWidget()
 {
@@ -90,7 +89,6 @@ tab_unit::tab_unit(ruledit_gui *ui_in) : QWidget()
   effects_button = new QPushButton(QString::fromUtf8(R__("Effects")), this);
   connect(effects_button, SIGNAL(pressed()), this, SLOT(edit_effects()));
   unit_layout->addWidget(effects_button, 3, 2);
-  show_experimental(effects_button);
 
   add_button = new QPushButton(QString::fromUtf8(R__("Add Unit")), this);
   connect(add_button, SIGNAL(pressed()), this, SLOT(add_now()));
@@ -109,7 +107,7 @@ tab_unit::tab_unit(ruledit_gui *ui_in) : QWidget()
   setLayout(main_layout);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh the information.
 **************************************************************************/
 void tab_unit::refresh()
@@ -117,7 +115,7 @@ void tab_unit::refresh()
   unit_list->clear();
 
   unit_type_iterate(ptype) {
-    if (!ptype->disabled) {
+    if (!ptype->ruledit_disabled) {
       QListWidgetItem *item = new QListWidgetItem(utype_rule_name(ptype));
 
       unit_list->insertItem(utype_index(ptype), item);
@@ -125,7 +123,7 @@ void tab_unit::refresh()
   } unit_type_iterate_end;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update info of the unit
 **************************************************************************/
 void tab_unit::update_utype_info(struct unit_type *ptype)
@@ -153,7 +151,7 @@ void tab_unit::update_utype_info(struct unit_type *ptype)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected unit from the list.
 **************************************************************************/
 void tab_unit::select_unit()
@@ -161,19 +159,26 @@ void tab_unit::select_unit()
   QList<QListWidgetItem *> select_list = unit_list->selectedItems();
 
   if (!select_list.isEmpty()) {
-    update_utype_info(unit_type_by_rule_name(select_list.at(0)->text().toUtf8().data()));
+    QByteArray un_bytes;
+
+    un_bytes = select_list.at(0)->text().toUtf8();
+    update_utype_info(unit_type_by_rule_name(un_bytes.data()));
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User entered name for the unit
 **************************************************************************/
 void tab_unit::name_given()
 {
   if (selected != nullptr) {
+    QByteArray name_bytes;
+    QByteArray rname_bytes;
+
     unit_type_iterate(ptype) {
-      if (ptype != selected && !ptype->disabled) {
-        if (!strcmp(utype_rule_name(ptype), rname->text().toUtf8().data())) {
+      if (ptype != selected && !ptype->ruledit_disabled) {
+        rname_bytes = rname->text().toUtf8();
+        if (!strcmp(utype_rule_name(ptype), rname_bytes.data())) {
           ui->display_msg(R__("A unit type with that rule name already "
                               "exists!"));
           return;
@@ -185,14 +190,16 @@ void tab_unit::name_given()
       name->setText(rname->text());
     }
 
+    name_bytes = name->text().toUtf8();
+    rname_bytes = rname->text().toUtf8();
     names_set(&(selected->name), 0,
-              name->text().toUtf8().data(),
-              rname->text().toUtf8().data());
+              name_bytes.data(),
+              rname_bytes.data());
     refresh();
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested unit deletion 
 **************************************************************************/
 void tab_unit::delete_now()
@@ -205,14 +212,14 @@ void tab_unit::delete_now()
       return;
     }
 
-    selected->disabled = true;
+    selected->ruledit_disabled = true;
 
     refresh();
-    update_utype_info(0);
+    update_utype_info(nullptr);
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested unit edit dialog
 **************************************************************************/
 void tab_unit::edit_now()
@@ -224,7 +231,7 @@ void tab_unit::edit_now()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Initialize new tech for use.
 **************************************************************************/
 bool tab_unit::initialize_new_utype(struct unit_type *ptype)
@@ -237,7 +244,7 @@ bool tab_unit::initialize_new_utype(struct unit_type *ptype)
   return true;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested new unit
 **************************************************************************/
 void tab_unit::add_now()
@@ -246,9 +253,9 @@ void tab_unit::add_now()
 
   // Try to reuse freed utype slot
   unit_type_iterate(ptype) {
-    if (ptype->disabled) {
+    if (ptype->ruledit_disabled) {
       if (initialize_new_utype(ptype)) {
-        ptype->disabled = false;
+        ptype->ruledit_disabled = false;
         update_utype_info(ptype);
         refresh();
       }
@@ -274,7 +281,7 @@ void tab_unit::add_now()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Toggled whether rule_name and name should be kept identical
 **************************************************************************/
 void tab_unit::same_name_toggle(bool checked)
@@ -285,21 +292,18 @@ void tab_unit::same_name_toggle(bool checked)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User wants to edit effects
 **************************************************************************/
 void tab_unit::edit_effects()
 {
   if (selected != nullptr) {
-    effect_edit *e_edit;
     struct universal uni;
 
     uni.value.utype = selected;
     uni.kind = VUT_UTYPE;
 
-    e_edit = new effect_edit(ui, QString::fromUtf8(utype_rule_name(selected)),
-                             &uni);
-
-    e_edit->show();
+    ui->open_effect_edit(QString::fromUtf8(utype_rule_name(selected)),
+                         &uni, EFMC_NORMAL);
   }
 }

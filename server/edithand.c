@@ -46,13 +46,15 @@
 #include "plrhand.h"
 #include "notify.h"
 #include "sanitycheck.h"
-#include "savegame.h"
 #include "stdinhand.h"
 #include "techtools.h"
 #include "unittools.h"
 
 /* server/generator */
 #include "mapgen_utils.h"
+
+/* server/savegame */
+#include "savemain.h"
 
 #include "edithand.h"
 
@@ -70,7 +72,7 @@ static struct tile_hash *modified_tile_table = NULL;
  * disabled in edit mode. */
 static bool *unfogged_players;
 
-/****************************************************************************
+/************************************************************************//**
   Initialize data structures required for edit mode.
 ****************************************************************************/
 void edithand_init(void)
@@ -88,7 +90,7 @@ void edithand_init(void)
   unfogged_players = fc_calloc(player_slot_count(), sizeof(bool));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free all memory used by data structures required for edit mode.
 ****************************************************************************/
 void edithand_free(void)
@@ -104,7 +106,7 @@ void edithand_free(void)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Send the needed packets for connections entering in the editing mode.
 ****************************************************************************/
 void edithand_send_initial_packets(struct conn_list *dest)
@@ -133,7 +135,7 @@ void edithand_send_initial_packets(struct conn_list *dest)
   } map_startpos_iterate_end;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Do the potentially slow checks required after one or several tiles'
   terrain has change.
 ****************************************************************************/
@@ -153,7 +155,7 @@ static void check_edited_tile_terrains(void)
   tile_hash_clear(modified_tile_table);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Do any necessary checks after leaving edit mode to ensure that the game
   is in a consistent state.
 ****************************************************************************/
@@ -178,7 +180,7 @@ static void check_leaving_edit_mode(void)
   conn_list_do_unbuffer(game.est_connections);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handles a request by the client to enter edit mode.
 ****************************************************************************/
 void handle_edit_mode(struct connection *pc, bool is_edit_mode)
@@ -210,7 +212,7 @@ void handle_edit_mode(struct connection *pc, bool is_edit_mode)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Base function to edit the terrain property of a tile. Returns TRUE if
   the terrain has changed.
 ****************************************************************************/
@@ -240,7 +242,7 @@ static bool edit_tile_terrain_handling(struct tile *ptile,
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Base function to edit the extras property of a tile. Returns TRUE if
   the extra state has changed.
 ****************************************************************************/
@@ -276,7 +278,7 @@ static bool edit_tile_extra_handling(struct tile *ptile,
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handles a client request to change the terrain of the tile at the given
   x, y coordinates. The 'size' parameter indicates that all tiles in a
   square of "radius" 'size' should be affected. So size=1 corresponds to
@@ -315,14 +317,15 @@ void handle_edit_tile_terrain(struct connection *pc, int tile,
   conn_list_do_unbuffer(game.est_connections);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a request to change one or more tiles' extras. The 'remove'
   argument controls whether to remove or add the given extra from the tile.
 ****************************************************************************/
 void handle_edit_tile_extra(struct connection *pc, int tile,
-                            int id, bool removal, int size)
+                            int id, bool removal, int eowner, int size)
 {
   struct tile *ptile_center;
+  struct player *plr_eowner;
 
   ptile_center = index_to_tile(&(wld.map), tile);
   if (!ptile_center) {
@@ -341,20 +344,28 @@ void handle_edit_tile_extra(struct connection *pc, int tile,
     return;
   }
 
+  if (eowner != MAP_TILE_OWNER_NULL) {
+    plr_eowner = player_by_number(eowner);
+  } else {
+    plr_eowner = NULL;
+  }
+
   conn_list_do_buffer(game.est_connections);
   square_iterate(&(wld.map), ptile_center, size - 1, ptile) {
+    ptile->extras_owner = plr_eowner;
     edit_tile_extra_handling(ptile, extra_by_number(id), removal, TRUE);
   } square_iterate_end;
   conn_list_do_unbuffer(game.est_connections);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handles tile information from the client, to make edits to tiles.
 ****************************************************************************/
 void handle_edit_tile(struct connection *pc,
                       const struct packet_edit_tile *packet)
 {
   struct tile *ptile;
+  struct player *eowner;
   bool changed = FALSE;
 
   ptile = index_to_tile(&(wld.map), packet->tile);
@@ -363,6 +374,12 @@ void handle_edit_tile(struct connection *pc,
                 _("Cannot edit the tile because %d is not a valid "
                   "tile index on this map!"), packet->tile);
     return;
+  }
+
+  if (packet->eowner != MAP_TILE_OWNER_NULL) {
+    eowner = player_by_number(packet->eowner);
+  } else {
+    eowner = NULL;
   }
 
   /* Handle changes in extras. */
@@ -374,6 +391,11 @@ void handle_edit_tile(struct connection *pc,
         changed = TRUE;
       }
     } extra_type_iterate_end;
+  }
+
+  if (ptile->extras_owner != eowner) {
+    ptile->extras_owner = eowner;
+    changed = TRUE;
   }
 
   /* Handle changes in label */
@@ -391,7 +413,7 @@ void handle_edit_tile(struct connection *pc,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a request to create 'count' units of type 'utid' at the tile given
   by the x, y coordinates and owned by player with number 'owner'.
 ****************************************************************************/
@@ -478,7 +500,7 @@ void handle_edit_unit_create(struct connection *pc, int owner, int tile,
   conn_list_do_unbuffer(game.est_connections);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Remove 'count' units of type 'utid' owned by player number 'owner' at
   tile (x, y).
 ****************************************************************************/
@@ -534,7 +556,7 @@ void handle_edit_unit_remove(struct connection *pc, int owner,
   } unit_list_iterate_safe_end;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a request to remove a unit given by its id.
 ****************************************************************************/
 void handle_edit_unit_remove_by_id(struct connection *pc, Unit_type_id id)
@@ -551,13 +573,13 @@ void handle_edit_unit_remove_by_id(struct connection *pc, Unit_type_id id)
   wipe_unit(punit, ULR_EDITOR, NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handles unit information from the client, to make edits to units.
 ****************************************************************************/
 void handle_edit_unit(struct connection *pc,
                       const struct packet_edit_unit *packet)
 {
-  struct unit_type *putype;
+  const struct unit_type *putype;
   struct unit *punit;
   int id;
   bool changed = FALSE;
@@ -612,6 +634,11 @@ void handle_edit_unit(struct connection *pc,
     }
   }
 
+  if (packet->stay != punit->stay) {
+    punit->stay = packet->stay;
+    changed = TRUE;
+  }
+
   /* TODO: Handle more property edits. */
 
 
@@ -621,7 +648,7 @@ void handle_edit_unit(struct connection *pc,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Allows the editing client to create a city at the given position and
   of size 'size'.
 ****************************************************************************/
@@ -686,7 +713,7 @@ void handle_edit_city_create(struct connection *pc, int owner, int tile,
 }
 
 
-/****************************************************************************
+/************************************************************************//**
   Handle a request to change the internal state of a city.
 ****************************************************************************/
 void handle_edit_city(struct connection *pc,
@@ -850,7 +877,7 @@ void handle_edit_city(struct connection *pc,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a request to create a new player.
 ****************************************************************************/
 void handle_edit_player_create(struct connection *pc, int tag)
@@ -919,7 +946,7 @@ void handle_edit_player_create(struct connection *pc, int tag)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a request to remove a player.
 ****************************************************************************/
 void handle_edit_player_remove(struct connection *pc, int id)
@@ -943,9 +970,9 @@ void handle_edit_player_remove(struct connection *pc, int id)
   server_remove_player(pplayer);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle editing of any or all player properties.
-***************************************************************************/
+****************************************************************************/
 void handle_edit_player(struct connection *pc, 
                         const struct packet_edit_player *packet)
 {
@@ -1103,15 +1130,28 @@ void handle_edit_player(struct connection *pc,
     goal = research->tech_goal;
 
     if (current != A_UNSET) {
-      known = research_invention_state(research, current);
-      if (known != TECH_PREREQS_KNOWN) {
-        research->researching = A_UNSET;
+      if (current != A_FUTURE) {
+        known = research_invention_state(research, current);
+        if (known != TECH_PREREQS_KNOWN) {
+          research->researching = A_UNSET;
+        }
+      } else {
+        /* Future Tech is legal only if all techs are known */
+        advance_index_iterate(A_FIRST, tech_i) {
+          known = research_invention_state(research, tech_i);
+          if (known != TECH_KNOWN) {
+            research->researching = A_UNSET;
+            break;
+          }
+        } advance_index_iterate_end;
       }
     }
     if (goal != A_UNSET) {
-      known = research_invention_state(research, goal);
-      if (known == TECH_KNOWN) {
-        research->tech_goal = A_UNSET;
+      if (goal != A_FUTURE) {
+        known = research_invention_state(research, goal);
+        if (known == TECH_KNOWN) {
+          research->tech_goal = A_UNSET;
+        }
       }
     }
     changed = TRUE;
@@ -1126,7 +1166,7 @@ void handle_edit_player(struct connection *pc,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handles vision editing requests from client.
 ****************************************************************************/
 void handle_edit_player_vision(struct connection *pc, int plr_no,
@@ -1196,7 +1236,7 @@ void handle_edit_player_vision(struct connection *pc, int plr_no,
   conn_list_do_unbuffer(game.est_connections);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Client editor requests us to recalculate borders. Note that this does
   not necessarily extend borders to their maximum due to the way the
   borders code is written. This may be considered a feature or limitation.
@@ -1206,7 +1246,7 @@ void handle_edit_recalculate_borders(struct connection *pc)
   map_calculate_borders();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Remove any city at the given location.
 ****************************************************************************/
 void handle_edit_city_remove(struct connection *pc, int id)
@@ -1223,7 +1263,7 @@ void handle_edit_city_remove(struct connection *pc, int id)
   remove_city(pcity);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Run any pending tile checks.
 ****************************************************************************/
 void handle_edit_check_tiles(struct connection *pc)
@@ -1231,7 +1271,7 @@ void handle_edit_check_tiles(struct connection *pc)
   check_edited_tile_terrains();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Temporarily remove fog-of-war for the player with player number 'plr_no'.
   This will only stay in effect while the server is in edit mode and the
   connection is editing. Has no effect if fog-of-war is disabled globally.
@@ -1266,7 +1306,7 @@ void handle_edit_toggle_fogofwar(struct connection *pc, int plr_no)
   conn_list_do_unbuffer(game.est_connections);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create or remove a start position at a tile.
 ****************************************************************************/
 void handle_edit_startpos(struct connection *pconn,
@@ -1304,7 +1344,7 @@ void handle_edit_startpos(struct connection *pconn,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Setup which nations can start at a start position.
 ****************************************************************************/
 void handle_edit_startpos_full(struct connection *pconn,
@@ -1342,29 +1382,13 @@ void handle_edit_startpos_full(struct connection *pconn,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle edit requests to the main game data structure.
 ****************************************************************************/
 void handle_edit_game(struct connection *pc,
                       const struct packet_edit_game *packet)
 {
   bool changed = FALSE;
-
-  if (packet->year != game.info.year) {
-
-    /* 'year' is stored in a signed short. */
-    const short min_year = -30000, max_year = 30000;
-
-    if (!(min_year <= packet->year && packet->year <= max_year)) {
-      notify_conn(pc->self, NULL, E_BAD_COMMAND, ftc_editor,
-                  _("Cannot set invalid game year %d. Valid year range "
-                    "is from %d to %d."),
-                  packet->year, min_year, max_year);
-    } else {
-      game.info.year = packet->year;
-      changed = TRUE;
-    }
-  }
 
   if (packet->scenario != game.scenario.is_scenario) {
     game.scenario.is_scenario = packet->scenario;
@@ -1418,7 +1442,7 @@ void handle_edit_game(struct connection *pc,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle edit requests to scenario description
 ****************************************************************************/
 void handle_edit_scenario_desc(struct connection *pc, const char *scenario_desc)
@@ -1430,7 +1454,7 @@ void handle_edit_scenario_desc(struct connection *pc, const char *scenario_desc)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Make scenario file out of current game.
 ****************************************************************************/
 void handle_save_scenario(struct connection *pc, const char *name)

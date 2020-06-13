@@ -59,7 +59,6 @@
 #include "handicaps.h"
 
 /* ai/default */
-#include "aicity.h"
 #include "aidata.h"
 #include "aiguard.h"
 #include "aihand.h"
@@ -67,6 +66,8 @@
 #include "aiplayer.h"
 #include "aitools.h"
 #include "aiunit.h"
+#include "daiactions.h"
+#include "daicity.h"
 #include "daimilitary.h"
 
 #include "aidiplomat.h"
@@ -86,23 +87,7 @@ static void find_city_to_diplomat(struct player *pplayer, struct unit *punit,
                                   struct city **ctarget, int *move_dist,
                                   struct pf_map *pfm);
 
-/******************************************************************************
-  Number of improvements that can be sabotaged in pcity.
-******************************************************************************/
-static int count_sabotagable_improvements(struct city *pcity)
-{
-  int count = 0;
-
-  city_built_iterate(pcity, pimprove) {
-    if (pimprove->sabotage > 0) {
-      count++;
-    }
-  } city_built_iterate_end;
-
-  return count;
-}
-
-/******************************************************************************
+/**************************************************************************//**
   Number of techs that we don't have and the enemy (tplayer) does.
 ******************************************************************************/
 static int count_stealable_techs(struct player *pplayer, struct player *tplayer)
@@ -121,11 +106,11 @@ static int count_stealable_techs(struct player *pplayer, struct player *tplayer)
   return count;
 }
 
-/**********************************************************************
+/**************************************************************************//**
   Calculates our need for diplomats as defensive units. May replace
   values in choice. The values 16000 and 3000 used below are totally
   arbitrary but seem to work.
-***********************************************************************/
+******************************************************************************/
 void dai_choose_diplomat_defensive(struct ai_type *ait,
                                    struct player *pplayer,
                                    struct city *pcity,
@@ -171,10 +156,10 @@ void dai_choose_diplomat_defensive(struct ai_type *ait,
   }
 }
 
-/**********************************************************************
+/**************************************************************************//**
   Calculates our need for diplomats as offensive units. May replace
   values in choice.
-***********************************************************************/
+******************************************************************************/
 void dai_choose_diplomat_offensive(struct ai_type *ait,
                                    struct player *pplayer,
                                    struct city *pcity,
@@ -205,8 +190,9 @@ void dai_choose_diplomat_offensive(struct ai_type *ait,
     int want, loss, p_success, p_failure, time_to_dest;
     int gain_incite = 0, gain_theft = 0, gain = 1;
     int incite_cost;
-    struct unit *punit = unit_virtual_create(pplayer, pcity, ut,
-                                             do_make_unit_veteran(pcity, ut));
+    struct unit *punit = unit_virtual_create(
+      pplayer, pcity, ut,
+      city_production_unit_veteran_level(pcity, ut));
 
     pft_fill_unit_parameter(&parameter, punit);
     parameter.omniscience = !has_handicap(pplayer, H_MAP);
@@ -260,7 +246,7 @@ void dai_choose_diplomat_offensive(struct ai_type *ait,
                                          FALSE) * TRADE_WEIGHTING);
     }
     gain = MAX(gain_incite, gain_theft);
-    loss = utype_build_shield_cost(ut) * SHIELD_WEIGHTING;
+    loss = utype_build_shield_cost(pcity, ut) * SHIELD_WEIGHTING;
 
     /* Probability to succeed, assuming no defending diplomat */
     p_success = game.server.diplchance;
@@ -283,7 +269,7 @@ void dai_choose_diplomat_offensive(struct ai_type *ait,
     }
 
     want = military_amortize(pplayer, pcity, want, time_to_dest, 
-                             utype_build_shield_cost(ut));
+                             utype_build_shield_cost(pcity, ut));
 
     if (!player_has_embassy(pplayer, city_owner(acity))
         && want < 99
@@ -323,41 +309,7 @@ void dai_choose_diplomat_offensive(struct ai_type *ait,
   }
 }
 
-/**************************************************************************
-  Pick a tech for actor_player to steal from target_player.
-
-  TODO: Make a smarter choice than picking the first stealable tech found.
-**************************************************************************/
-static Tech_type_id
-choose_tech_to_steal(const struct player *actor_player,
-                     const struct player *target_player)
-{
-  const struct research *actor_research = research_get(actor_player);
-  const struct research *target_research = research_get(target_player);
-
-  if (actor_research != target_research) {
-    if (can_see_techs_of_target(actor_player, target_player)) {
-      advance_iterate(A_FIRST, padvance) {
-        Tech_type_id i = advance_number(padvance);
-
-        if (research_invention_state(target_research, i) == TECH_KNOWN
-            && research_invention_gettable(actor_research, i,
-                                           game.info.tech_steal_allow_holes)
-            && (research_invention_state(actor_research, i) == TECH_UNKNOWN
-                || (research_invention_state(actor_research, i)
-                    == TECH_PREREQS_KNOWN))) {
-
-          return i;
-        }
-      } advance_iterate_end;
-    }
-  }
-
-  /* Unable to find a target. */
-  return A_UNSET;
-}
-
-/**************************************************************************
+/**************************************************************************//**
   Check if something is on our receiving end for some nasty diplomat
   business! Note that punit may die or be moved during this function. We
   must be adjacent to target city.
@@ -365,15 +317,16 @@ choose_tech_to_steal(const struct player *actor_player,
   We try to make embassy first, and abort if we already have one and target
   is allied. Then we steal, incite, sabotage or poison the city, in that
   order of priority.
-**************************************************************************/
+******************************************************************************/
 static void dai_diplomat_city(struct ai_type *ait, struct unit *punit,
                               struct city *ctarget)
 {
+  struct action *chosen_action;
+  adv_want chosen_action_utility;
+  int chosen_sub_tgt_id;
   struct player *pplayer = unit_owner(punit);
   struct player *tplayer = city_owner(ctarget);
-  int count_impr = count_sabotagable_improvements(ctarget);
   int count_tech = count_stealable_techs(pplayer, tplayer);
-  int incite_cost, expenses;
 
   fc_assert_ret(is_ai(pplayer));
 
@@ -383,92 +336,65 @@ static void dai_diplomat_city(struct ai_type *ait, struct unit *punit,
 
   unit_activity_handling(punit, ACTIVITY_IDLE);
 
-#define T(my_act, my_val)                                                  \
-  if (action_prob_possible(action_prob_vs_city(punit, my_act, ctarget))) { \
-    log_base(LOG_DIPLOMAT, "%s %s[%d] does " #my_act " at %s",             \
-             nation_rule_name(nation_of_unit(punit)),                      \
-             unit_rule_name(punit), punit->id, city_name_get(ctarget));    \
-    handle_unit_do_action(pplayer, punit->id,                              \
-                          ctarget->id, my_val, "", my_act);                \
-    return;                                                                \
-  }
+  /* Select the best potentially legal action. */
+  /* FIXME: what if it is illegal? */
+  chosen_action = NULL;
+  chosen_action_utility = -1;
+  chosen_sub_tgt_id = 0;
+  action_iterate(act_id) {
+    struct action *paction = action_by_number(act_id);
+    adv_want action_utility;
+    int sub_tgt_id;
 
-  T(ACTION_ESTABLISH_EMBASSY, 0);
-  T(ACTION_ESTABLISH_EMBASSY_STAY, 0);
-
-  if (pplayers_allied(pplayer, tplayer)) {
-    return; /* Don't do the rest to allies */
-  }
-
-  if (count_tech > 0 
-      && (diplomats_unignored_tech_stealings(punit, ctarget) == 0
-          || (action_prob_possible(action_prob_vs_city(punit,
-                  ACTION_SPY_TARGETED_STEAL_TECH_ESC, ctarget))
-              || action_prob_possible(action_prob_vs_city(punit,
-                     ACTION_SPY_STEAL_TECH_ESC, ctarget))))) {
-    Tech_type_id tgt_tech;
-
-    /* Picking a random tech has better odds. */
-    T(ACTION_SPY_STEAL_TECH_ESC, 0);
-    T(ACTION_SPY_STEAL_TECH, 0);
-
-    /* Not able to steal a random tech. This means worse odds. */
-    tgt_tech = choose_tech_to_steal(pplayer, tplayer);
-    if (tgt_tech != A_UNSET) {
-      /* A tech target can be identified. */
-      T(ACTION_SPY_TARGETED_STEAL_TECH_ESC, tgt_tech);
-      T(ACTION_SPY_TARGETED_STEAL_TECH, tgt_tech);
+    if (action_get_actor_kind(paction) != AAK_UNIT
+        || action_get_target_kind(paction) != ATK_CITY) {
+      /* Not relevant here. */
+      continue;
     }
-  } else {
-    UNIT_LOG(LOG_DIPLOMAT, punit, "We have already stolen from %s!",
-             city_name_get(ctarget));
+
+    if (!action_prob_possible(
+            action_prob_vs_city(punit, action_number(paction),ctarget))) {
+      /* Not possible. */
+      continue;
+    }
+
+    if (paction->target_complexity == ACT_TGT_COMPL_SIMPLE) {
+      /* No sub target */
+      sub_tgt_id = 0;
+    } else {
+      /* Pick a suitable sub target. */
+      sub_tgt_id = dai_action_choose_sub_tgt_unit_vs_city(paction,
+                                                          punit, ctarget);
+    }
+
+    action_utility = dai_action_value_unit_vs_city(paction, punit,
+                                                   ctarget, sub_tgt_id,
+                                                   count_tech);
+
+    if (chosen_action_utility < action_utility) {
+      chosen_action = paction;
+      chosen_action_utility = action_utility;
+      chosen_sub_tgt_id = sub_tgt_id;
+    }
+  } action_iterate_end;
+
+  if (chosen_action != NULL) {
+    /* An action has been selected. */
+
+    if (action_prob_possible(
+          action_prob_vs_city(punit, action_number(chosen_action),
+                              ctarget))) {
+      log_base(LOG_DIPLOMAT, "%s %s[%d] does %s at %s",
+               nation_rule_name(nation_of_unit(punit)),
+               unit_rule_name(punit), punit->id,
+               action_rule_name(chosen_action),
+               city_name_get(ctarget));
+      unit_do_action(pplayer, punit->id,
+                     ctarget->id, chosen_sub_tgt_id, "",
+                     action_number(chosen_action));
+      return;
+    }
   }
-
-  incite_cost = city_incite_cost(pplayer, ctarget);
-  dai_calc_data(pplayer, NULL, &expenses, NULL);
-
-  if (incite_cost <= pplayer->economic.gold - 2 * expenses) {
-    T(ACTION_SPY_INCITE_CITY_ESC, 0);
-    T(ACTION_SPY_INCITE_CITY, 0);
-  } else {
-    UNIT_LOG(LOG_DIPLOMAT, punit, "%s too expensive!",
-             city_name_get(ctarget));
-  }
-
-  if (!pplayers_at_war(pplayer, tplayer)) {
-    return; /* The rest are casus belli */
-  }
-
-  if (count_impr > 0) {
-    T(ACTION_SPY_SABOTAGE_CITY_ESC, 0);
-    T(ACTION_SPY_SABOTAGE_CITY, 0);
-  }
-
-  /* Sabotage a specific city improvement. This has worse odds than
-   * sabotaging a random city improvement. */
-  if (count_impr > 0) {
-    /* TODO: consider target improvements in stead of always going after
-     * the current production. */
-    int tgt_impr = -1;
-
-    T(ACTION_SPY_TARGETED_SABOTAGE_CITY_ESC, tgt_impr + 1);
-    T(ACTION_SPY_TARGETED_SABOTAGE_CITY, tgt_impr + 1);
-  }
-
-  T(ACTION_SPY_STEAL_GOLD_ESC, 0);
-  T(ACTION_SPY_STEAL_GOLD, 0);
-
-  T(ACTION_STEAL_MAPS_ESC, 0);
-  T(ACTION_STEAL_MAPS, 0);
-
-  /* last resort */
-  T(ACTION_SPY_POISON_ESC, 0);
-  T(ACTION_SPY_POISON, 0);
-
-   /* absolutely last resort */
-  T(ACTION_SPY_NUKE_ESC, 0);
-  T(ACTION_SPY_NUKE, 0);
-#undef T
 
   /* This can happen for a number of odd and esoteric reasons  */
   UNIT_LOG(LOG_DIPLOMAT, punit,
@@ -477,10 +403,10 @@ static void dai_diplomat_city(struct ai_type *ait, struct unit *punit,
   dai_unit_new_task(ait, punit, AIUNIT_NONE, NULL);
 }
 
-/*****************************************************************************
+/**************************************************************************//**
   Check if we have a diplomat / spy near a given city. This is used to prevent
   a stack of such units next to a foreign city.
-*****************************************************************************/
+******************************************************************************/
 static bool is_city_surrounded_by_our_spies(struct player *pplayer,
                                             struct city *enemy_city)
 {
@@ -492,44 +418,27 @@ static bool is_city_surrounded_by_our_spies(struct player *pplayer,
     }
     unit_list_iterate(ptile->units, punit) {
       if (unit_owner(punit) == pplayer
-          && (utype_can_do_action(unit_type_get(punit),
-                                  ACTION_SPY_INVESTIGATE_CITY)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_INV_CITY_SPEND)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_POISON)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_POISON_ESC)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_STEAL_GOLD)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_STEAL_GOLD_ESC)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_SABOTAGE_CITY)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_SABOTAGE_CITY_ESC)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_TARGETED_SABOTAGE_CITY)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_TARGETED_SABOTAGE_CITY_ESC)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_STEAL_TECH)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_STEAL_TECH_ESC)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_TARGETED_STEAL_TECH)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_TARGETED_STEAL_TECH_ESC)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_INCITE_CITY)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_INCITE_CITY_ESC)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_BRIBE_UNIT)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_SABOTAGE_UNIT_ESC)
-              || utype_can_do_action(unit_type_get(punit),
-                                     ACTION_SPY_SABOTAGE_UNIT))) {
+          && (unit_can_do_action_result(punit, ACTRES_SPY_INVESTIGATE_CITY)
+              || unit_can_do_action_result(punit, ACTRES_SPY_POISON)
+              || unit_can_do_action_result(punit, ACTRES_SPY_SPREAD_PLAGUE)
+              || unit_can_do_action_result(punit, ACTRES_SPY_STEAL_GOLD)
+              || unit_can_do_action_result(punit, ACTRES_SPY_SABOTAGE_CITY)
+              || unit_can_do_action_result(punit,
+                                           ACTRES_SPY_TARGETED_SABOTAGE_CITY)
+              || unit_can_do_action_result(punit,
+                                           ACTRES_SPY_SABOTAGE_CITY_PRODUCTION)
+              || unit_can_do_action_result(punit,
+                                           ACTRES_SPY_STEAL_TECH)
+              || unit_can_do_action_result(punit,
+                                           ACTRES_SPY_TARGETED_STEAL_TECH)
+              || unit_can_do_action_result(punit,
+                                           ACTRES_SPY_INCITE_CITY)
+              || unit_can_do_action_result(punit,
+                                           ACTRES_SPY_ATTACK)
+              || unit_can_do_action_result(punit,
+                                           ACTRES_SPY_BRIBE_UNIT)
+              || unit_can_do_action_result(punit,
+                                           ACTRES_SPY_SABOTAGE_UNIT))) {
         return TRUE;
       }
     } unit_list_iterate_end;
@@ -538,10 +447,10 @@ static bool is_city_surrounded_by_our_spies(struct player *pplayer,
   return FALSE;
 }
 
-/**************************************************************************
-  Returns (in ctarget) the closest city to send diplomats against, or NULL 
+/**************************************************************************//**
+  Returns (in ctarget) the closest city to send diplomats against, or NULL
   if none available on this continent.  punit can be virtual.
-**************************************************************************/
+******************************************************************************/
 static void find_city_to_diplomat(struct player *pplayer, struct unit *punit,
                                   struct city **ctarget, int *move_dist,
                                   struct pf_map *pfm)
@@ -618,9 +527,9 @@ static void find_city_to_diplomat(struct player *pplayer, struct unit *punit,
   } pf_map_move_costs_iterate_end;
 }
 
-/**************************************************************************
+/**************************************************************************//**
   Go to nearest/most threatened city (can be the current city too).
-**************************************************************************/
+******************************************************************************/
 static struct city *dai_diplomat_defend(struct ai_type *ait,
                                         struct player *pplayer,
                                         struct unit *punit,
@@ -684,11 +593,11 @@ static struct city *dai_diplomat_defend(struct ai_type *ait,
   return ctarget;
 }
 
-/**************************************************************************
+/**************************************************************************//**
   Find units that we can reach, and bribe them. Returns TRUE if survived
   the ordeal, FALSE if not or we expended all our movement.
   Will try to bribe a ship on the coast as well as land stuff.
-**************************************************************************/
+******************************************************************************/
 static bool dai_diplomat_bribe_nearby(struct ai_type *ait,
                                       struct player *pplayer, 
                                       struct unit *punit, struct pf_map *pfm)
@@ -704,7 +613,7 @@ static bool dai_diplomat_bribe_nearby(struct ai_type *ait,
     int newval, bestval = 0, cost;
     struct unit *pvictim = is_other_players_unit_tile(ptile, pplayer);
     int sanity = punit->id;
-    struct unit_type *ptype;
+    const struct unit_type *ptype;
 
     if (pos.total_MC > punit->moves_left) {
       /* Didn't find anything within range. */
@@ -723,7 +632,7 @@ static bool dai_diplomat_bribe_nearby(struct ai_type *ait,
     /* Calculate if enemy is a threat */
     /* First find best defender on our tile */
     unit_list_iterate(ptile->units, aunit) {
-      struct unit_type *atype = unit_type_get(aunit);
+      const struct unit_type *atype = unit_type_get(aunit);
 
       newval = DEFENSE_POWER(atype);
       if (bestval < newval) {
@@ -743,9 +652,17 @@ static bool dai_diplomat_bribe_nearby(struct ai_type *ait,
     }
 
     if (has_handicap(pplayer, H_NOBRIBE_WF)) {
-      /* Don't bribe settlers! */
-      if (unit_has_type_flag(pvictim, UTYF_SETTLERS)
-          || unit_can_do_action(pvictim, ACTION_FOUND_CITY)) {
+      /* Don't bribe workers or city founders! */
+      if (unit_can_do_action_result(pvictim, ACTRES_TRANSFORM_TERRAIN)
+          || unit_can_do_action_result(pvictim, ACTRES_CULTIVATE)
+          || unit_can_do_action_result(pvictim, ACTRES_PLANT)
+          || unit_can_do_action_result(pvictim, ACTRES_ROAD)
+          || unit_can_do_action_result(pvictim, ACTRES_BASE)
+          || unit_can_do_action_result(pvictim, ACTRES_MINE)
+          || unit_can_do_action_result(pvictim, ACTRES_IRRIGATE)
+          || unit_can_do_action_result(pvictim, ACTRES_CLEAN_POLLUTION)
+          || unit_can_do_action_result(pvictim, ACTRES_CLEAN_FALLOUT)
+          || unit_can_do_action_result(pvictim, ACTRES_FOUND_CITY)) {
         continue;
       }
     }
@@ -779,9 +696,9 @@ static bool dai_diplomat_bribe_nearby(struct ai_type *ait,
     if (action_prob_possible(action_prob_vs_unit(punit,
                                  ACTION_SPY_BRIBE_UNIT,
                                  pvictim))) {
-      handle_unit_do_action(pplayer, punit->id,
-                            pvictim->id, -1, "",
-                            ACTION_SPY_BRIBE_UNIT);
+      unit_do_action(pplayer, punit->id,
+                     pvictim->id, -1, "",
+                     ACTION_SPY_BRIBE_UNIT);
       /* autoattack might kill us as we move in */
       if (game_unit_by_number(sanity) && punit->moves_left > 0) {
         return TRUE;
@@ -793,9 +710,9 @@ static bool dai_diplomat_bribe_nearby(struct ai_type *ait,
                                         pvictim))
                && threat) {
       /* don't stand around waiting for the final blow */
-      handle_unit_do_action(pplayer, punit->id,
-                            pvictim->id, -1, "",
-                            ACTION_SPY_SABOTAGE_UNIT_ESC);
+      unit_do_action(pplayer, punit->id,
+                     pvictim->id, -1, "",
+                     ACTION_SPY_SABOTAGE_UNIT_ESC);
       /* autoattack might kill us as we move in */
       if (game_unit_by_number(sanity) && punit->moves_left > 0) {
         return TRUE;
@@ -813,16 +730,16 @@ static bool dai_diplomat_bribe_nearby(struct ai_type *ait,
   return (punit->moves_left > 0);
 }
 
-/**************************************************************************
-  If we are the only diplomat in a threatened city, defend against enemy 
-  actions. The passive defense is set by game.diplchance.  The active 
-  defense is to bribe units which end their move nearby. Our next trick is 
+/**************************************************************************//**
+  If we are the only diplomat in a threatened city, defend against enemy
+  actions. The passive defense is set by game.diplchance.  The active
+  defense is to bribe units which end their move nearby. Our next trick is
   to look for enemy cities on our continent and do our diplomat things.
 
   FIXME: It is important to establish contact with all civilizations, so
   we should send diplomats by boat eventually. I just don't know how that
   part of the code works, yet - Per
-**************************************************************************/
+******************************************************************************/
 void dai_manage_diplomat(struct ai_type *ait, struct player *pplayer,
                          struct unit *punit)
 {

@@ -37,13 +37,7 @@
 
 #include "canvas.h"
 
-static int *fonts[FONT_COUNT] = {
-  &city_names_font_size,
-  &city_productions_font_size,
-  &city_productions_font_size
-};
-
-/**************************************************************************
+/**********************************************************************//**
   Create a canvas of the given size.
 **************************************************************************/
 struct canvas *canvas_create(int width, int height)
@@ -55,7 +49,7 @@ struct canvas *canvas_create(int width, int height)
   return result;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Free any resources associated with this canvas and the canvas struct
   itself.
 **************************************************************************/
@@ -65,23 +59,23 @@ void canvas_free(struct canvas *store)
   free(store);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Set canvas zoom for future drawing operations.
-****************************************************************************/
+**************************************************************************/
 void canvas_set_zoom(struct canvas *store, float zoom)
 {
   /* sdl2-client has no zoom support */
 }
 
-/****************************************************************************
+/**********************************************************************//**
   This gui has zoom support.
-****************************************************************************/
+**************************************************************************/
 bool has_zoom_support(void)
 {
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Copies an area from the source canvas to the destination canvas.
 **************************************************************************/
 void canvas_copy(struct canvas *dest, struct canvas *src,
@@ -94,9 +88,9 @@ void canvas_copy(struct canvas *dest, struct canvas *src,
   alphablit(src->surf, &src_rect, dest->surf, &dest_rect, 255);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Draw some or all of a sprite onto the canvas.
-****************************************************************************/
+**************************************************************************/
 void canvas_put_sprite(struct canvas *pcanvas,
                        int canvas_x, int canvas_y,
                        struct sprite *sprite,
@@ -108,9 +102,9 @@ void canvas_put_sprite(struct canvas *pcanvas,
   alphablit(GET_SURF(sprite), &src, pcanvas->surf, &dst, 255);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Draw a full sprite onto the canvas.
-****************************************************************************/
+**************************************************************************/
 void canvas_put_sprite_full(struct canvas *pcanvas,
                             int canvas_x, int canvas_y,
                             struct sprite *sprite)
@@ -120,10 +114,10 @@ void canvas_put_sprite_full(struct canvas *pcanvas,
   alphablit(GET_SURF(sprite), NULL, pcanvas->surf, &dst, 255);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Draw a full sprite onto the canvas.  If "fog" is specified draw it with
   fog.
-****************************************************************************/
+**************************************************************************/
 void canvas_put_sprite_fogged(struct canvas *pcanvas,
                               int canvas_x, int canvas_y,
                               struct sprite *psprite,
@@ -138,9 +132,9 @@ void canvas_put_sprite_fogged(struct canvas *pcanvas,
   }
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Draw a filled-in colored rectangle onto canvas.
-****************************************************************************/
+**************************************************************************/
 void canvas_put_rectangle(struct canvas *pcanvas, struct color *pcolor,
                           int canvas_x, int canvas_y, int width, int height)
 {
@@ -153,9 +147,9 @@ void canvas_put_rectangle(struct canvas *pcanvas, struct color *pcolor,
                                                 pcolor->color->a));
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Fill the area covered by the sprite with the given color.
-****************************************************************************/
+**************************************************************************/
 void canvas_fill_sprite_area(struct canvas *pcanvas,
                              struct sprite *psprite, struct color *pcolor,
                              int canvas_x, int canvas_y)
@@ -171,9 +165,9 @@ void canvas_fill_sprite_area(struct canvas *pcanvas,
                                                 pcolor->color->a));
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Draw a 1-pixel-width colored line onto the canvas.
-****************************************************************************/
+**************************************************************************/
 void canvas_put_line(struct canvas *pcanvas, struct color *pcolor,
                      enum line_type ltype, int start_x, int start_y,
                      int dx, int dy)
@@ -181,9 +175,9 @@ void canvas_put_line(struct canvas *pcanvas, struct color *pcolor,
   create_line(pcanvas->surf, start_x, start_y, start_x + dx, start_y + dy, pcolor->color);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Draw a 1-pixel-width colored curved line onto the canvas.
-****************************************************************************/
+**************************************************************************/
 void canvas_put_curved_line(struct canvas *pcanvas, struct color *pcolor,
                             enum line_type ltype, int start_x, int start_y,
                             int dx, int dy)
@@ -192,15 +186,15 @@ void canvas_put_curved_line(struct canvas *pcanvas, struct color *pcolor,
   canvas_put_line(pcanvas, pcolor, ltype, start_x, start_y, dx, dy);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Return the size of the given text in the given font.  This size should
   include the ascent and descent of the text.  Either of width or height
   may be NULL in which case those values simply shouldn't be filled out.
-****************************************************************************/
+**************************************************************************/
 void get_text_size(int *width, int *height,
                    enum client_font font, const char *text)
 {
-  utf8_str *ptext = create_utf8_str(NULL, 0, *fonts[font]);
+  utf8_str *ptext = create_utf8_str(NULL, 0, *client_font_sizes[font]);
   SDL_Rect size;
 
   fc_assert(width != NULL ||  height != NULL);
@@ -219,17 +213,17 @@ void get_text_size(int *width, int *height,
   FREEUTF8STR(ptext);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Draw the text onto the canvas in the given color and font.  The canvas
   position does not account for the ascent of the text; this function must
   take care of this manually.  The text will not be NULL but may be empty.
-****************************************************************************/
+**************************************************************************/
 void canvas_put_text(struct canvas *pcanvas, int canvas_x, int canvas_y,
                      enum client_font font, struct color *pcolor,
                      const char *text)
 {
   SDL_Surface *ptmp;
-  utf8_str *ptext = create_utf8_str(NULL, 0, *fonts[font]);
+  utf8_str *ptext = create_utf8_str(NULL, 0, *client_font_sizes[font]);
 
   copy_chars_to_utf8_str(ptext, text);
 

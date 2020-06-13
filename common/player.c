@@ -66,7 +66,7 @@ static void player_diplstate_destroy(const struct player *plr1,
 ***********************************************************************/
 enum diplstate_type cancel_pact_result(enum diplstate_type oldstate)
 {
-  switch(oldstate) {
+  switch (oldstate) {
   case DS_NO_CONTACT: /* possible if someone declares war on our ally */
   case DS_WAR: /* no change */
   case DS_ARMISTICE:
@@ -560,6 +560,7 @@ static void player_defaults(struct player *pplayer)
   pplayer->economic.tax     = PLAYER_DEFAULT_TAX_RATE;
   pplayer->economic.science = PLAYER_DEFAULT_SCIENCE_RATE;
   pplayer->economic.luxury  = PLAYER_DEFAULT_LUXURY_RATE;
+  pplayer->economic.infra_points = 0;
 
   spaceship_init(&pplayer->spaceship);
 
@@ -997,7 +998,7 @@ bool can_player_see_unit_at(const struct player *pplayer,
 
   /* Units within some extras may be hidden. */
   if (!pplayers_allied(pplayer, ptile->extras_owner)) {
-    struct unit_type *ptype = unit_type_get(punit);
+    const struct unit_type *ptype = unit_type_get(punit);
 
     extra_type_list_iterate(extra_type_list_of_unit_hiders(), pextra) {
       if (tile_has_extra(ptile, pextra) && is_native_extra_to_utype(pextra, ptype)) {
@@ -1222,7 +1223,7 @@ int player_get_expected_income(const struct player *pplayer)
     case GOLD_UPKEEP_NATION:
       /* Nation pays for buildings (and units). */
       income -= city_total_impr_gold_upkeep(pcity);
-      /* No break. */
+      fc__fallthrough; /* No break. */
     case GOLD_UPKEEP_MIXED:
       /* Nation pays for units. */
       income -= city_total_unit_gold_upkeep(pcity);
@@ -1536,6 +1537,46 @@ const char *diplrel_name_translation(int value)
   } else {
     return _(diplrel_other_name(value));
   }
+}
+
+/**************************************************************************
+  Return the Casus Belli range when offender performs paction to tgt_plr
+  at tgt_tile and the outcome is outcome.
+**************************************************************************/
+enum casus_belli_range casus_belli_range_for(const struct player *offender,
+                                             const struct player *tgt_plr,
+                                             const enum effect_type outcome,
+                                             const struct action *paction,
+                                             const struct tile *tgt_tile)
+{
+  int casus_belli_amount;
+
+  /* The victim gets a casus belli if CASUS_BELLI_VICTIM or above. Everyone
+   * gets a casus belli if CASUS_BELLI_OUTRAGE or above. */
+  casus_belli_amount =
+      get_target_bonus_effects(NULL,
+                               offender, tgt_plr,
+                               tile_city(tgt_tile),
+                               NULL,
+                               tgt_tile,
+                               NULL, NULL,
+                               NULL, NULL,
+                               paction,
+                               outcome);
+
+  if (casus_belli_amount >= CASUS_BELLI_OUTRAGE) {
+    /* International outrage: This isn't just between the offender and the
+     * victim. */
+    return CBR_INTERNATIONAL_OUTRAGE;
+  }
+
+  if (casus_belli_amount >= CASUS_BELLI_VICTIM) {
+    /* In this situation the specified action provides a casus belli
+     * against the actor. */
+    return CBR_VICTIM_ONLY;
+  }
+
+  return CBR_NONE;
 }
 
 /* The number of mutually exclusive requirement sets that

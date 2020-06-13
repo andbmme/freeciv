@@ -33,14 +33,13 @@
 #include "extras.h"
 
 // ruledit
-#include "effect_edit.h"
 #include "ruledit.h"
 #include "ruledit_qt.h"
 #include "validity.h"
 
 #include "tab_extras.h"
 
-/**************************************************************************
+/**********************************************************************//**
   Setup tab_extras object
 **************************************************************************/
 tab_extras::tab_extras(ruledit_gui *ui_in) : QWidget()
@@ -89,7 +88,6 @@ tab_extras::tab_extras(ruledit_gui *ui_in) : QWidget()
   effects_button = new QPushButton(QString::fromUtf8(R__("Effects")), this);
   connect(effects_button, SIGNAL(pressed()), this, SLOT(edit_effects()));
   extra_layout->addWidget(effects_button, 3, 2);
-  show_experimental(effects_button);
 
   add_button = new QPushButton(QString::fromUtf8(R__("Add Extra")), this);
   connect(add_button, SIGNAL(pressed()), this, SLOT(add_now()));
@@ -108,7 +106,7 @@ tab_extras::tab_extras(ruledit_gui *ui_in) : QWidget()
   setLayout(main_layout);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh the information.
 **************************************************************************/
 void tab_extras::refresh()
@@ -116,7 +114,7 @@ void tab_extras::refresh()
   extra_list->clear();
 
   extra_type_iterate(pextra) {
-    if (!pextra->disabled) {
+    if (!pextra->ruledit_disabled) {
       QListWidgetItem *item =
         new QListWidgetItem(QString::fromUtf8(extra_rule_name(pextra)));
 
@@ -125,7 +123,7 @@ void tab_extras::refresh()
   } extra_type_iterate_end;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update info of the extra
 **************************************************************************/
 void tab_extras::update_extra_info(struct extra_type *pextra)
@@ -153,7 +151,7 @@ void tab_extras::update_extra_info(struct extra_type *pextra)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected extra from the list.
 **************************************************************************/
 void tab_extras::select_extra()
@@ -161,19 +159,26 @@ void tab_extras::select_extra()
   QList<QListWidgetItem *> select_list = extra_list->selectedItems();
 
   if (!select_list.isEmpty()) {
-    update_extra_info(extra_type_by_rule_name(select_list.at(0)->text().toUtf8().data()));
+    QByteArray en_bytes;
+
+    en_bytes = select_list.at(0)->text().toUtf8();
+    update_extra_info(extra_type_by_rule_name(en_bytes.data()));
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User entered name for the extra
 **************************************************************************/
 void tab_extras::name_given()
 {
   if (selected != nullptr) {
+    QByteArray name_bytes;
+    QByteArray rname_bytes;
+
     extra_type_iterate(pextra) {
-      if (pextra != selected && !pextra->disabled) {
-        if (!strcmp(extra_rule_name(pextra), rname->text().toUtf8().data())) {
+      if (pextra != selected && !pextra->ruledit_disabled) {
+        rname_bytes = rname->text().toUtf8();
+        if (!strcmp(extra_rule_name(pextra), rname_bytes.data())) {
           ui->display_msg(R__("An extra with that rule name already exists!"));
           return;
         }
@@ -184,14 +189,16 @@ void tab_extras::name_given()
       name->setText(rname->text());
     }
 
+    name_bytes = name->text().toUtf8();
+    rname_bytes = rname->text().toUtf8();
     names_set(&(selected->name), 0,
-              name->text().toUtf8().data(),
-              rname->text().toUtf8().data());
+              name_bytes.data(),
+              rname_bytes.data());
     refresh();
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested extra deletion 
 **************************************************************************/
 void tab_extras::delete_now()
@@ -204,14 +211,14 @@ void tab_extras::delete_now()
       return;
     }
 
-    selected->disabled = true;
+    selected->ruledit_disabled = true;
 
     refresh();
     update_extra_info(nullptr);
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Initialize new extra for use.
 **************************************************************************/
 bool tab_extras::initialize_new_extra(struct extra_type *pextra)
@@ -225,7 +232,7 @@ bool tab_extras::initialize_new_extra(struct extra_type *pextra)
   return true;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested new extra
 **************************************************************************/
 void tab_extras::add_now()
@@ -234,9 +241,9 @@ void tab_extras::add_now()
 
   // Try to reuse freed extra slot
   extra_type_iterate(pextra) {
-    if (pextra->disabled) {
+    if (pextra->ruledit_disabled) {
       if (initialize_new_extra(pextra)) {
-        pextra->disabled = false;
+        pextra->ruledit_disabled = false;
         update_extra_info(pextra);
         refresh();
       }
@@ -262,7 +269,7 @@ void tab_extras::add_now()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Toggled whether rule_name and name should be kept identical
 **************************************************************************/
 void tab_extras::same_name_toggle(bool checked)
@@ -273,7 +280,7 @@ void tab_extras::same_name_toggle(bool checked)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User wants to edit reqs
 **************************************************************************/
 void tab_extras::edit_reqs()
@@ -284,21 +291,18 @@ void tab_extras::edit_reqs()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User wants to edit effects
 **************************************************************************/
 void tab_extras::edit_effects()
 {
   if (selected != nullptr) {
-    effect_edit *e_edit;
     struct universal uni;
 
     uni.value.extra = selected;
     uni.kind = VUT_EXTRA;
 
-    e_edit = new effect_edit(ui, QString::fromUtf8(extra_rule_name(selected)),
-                             &uni);
-
-    e_edit->show();
+    ui->open_effect_edit(QString::fromUtf8(extra_rule_name(selected)),
+                         &uni, EFMC_NORMAL);
   }
 }

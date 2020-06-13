@@ -51,10 +51,11 @@ enum { CITIES, LUXURIES, BUILDINGS, NATIONALITY, UNITS, WONDERS };
 
 struct happiness_dialog {
   struct city *pcity;
+  GtkWidget *win;
   GtkWidget *shell;
   GtkWidget *cityname_label;
+  GtkWidget *feeling_images[NUM_HAPPINESS_MODIFIERS];
   cairo_surface_t *feeling_surfaces[NUM_HAPPINESS_MODIFIERS];
-  GtkWidget *happiness_ebox[NUM_HAPPINESS_MODIFIERS];
   GtkWidget *happiness_label[NUM_HAPPINESS_MODIFIERS];
   GtkWidget *close;
 };
@@ -70,33 +71,34 @@ struct happiness_dialog {
 static struct dialog_list *dialog_list;
 static struct happiness_dialog *get_happiness_dialog(struct city *pcity);
 static struct happiness_dialog *create_happiness_dialog(struct city *pcity,
-                                                        bool low_dlg);
+                                                        bool low_dlg,
+                                                        GtkWidget *win);
 static gboolean show_happiness_popup(GtkWidget *w,
-                                     GdkEventButton *ev,
+                                     GdkEvent *ev,
                                      gpointer data);
 static gboolean show_happiness_button_release(GtkWidget *w,
-                                              GdkEventButton *ev,
+                                              GdkEvent *ev,
                                               gpointer data);
 
-/****************************************************************
+/**********************************************************************//**
   Create happiness dialog
-*****************************************************************/
-void happiness_dialog_init()
+**************************************************************************/
+void happiness_dialog_init(void)
 {
   dialog_list = dialog_list_new();
 }
 
-/****************************************************************
+/**********************************************************************//**
   Remove happiness dialog
-*****************************************************************/
-void happiness_dialog_done()
+**************************************************************************/
+void happiness_dialog_done(void)
 {
   dialog_list_destroy(dialog_list);
 }
 
-/****************************************************************
+/**********************************************************************//**
   Return happiness dialog for a city
-*****************************************************************/
+**************************************************************************/
 static struct happiness_dialog *get_happiness_dialog(struct city *pcity)
 {
   dialog_list_iterate(dialog_list, pdialog) {
@@ -108,17 +110,19 @@ static struct happiness_dialog *get_happiness_dialog(struct city *pcity)
   return NULL;
 }
 
-/****************************************************************
+/**********************************************************************//**
   Popup for the happiness display.
-*****************************************************************/
+**************************************************************************/
 static gboolean show_happiness_popup(GtkWidget *w,
-                                     GdkEventButton *ev,
+                                     GdkEvent *ev,
                                      gpointer data)
 {
   struct happiness_dialog *pdialog = g_object_get_data(G_OBJECT(w),
-                                                        "pdialog");
+                                                       "pdialog");
+  guint button;
 
-  if (ev->button == 1) {
+  gdk_event_get_button(ev, &button);
+  if (button == 1) {
     GtkWidget *p, *label, *frame;
     char buf[1024];
 
@@ -151,12 +155,15 @@ static gboolean show_happiness_popup(GtkWidget *w,
     gtk_widget_set_margin_end(p, 2);
     gtk_widget_set_margin_top(p, 2);
     gtk_widget_set_margin_bottom(p, 2);
+    gtk_window_set_transient_for(GTK_WINDOW(p), GTK_WINDOW(pdialog->win));
     gtk_window_set_position(GTK_WINDOW(p), GTK_WIN_POS_MOUSE);
 
     frame = gtk_frame_new(NULL);
     gtk_container_add(GTK_CONTAINER(p), frame);
 
     label = gtk_label_new(buf);
+    /* FIXME: there is no font option corresponding to this style name.
+     * Remove?: */
     gtk_widget_set_name(label, "city_happiness_label");
     gtk_widget_set_margin_start(label, 4);
     gtk_widget_set_margin_end(label, 4);
@@ -165,7 +172,8 @@ static gboolean show_happiness_popup(GtkWidget *w,
     gtk_container_add(GTK_CONTAINER(frame), label);
     gtk_widget_show(p);
 
-    gdk_seat_grab(gdk_device_get_seat(ev->device), gtk_widget_get_window(p),
+    gdk_seat_grab(gdk_device_get_seat(gdk_event_get_device(ev)),
+                  gtk_widget_get_surface(p),
                   GDK_SEAT_CAPABILITY_ALL_POINTING,
                   TRUE, NULL, (GdkEvent *)ev, NULL, NULL);
     gtk_grab_add(p);
@@ -177,28 +185,29 @@ static gboolean show_happiness_popup(GtkWidget *w,
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Clear the happiness popup.
 **************************************************************************/
-static gboolean show_happiness_button_release(GtkWidget *w, GdkEventButton *ev,
+static gboolean show_happiness_button_release(GtkWidget *w, GdkEvent *ev,
                                               gpointer data)
 {
   gtk_grab_remove(w);
-  gdk_seat_ungrab(gdk_device_get_seat(ev->device));
+  gdk_seat_ungrab(gdk_device_get_seat(gdk_event_get_device(ev)));
   gtk_widget_destroy(w);
 
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create the happiness notebook page.
 **************************************************************************/
 static struct happiness_dialog *create_happiness_dialog(struct city *pcity,
-                                                        bool low_dlg)
+                                                        bool low_dlg,
+                                                        GtkWidget *win)
 {
   int i;
   struct happiness_dialog *pdialog;
-  GtkWidget *ebox, *label, *table;
+  GtkWidget *label, *table;
   char buf[700];
 
   static const char *happiness_label_str[NUM_HAPPINESS_MODIFIERS] = {
@@ -245,22 +254,18 @@ static struct happiness_dialog *create_happiness_dialog(struct city *pcity,
     gtk_grid_attach(GTK_GRID(table), label, 0, i, 1, 1);
 
     /* list of citizens */
-    ebox = gtk_event_box_new();
-    gtk_widget_set_margin_start(ebox, 5);
-    gtk_event_box_set_visible_window(GTK_EVENT_BOX(ebox), FALSE);
-    g_object_set_data(G_OBJECT(ebox), "pdialog", pdialog);
-    g_signal_connect(ebox, "button_press_event",
-                     G_CALLBACK(show_happiness_popup), GUINT_TO_POINTER(i));
-    pdialog->happiness_ebox[i] = ebox;
-
     pdialog->feeling_surfaces[i] = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
                                                               FEELING_WIDTH, FEELING_HEIGHT);
-    img = gtk_image_new_from_surface(pdialog->feeling_surfaces[i]);
-    gtk_container_add(GTK_CONTAINER(ebox), img);
+    img = gtk_image_new();
+    pdialog->feeling_images[i] = img;
+    gtk_widget_set_margin_start(img, 5);
+    g_object_set_data(G_OBJECT(img), "pdialog", pdialog);
+    g_signal_connect(img, "button_press_event",
+                     G_CALLBACK(show_happiness_popup), GUINT_TO_POINTER(i));
     gtk_widget_set_halign(img, GTK_ALIGN_START);
     gtk_widget_set_valign(img, GTK_ALIGN_START);
 
-    gtk_grid_attach(GTK_GRID(table), ebox, 1, i, 1, 1);
+    gtk_grid_attach(GTK_GRID(table), img, 1, i, 1, 1);
   }
 
   /* TRANS: the width of this text defines the width of the city dialog.
@@ -278,13 +283,16 @@ static struct happiness_dialog *create_happiness_dialog(struct city *pcity,
   dialog_list_prepend(dialog_list, pdialog);
   refresh_happiness_dialog(pcity);
 
+  pdialog->win = win;
+
   return pdialog;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh citizens surface
 **************************************************************************/
-static void refresh_feeling_surface(cairo_surface_t *dst, struct city *pcity,
+static void refresh_feeling_surface(GtkWidget *image,
+                                    cairo_surface_t *dst, struct city *pcity,
                                     enum citizen_feeling index)
 {
   enum citizen_category categories[MAX_CITY_SIZE];
@@ -303,10 +311,12 @@ static void refresh_feeling_surface(cairo_surface_t *dst, struct city *pcity,
     cairo_fill(cr);
   }
 
+  image_set_from_surface(GTK_IMAGE(image), dst);
+
   cairo_destroy(cr);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh whole happiness dialog
 **************************************************************************/
 void refresh_happiness_dialog(struct city *pcity)
@@ -315,11 +325,12 @@ void refresh_happiness_dialog(struct city *pcity)
   struct happiness_dialog *pdialog = get_happiness_dialog(pcity);
 
   for (i = 0; i < FEELING_LAST; i++) {
-    refresh_feeling_surface(pdialog->feeling_surfaces[i], pdialog->pcity, i);
+    refresh_feeling_surface(pdialog->feeling_images[i],
+                            pdialog->feeling_surfaces[i], pdialog->pcity, i);
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Close happiness dialog of given city
 **************************************************************************/
 void close_happiness_dialog(struct city *pcity)
@@ -345,10 +356,11 @@ void close_happiness_dialog(struct city *pcity)
   free(pdialog);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create happiness dialog and get its widget
 **************************************************************************/
-GtkWidget *get_top_happiness_display(struct city *pcity, bool low_dlg)
+GtkWidget *get_top_happiness_display(struct city *pcity, bool low_dlg,
+                                     GtkWidget *win)
 {
-  return create_happiness_dialog(pcity, low_dlg)->shell;
+  return create_happiness_dialog(pcity, low_dlg, win)->shell;
 }

@@ -39,8 +39,9 @@
 /* ai/default */
 #include "aidata.h"
 
-/* ai/threxpr */
+/* ai/tex */
 #include "texaimsg.h"
+#include "texaiplayer.h"
 
 #include "texaicity.h"
 
@@ -64,7 +65,7 @@ static bool texai_city_worker_task_select(struct ai_type *ait,
                                           struct worker_task *task,
                                           enum texai_worker_task_limitation limit);
 
-/**************************************************************************
+/**********************************************************************//**
   Create worker request for the city. Only tasks that existing units can
   do are created.
 **************************************************************************/
@@ -86,7 +87,7 @@ void texai_city_worker_requests_create(struct ai_type *ait,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set wants for worker-type units.
 **************************************************************************/
 void texai_city_worker_wants(struct ai_type *ait,
@@ -146,7 +147,7 @@ struct texai_tile_state
   int *wants;
 };
 
-/**************************************************************************
+/**********************************************************************//**
   Select worker task suitable for the tile.
 **************************************************************************/
 static void texai_tile_worker_task_select(struct player *pplayer,
@@ -173,7 +174,7 @@ static void texai_tile_worker_task_select(struct player *pplayer,
     potential_worst_worked = TRUE;
   }
 
-  as_transform_activity_iterate(act) {
+  as_transform_action_iterate(act) {
     bool consider = TRUE;
     bool possible = FALSE;
     enum extra_cause cause;
@@ -184,7 +185,7 @@ static void texai_tile_worker_task_select(struct player *pplayer,
     unit_list_iterate(ptile->units, punit) {
       if (unit_owner(punit) == pplayer
           && unit_has_type_flag(punit, UTYF_SETTLERS)
-          && punit->activity == act) {
+          && punit->activity == action_id_get_activity(act)) {
         consider = FALSE;
         break;
       }
@@ -194,8 +195,8 @@ static void texai_tile_worker_task_select(struct player *pplayer,
       continue;
     }
 
-    cause = activity_to_extra_cause(act);
-    rmcause = activity_to_extra_rmcause(act);
+    cause = activity_to_extra_cause(action_id_get_activity(act));
+    rmcause = activity_to_extra_rmcause(action_id_get_activity(act));
 
     unit_list_iterate(units, punit) {
       if (cause != EC_NONE) {
@@ -204,24 +205,34 @@ static void texai_tile_worker_task_select(struct player *pplayer,
         tgt = prev_extra_in_tile(ptile, rmcause, pplayer, punit);
       }
 
-      if (can_unit_do_activity_targeted_at(punit, act, tgt, ptile)) {
+      if (action_prob_possible(
+            action_speculate_unit_on_tile(act,
+                                          punit, unit_home(punit), ptile,
+                                          TRUE,
+                                          ptile, tgt))) {
         possible = TRUE;
         break;
       }
     } unit_list_iterate_end;
 
     if (possible) {
-      int value = adv_city_worker_act_get(pcity, cindex, act);
+      int value = adv_city_worker_act_get(pcity, cindex,
+                                          action_id_get_activity(act));
 
       if (tile_worked(ptile) == pcity) {
         if ((value - orig_value) * TWMP > worked->want) {
           worked->want       = TWMP * (value - orig_value);
           worked->ptile      = ptile;
-          worked->act        = act;
+          worked->act        = action_id_get_activity(act);
           worked->tgt        = NULL;
           if (limit == TWTL_BUILDABLE_UNITS) {
             unit_list_iterate(units, punit) {
-              if (can_unit_do_activity_targeted_at(punit, act, tgt, ptile)) {
+              if (action_prob_possible(
+                    action_speculate_unit_on_tile(act,
+                                                  punit, unit_home(punit),
+                                                  ptile,
+                                                  TRUE,
+                                                  ptile, tgt))) {
                 state->wants[utype_index(unit_type_get(punit))] += worked->want;
               }
             } unit_list_iterate_end;
@@ -239,11 +250,16 @@ static void texai_tile_worker_task_select(struct player *pplayer,
           state->uw_max_base   = value;
           unworked->want       = TWMP * (value - orig_value);
           unworked->ptile      = ptile;
-          unworked->act        = act;
+          unworked->act        = action_id_get_activity(act);
           unworked->tgt        = NULL;
           if (limit == TWTL_BUILDABLE_UNITS) {
             unit_list_iterate(units, punit) {
-              if (can_unit_do_activity_targeted_at(punit, act, tgt, ptile)) {
+              if (action_prob_possible(
+                    action_speculate_unit_on_tile(act,
+                                                  punit, unit_home(punit),
+                                                  ptile,
+                                                  TRUE,
+                                                  ptile, tgt))) {
                 state->wants[utype_index(unit_type_get(punit))] += unworked->want;
               }
             } unit_list_iterate_end;
@@ -251,36 +267,48 @@ static void texai_tile_worker_task_select(struct player *pplayer,
         }
       }
     }
-  } as_transform_activity_iterate_end;
+  } as_transform_action_iterate_end;
 
   extra_type_iterate(tgt) {
-    enum unit_activity act = ACTIVITY_LAST;
+    struct action *paction = NULL;
     bool removing = tile_has_extra(ptile, tgt);
 
     unit_list_iterate(units, punit) {
       if (removing) {
-        as_rmextra_activity_iterate(try_act) {
-          if (is_extra_removed_by_action(tgt, try_act)
-              && can_unit_do_activity_targeted_at(punit, try_act, tgt, ptile)) {
-            act = try_act;
+        as_rmextra_action_iterate(try_act) {
+          struct action *taction = action_by_number(try_act);
+          if (is_extra_removed_by_action(tgt, taction)
+              && action_prob_possible(
+                action_speculate_unit_on_tile(try_act,
+                                              punit,
+                                              unit_home(punit), ptile,
+                                              TRUE,
+                                              ptile, tgt))) {
+            paction = taction;
             break;
           }
-        } as_rmextra_activity_iterate_end;
+        } as_rmextra_action_iterate_end;
       } else {
-        as_extra_activity_iterate(try_act) {
-          if (is_extra_caused_by_action(tgt, try_act)
-              && can_unit_do_activity_targeted_at(punit, try_act, tgt, ptile)) {
-            act = try_act;
+        as_extra_action_iterate(try_act) {
+          struct action *taction = action_by_number(try_act);
+          if (is_extra_caused_by_action(tgt, taction)
+              && action_prob_possible(
+                action_speculate_unit_on_tile(try_act,
+                                              punit,
+                                              unit_home(punit), ptile,
+                                              TRUE,
+                                              ptile, tgt))) {
+            paction = taction;
             break;
           }
-        } as_extra_activity_iterate_end;
+        } as_extra_action_iterate_end;
       }
     } unit_list_iterate_end;
 
-    if (act != ACTIVITY_LAST) {
-      int base_value;
+    if (paction != NULL) {
+      adv_want base_value;
       int value;
-      int extra;
+      adv_want extra;
       bool consider = TRUE;
       struct road_type *proad;
 
@@ -288,7 +316,7 @@ static void texai_tile_worker_task_select(struct player *pplayer,
       unit_list_iterate(ptile->units, punit) {
         if (unit_owner(punit) == pplayer
             && unit_has_type_flag(punit, UTYF_SETTLERS)
-            && punit->activity == act) {
+            && punit->activity == action_get_activity(paction)) {
           consider = FALSE;
           break;
         }
@@ -354,11 +382,17 @@ static void texai_tile_worker_task_select(struct player *pplayer,
         if ((value - orig_value) * TWMP > worked->want) {
           worked->want       = TWMP * (value - orig_value);
           worked->ptile      = ptile;
-          worked->act        = act;
+          worked->act        = action_get_activity(paction);
           worked->tgt        = tgt;
           if (limit == TWTL_BUILDABLE_UNITS) {
             unit_list_iterate(units, punit) {
-              if (can_unit_do_activity_targeted_at(punit, act, tgt, ptile)) {
+              fc_assert_action(action_get_target_kind(paction) == ATK_TILE,
+                               break);
+              if (action_prob_possible(action_speculate_unit_on_tile(
+                                           paction->id,
+                                           punit, unit_home(punit), ptile,
+                                           TRUE,
+                                           ptile, tgt))) {
                 state->wants[utype_index(unit_type_get(punit))] += worked->want;
               }
             } unit_list_iterate_end;
@@ -376,11 +410,17 @@ static void texai_tile_worker_task_select(struct player *pplayer,
           state->uw_max_base   = base_value;
           unworked->want       = TWMP * (value - orig_value);
           unworked->ptile      = ptile;
-          unworked->act        = act;
+          unworked->act        = action_get_activity(paction);
           unworked->tgt        = tgt;
           if (limit == TWTL_BUILDABLE_UNITS) {
             unit_list_iterate(units, punit) {
-              if (can_unit_do_activity_targeted_at(punit, act, tgt, ptile)) {
+              fc_assert_action(action_get_target_kind(paction) == ATK_TILE,
+                               break);
+              if (action_prob_possible(action_speculate_unit_on_tile(
+                                         paction->id,
+                                         punit, unit_home(punit), ptile,
+                                         TRUE,
+                                         ptile, tgt))) {
                 state->wants[utype_index(unit_type_get(punit))] += unworked->want;
               }
             } unit_list_iterate_end;
@@ -396,7 +436,7 @@ static void texai_tile_worker_task_select(struct player *pplayer,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Select worker task suitable for the city.
 **************************************************************************/
 static bool texai_city_worker_task_select(struct ai_type *ait,
@@ -413,7 +453,7 @@ static bool texai_city_worker_task_select(struct ai_type *ait,
 
   switch (limit) {
   case TWTL_CURRENT_UNITS:
-    units = pplayer->units;
+    units = texai_player_units(pplayer);
     state.wants = NULL;
     break;
   case TWTL_BUILDABLE_UNITS:
@@ -482,7 +522,7 @@ static bool texai_city_worker_task_select(struct ai_type *ait,
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Receive message from thread to main thread.
 **************************************************************************/
 void texai_req_worker_task_rcv(struct texai_req *req)
@@ -516,8 +556,8 @@ void texai_req_worker_task_rcv(struct texai_req *req)
   free(data);
 }
 
-/**************************************************************************
-  Initialize city for use with threxp AI.
+/**********************************************************************//**
+  Initialize city for use with tex AI.
 **************************************************************************/
 void texai_city_alloc(struct ai_type *ait, struct city *pcity)
 {
@@ -529,8 +569,8 @@ void texai_city_alloc(struct ai_type *ait, struct city *pcity)
   city_set_ai_data(pcity, ait, city_data);
 }
 
-/**************************************************************************
-  Free city from use with threxp AI.
+/**********************************************************************//**
+  Free city from use with tex AI.
 **************************************************************************/
 void texai_city_free(struct ai_type *ait, struct city *pcity)
 {

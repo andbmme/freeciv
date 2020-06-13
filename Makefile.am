@@ -9,14 +9,10 @@ else
 CSUBDIRS = 
 endif
 
-if SERVER
-SSUBDIRS = ai server
-else
-if RULEDIT
+if SRV_LIB
 SSUBDIRS = ai server
 else
 SSUBDIRS =
-endif
 endif
 
 if MAKE_DATA
@@ -25,7 +21,7 @@ else
 DSUBDIRS =
 endif
 
-SUBDIRS = $(DSUBDIRS) dependencies utility common tests windows $(SSUBDIRS) $(CSUBDIRS) translations doc tools gen_headers lua bootstrap
+SUBDIRS = gen_headers $(DSUBDIRS) dependencies utility common tests windows $(SSUBDIRS) $(CSUBDIRS) translations doc tools lua bootstrap
 
 EXTRA_DIST =	autogen.sh 			\
 		configure.ac			\
@@ -35,8 +31,10 @@ EXTRA_DIST =	autogen.sh 			\
 		m4/codeset.m4			\
 		m4/compiler.m4			\
 		m4/debug.m4			\
+		m4/emscripten.m4		\
 		m4/expanddir.m4			\
 		m4/fcdb-mysql.m4		\
+		m4/fcdb-odbc.m4			\
 		m4/fcdb-postgres.m4		\
 		m4/fcdb-sqlite3.m4		\
 		m4/features.m4			\
@@ -45,6 +43,7 @@ EXTRA_DIST =	autogen.sh 			\
 		m4/gtk3-client.m4		\
 		m4/gtk3.22-client.m4		\
 		m4/gtk3x-client.m4		\
+		m4/host-cpu-c-abi.m4		\
 		m4/iconv.m4			\
 		m4/intlmacosx.m4		\
 		m4/lib-ld.m4			\
@@ -54,13 +53,16 @@ EXTRA_DIST =	autogen.sh 			\
 		m4/mysql.m4			\
 		m4/magickwand.m4		\
 		m4/mapimg-magickwand.m4		\
+		m4/multiarch.m4			\
 		m4/nls.m4			\
 		m4/no-client.m4			\
 		m4/pkg.m4			\
 		m4/po.m4			\
 		m4/postgres.m4			\
 		m4/progtest.m4			\
+		m4/qt.m4			\
 		m4/qt5.m4			\
+		m4/qt6.m4			\
 		m4/qt5-darwin.m4		\
 		m4/qt-client.m4			\
 		m4/readline.m4			\
@@ -72,9 +74,12 @@ EXTRA_DIST =	autogen.sh 			\
 		m4/web-client.m4		\
 		m4/winsock2.m4			\
 		m4/testmatic.m4			\
+		meson.build			\
+		meson_options.txt		\
 		scripts/mapimg2anim		\
 		scripts/setup_auth_server.sh	\
-		scripts/diff_ignore
+		scripts/diff_ignore		\
+		scripts/freeciv.supp
 # On branch: add NEWS-x.x here and remove this comment (1 of 2)
 
 noinst_HEADERS= fc_version

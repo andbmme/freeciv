@@ -47,7 +47,7 @@ format_version=20
 ; /* <-- avoid gettext warnings
 ;
 ; Below: The individual advances, one per section.
-; The number can be variable, up to 196.
+; The number can be variable, up to 250.
 ;
 ; The actual tag used (the * in [advance_*]) does not matter, except
 ; it must be unique within this file, and it may be used in debug
@@ -64,11 +64,16 @@ format_version=20
 ; class         = tech class this tech belongs to, if they have been defined.
 ;                 Default is first one defined above.
 ; req1, req2    = advances required before researching this one
-; root_req      = tech required before acquiring this tech, by any
-;                 means, inherited by all techs that require this tech in turn
-;                 unless "None" is given here explicitly; and you can make
-;                 a tech available only through the init_tech of a nation by
-;                 making it root_req itself.
+; root_req      = tech required before acquiring this tech, by any means.
+;                 All techs with any direct or indirect dependency on this
+;                 one will *also* have this root_req, as well as their own
+;                 and any others they inherit.
+;                 Giving "None" explicitly here prevents a tech from
+;                 inheriting root_reqs in this way, and stops root_req
+;                 inheritance through that tech.
+;                 Specifying a tech's root_req as itself means that the tech
+;                 can only be acquired by special means (nation's init_techs,
+;                 scripting, etc).
 ; research_reqs = requirements before researching this one. Can have non
 ;                 tech requirements because it is a requirement vector.
 ;                 See doc/README.effects to learn more about requirement
@@ -261,7 +266,10 @@ req2     = "Currency"
 flags    = ""
 graphic     = "a.construction"
 graphic_alt = "-"
-helptext = _("Allows Settlers, Workers and Engineers to build fortresses.")
+helptext = _("\
+Allows Settlers, Workers and Engineers to build fortresses, and to \
+build oil wells on Desert tiles.\
+")
 
 [advance_currency]
 name     = _("Currency")
@@ -666,6 +674,10 @@ req2     = "The Corporation"
 flags    = ""
 graphic     = "a.refining"
 graphic_alt = "-"
+helptext = _("\
+Allows Settlers, Workers and Engineers to build oil wells on \
+Glacier tiles.\
+")
 
 [advance_refrigeration]
 name     = _("Refrigeration")

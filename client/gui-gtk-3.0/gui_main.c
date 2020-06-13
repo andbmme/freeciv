@@ -129,7 +129,6 @@ GtkWidget *top_notebook, *bottom_notebook, *right_notebook;
 GtkWidget *map_widget;
 static GtkWidget *bottom_hpaned;
 
-int city_names_font_size = 0, city_productions_font_size = 0;
 PangoFontDescription *city_names_style = NULL;
 PangoFontDescription *city_productions_style = NULL;
 PangoFontDescription *reqtree_text_style = NULL;
@@ -218,28 +217,9 @@ static void allied_chat_button_toggled(GtkToggleButton *button,
 
 static void free_unit_table(void);
 
-/****************************************************************************
-  Called by the tileset code to set the font size that should be used to
-  draw the city names and productions.
-****************************************************************************/
-void set_city_names_font_sizes(int my_city_names_font_size,
-			       int my_city_productions_font_size)
-{
-  /* This function may be called before the fonts are allocated.  So we
-   * save the values for later. */
-  city_names_font_size = my_city_names_font_size;
-  city_productions_font_size = my_city_productions_font_size;
-  if (city_names_style) {
-    pango_font_description_set_size(city_names_style,
-                                    PANGO_SCALE * city_names_font_size);
-  }
-  if (city_productions_style) {
-    pango_font_description_set_size(city_productions_style,
-                                    PANGO_SCALE * city_productions_font_size);
-  }
-}
+static void adjust_default_options(void);
 
-/**************************************************************************
+/**********************************************************************//**
   Callback for freelog
 **************************************************************************/
 static void log_callback_utf8(enum log_level level, const char *message,
@@ -250,9 +230,9 @@ static void log_callback_utf8(enum log_level level, const char *message,
   }
 }
 
-/**************************************************************************
- Called while in gtk_main() (which is all of the time)
- TIMER_INTERVAL is now set by real_timer_callback()
+/**********************************************************************//**
+  Called while in gtk_main() (which is all of the time)
+  TIMER_INTERVAL is now set by real_timer_callback()
 **************************************************************************/
 static gboolean timer_callback(gpointer data)
 {
@@ -263,9 +243,9 @@ static gboolean timer_callback(gpointer data)
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Print extra usage information, including one line help on each option,
-  to stderr. 
+  to stderr.
 **************************************************************************/
 static void print_usage(void)
 {
@@ -298,7 +278,7 @@ static void print_usage(void)
   fc_fprintf(stderr, _("Report bugs at %s\n"), BUG_URL);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Dummy gtk error printer
 **************************************************************************/
 static void log_gtk_warns(const gchar *log_domain, GLogLevelFlags log_level,
@@ -308,7 +288,7 @@ static void log_gtk_warns(const gchar *log_domain, GLogLevelFlags log_level,
   log_verbose("%s", message);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Search for command line options. right now, it's just help
   semi-useless until we have options that aren't the same across all clients.
 **************************************************************************/
@@ -356,7 +336,7 @@ static void parse_options(int argc, char **argv)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Focus on widget. Returns whether focus was really changed.
 **************************************************************************/
 static gboolean toplevel_focus(GtkWidget *w, GtkDirectionType arg)
@@ -381,7 +361,7 @@ static gboolean toplevel_focus(GtkWidget *w, GtkDirectionType arg)
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   When the chatline text view is resized, scroll it to the bottom. This
   prevents users from accidentally missing messages when the chatline
   gets scrolled up a small amount and stops scrolling down automatically.
@@ -400,7 +380,7 @@ static void main_message_area_size_allocate(GtkWidget *widget,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Focus on map canvas
 **************************************************************************/
 gboolean map_canvas_focus(void)
@@ -411,7 +391,7 @@ gboolean map_canvas_focus(void)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   In GTK+ keyboard events are recursively propagated from the hierarchy
   parent down to its children. Sometimes this is not what we want.
   E.g. The inputline is active, the user presses the 's' key, we want it
@@ -441,7 +421,7 @@ static gboolean toplevel_handler(GtkWidget *w, GdkEventKey *ev, gpointer data)
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle keypress events when map canvas is in focus
 **************************************************************************/
 static gboolean key_press_map_canvas(GtkWidget *w, GdkEventKey *ev,
@@ -642,7 +622,7 @@ static gboolean key_press_map_canvas(GtkWidget *w, GdkEventKey *ev,
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handler for "key release" for toplevel window
 **************************************************************************/
 static gboolean toplevel_key_release_handler(GtkWidget *w, GdkEventKey *ev,
@@ -660,7 +640,7 @@ static gboolean toplevel_key_release_handler(GtkWidget *w, GdkEventKey *ev,
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle a keyboard key press made in the client's toplevel window.
 **************************************************************************/
 static gboolean toplevel_key_press_handler(GtkWidget *w, GdkEventKey *ev,
@@ -751,8 +731,8 @@ static gboolean toplevel_key_press_handler(GtkWidget *w, GdkEventKey *ev,
   return FALSE;
 }
 
-/**************************************************************************
-Mouse/touchpad scrolling over the mapview
+/**********************************************************************//**
+  Mouse/touchpad scrolling over the mapview
 **************************************************************************/
 static gboolean mouse_scroll_mapcanvas(GtkWidget *w, GdkEventScroll *ev)
 {
@@ -803,7 +783,7 @@ static gboolean mouse_scroll_mapcanvas(GtkWidget *w, GdkEventScroll *ev)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Reattaches the detached widget when the user destroys it.
 **************************************************************************/
 static void tearoff_destroy(GtkWidget *w, gpointer data)
@@ -819,7 +799,7 @@ static void tearoff_destroy(GtkWidget *w, gpointer data)
   gtk_widget_reparent(box, p);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Propagates a keypress in a tearoff back to the toplevel window.
 **************************************************************************/
 static gboolean propagate_keypress(GtkWidget *w, GdkEventKey *ev)
@@ -829,7 +809,7 @@ static gboolean propagate_keypress(GtkWidget *w, GdkEventKey *ev)
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Callback for the toggle button in the detachable widget: causes the
   widget to detach or reattach.
 **************************************************************************/
@@ -866,19 +846,20 @@ static void tearoff_callback(GtkWidget *b, gpointer data)
   }
 }
 
-/**************************************************************************
- create the container for the widget that's able to be detached
+/**********************************************************************//**
+  Create the container for the widget that's able to be detached
 **************************************************************************/
 static GtkWidget *detached_widget_new(void)
 {
   GtkWidget *hgrid = gtk_grid_new();
+
   gtk_grid_set_column_spacing(GTK_GRID(hgrid), 2);
   return hgrid;
 }
 
-/**************************************************************************
- creates the toggle button necessary to detach and reattach the widget
- and returns a vbox in which you fill your goodies.
+/**********************************************************************//**
+  Creates the toggle button necessary to detach and reattach the widget
+  and returns a vbox in which you fill your goodies.
 **************************************************************************/
 static GtkWidget *detached_widget_fill(GtkWidget *tearbox)
 {
@@ -897,7 +878,7 @@ static GtkWidget *detached_widget_fill(GtkWidget *tearbox)
   return fillbox;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Called to build the unit_below pixmap table.  This is the table on the
   left of the screen that shows all of the inactive units in the current
   tile.
@@ -931,6 +912,8 @@ static void populate_unit_image_table(void)
   gtk_widget_add_events(unit_image, GDK_BUTTON_PRESS_MASK);
   g_object_ref(unit_image);
   unit_image_button = gtk_event_box_new();
+  gtk_widget_set_size_request(unit_image_button,
+                              tileset_tile_width(tileset), -1);
   gtk_event_box_set_visible_window(GTK_EVENT_BOX(unit_image_button), FALSE);
   g_object_ref(unit_image_button);
   gtk_container_add(GTK_CONTAINER(unit_image_button), unit_image);
@@ -947,6 +930,8 @@ static void populate_unit_image_table(void)
       gtk_widget_add_events(unit_below_image[i], GDK_BUTTON_PRESS_MASK);
       unit_below_image_button[i] = gtk_event_box_new();
       g_object_ref(unit_below_image_button[i]);
+      gtk_widget_set_size_request(unit_below_image_button[i],
+                                  tileset_tile_width(tileset), -1);
       gtk_event_box_set_visible_window(GTK_EVENT_BOX(unit_below_image_button[i]), FALSE);
       gtk_container_add(GTK_CONTAINER(unit_below_image_button[i]),
                         unit_below_image[i]);
@@ -996,7 +981,7 @@ static void populate_unit_image_table(void)
   gtk_widget_show_all(table);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Free unit image table.
 **************************************************************************/
 static void free_unit_table(void)
@@ -1024,7 +1009,7 @@ static void free_unit_table(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Called when the tileset is changed to reset the unit pixmap table.
 **************************************************************************/
 void reset_unit_table(void)
@@ -1053,7 +1038,7 @@ void reset_unit_table(void)
   update_unit_pix_label(get_units_in_focus());
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Enable/Disable the game page menu bar.
 **************************************************************************/
 void enable_menus(bool enable)
@@ -1073,7 +1058,7 @@ void enable_menus(bool enable)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Workaround for a crash that occurs when a button release event is
   emitted for a notebook with no pages. See PR#40743.
   FIXME: Remove this hack once gtk_notebook_button_release() in
@@ -1096,7 +1081,7 @@ static gboolean right_notebook_button_release(GtkWidget *widget,
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Override background color for canvases
 **************************************************************************/
 static void setup_canvas_color_for_state(GtkStateFlags state)
@@ -1107,7 +1092,7 @@ static void setup_canvas_color_for_state(GtkStateFlags state)
                                        &get_color(tileset, COLOR_OVERVIEW_UNKNOWN)->color);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Do the heavy lifting for the widget setup.
 **************************************************************************/
 static void setup_widgets(void)
@@ -1167,6 +1152,8 @@ static void setup_widgets(void)
   gtk_notebook_append_page(GTK_NOTEBOOK(notebook), page, NULL);
 
   top_vbox = gtk_grid_new();
+  gtk_orientable_set_orientation(GTK_ORIENTABLE(top_vbox),
+                                 GTK_ORIENTATION_VERTICAL);
   gtk_grid_set_row_spacing(GTK_GRID(top_vbox), 5);
   hgrid = gtk_grid_new();
 
@@ -1174,6 +1161,8 @@ static void setup_widgets(void)
     /* The window is divided into two horizontal panels: overview +
      * civinfo + unitinfo, main view + message window. */
     right_vbox = gtk_grid_new();
+    gtk_orientable_set_orientation(GTK_ORIENTABLE(right_vbox),
+                                   GTK_ORIENTATION_VERTICAL);
     gtk_container_add(GTK_CONTAINER(hgrid), right_vbox);
 
     paned = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
@@ -1193,7 +1182,7 @@ static void setup_widgets(void)
     gtk_paned_pack1(GTK_PANED(paned), top_vbox, TRUE, FALSE);
     gtk_container_add(GTK_CONTAINER(top_vbox), hgrid);
 
-    /* Overview size designed for netbooks. */
+    /* Overview size designed for big displays (desktops). */
     overview_canvas_store_width = OVERVIEW_CANVAS_STORE_WIDTH;
     overview_canvas_store_height = OVERVIEW_CANVAS_STORE_HEIGHT;
   }
@@ -1203,7 +1192,10 @@ static void setup_widgets(void)
   gtk_orientable_set_orientation(GTK_ORIENTABLE(vgrid),
                                  GTK_ORIENTATION_VERTICAL);
   gtk_grid_set_column_spacing(GTK_GRID(vgrid), 3);
-  gtk_container_add(GTK_CONTAINER(hgrid), vgrid);
+  /* Put vgrid to the left of anything else in hgrid -- right_vbox is either
+   * the chat/messages pane, or NULL which is OK */
+  gtk_grid_attach_next_to(GTK_GRID(hgrid), vgrid, right_vbox,
+                          GTK_POS_LEFT, 1, 1);
 
   /* overview canvas */
   ahbox = detached_widget_new();
@@ -1250,6 +1242,8 @@ static void setup_widgets(void)
   gtk_container_add(GTK_CONTAINER(vgrid), ahbox);
   gtk_widget_set_hexpand(ahbox, FALSE);
   avbox = detached_widget_fill(ahbox);
+  gtk_widget_set_vexpand(avbox, TRUE);
+  gtk_widget_set_valign(avbox, GTK_ALIGN_FILL);
 
   /* Info on player's civilization, when game is running. */
   frame = gtk_frame_new("");
@@ -1258,6 +1252,8 @@ static void setup_widgets(void)
   main_frame_civ_name = frame;
 
   vgrid = gtk_grid_new();
+  gtk_orientable_set_orientation(GTK_ORIENTABLE(vgrid),
+                                 GTK_ORIENTATION_VERTICAL);
   gtk_container_add(GTK_CONTAINER(frame), vgrid);
   gtk_widget_set_hexpand(vgrid, TRUE);
 
@@ -1441,6 +1437,8 @@ static void setup_widgets(void)
     gtk_paned_pack1(GTK_PANED(paned), top_notebook, TRUE, FALSE);
   } else if (GUI_GTK_OPTION(message_chat_location) == GUI_GTK_MSGCHAT_MERGED) {
     right_vbox = gtk_grid_new();
+    gtk_orientable_set_orientation(GTK_ORIENTABLE(right_vbox),
+                                   GTK_ORIENTATION_VERTICAL);
 
     gtk_container_add(GTK_CONTAINER(right_vbox), top_notebook);
     gtk_container_add(GTK_CONTAINER(right_vbox), ingame_votebar);
@@ -1639,15 +1637,16 @@ static void setup_widgets(void)
   }
 }
 
-/**************************************************************************
- called from main().
+/**********************************************************************//**
+  Called from main().
 **************************************************************************/
 void ui_init(void)
 {
   log_set_callback(log_callback_utf8);
+  set_frame_by_frame_animation();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Entry point for whole freeciv client program.
 **************************************************************************/
 int main(int argc, char **argv)
@@ -1655,7 +1654,7 @@ int main(int argc, char **argv)
   return client_main(argc, argv);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Migrate gtk3 client specific options from gtk2 client options.
 **************************************************************************/
 static void migrate_options_from_gtk2(void)
@@ -1668,8 +1667,13 @@ static void migrate_options_from_gtk2(void)
           sizeof(GUI_GTK_OPTION(opt)));
 
   /* Default theme name is never migrated */
-  /* Fullscreen not migrated as gtk3-client differs from gtk2-client in a way that
-   * user is likely to want default even if gtk2-client setting differs. */
+  /* 'fullscreen', 'small_display_layout', and 'message_chat_location'
+   * not migrated, as (unlike Gtk2), Gtk3-client tries to pick better
+   * defaults for these in fresh installations based on screen size (see
+   * adjust_default_options()); so user is probably better served by
+   * getting these adaptive defaults than whatever they had for Gtk2.
+   * Since 'fullscreen' isn't migrated, we don't need to worry about
+   * preserving gui_gtk2_migrated_from_2_5 either. */
   MIGRATE_OPTION(map_scrollbars);
   MIGRATE_OPTION(dialogs_on_top);
   MIGRATE_OPTION(show_task_icons);
@@ -1679,8 +1683,6 @@ static void migrate_options_from_gtk2(void)
   MIGRATE_OPTION(show_message_window_buttons);
   MIGRATE_OPTION(metaserver_tab_first);
   MIGRATE_OPTION(allied_chat_only);
-  MIGRATE_OPTION(message_chat_location);
-  MIGRATE_OPTION(small_display_layout);
   MIGRATE_OPTION(mouse_over_map_focus);
   MIGRATE_OPTION(chatline_autocompletion);
   MIGRATE_OPTION(citydlg_xsize);
@@ -1707,21 +1709,19 @@ static void migrate_options_from_gtk2(void)
   GUI_GTK_OPTION(migrated_from_gtk2) = TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Migrate gtk3 client specific options from freeciv-2.5 options
 **************************************************************************/
 static void migrate_options_from_2_5(void)
 {
-  if (!gui_options.first_boot) {
-    log_normal(_("Migrating gtk3-client options from freeciv-2.5 options."));
+  log_normal(_("Migrating gtk3-client options from freeciv-2.5 options."));
 
-    GUI_GTK_OPTION(fullscreen) = gui_options.migrate_fullscreen;
+  GUI_GTK_OPTION(fullscreen) = gui_options.migrate_fullscreen;
 
-    GUI_GTK_OPTION(migrated_from_2_5) = TRUE;
-  }
+  GUI_GTK_OPTION(migrated_from_2_5) = TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Called from client_main(), is what it's named.
 **************************************************************************/
 void ui_main(int argc, char **argv)
@@ -1751,11 +1751,24 @@ void ui_main(int argc, char **argv)
   gtk_widget_set_name(toplevel, "Freeciv");
   root_window = gtk_widget_get_window(toplevel);
 
-  if (!GUI_GTK_OPTION(migrated_from_gtk2)) {
-    migrate_options_from_gtk2();
-  }
-  if (!GUI_GTK_OPTION(migrated_from_2_5)) {
-    migrate_options_from_2_5();
+  if (gui_options.first_boot) {
+    adjust_default_options();
+    /* We're using fresh defaults for this version of this client,
+     * so prevent any future migrations from other clients / versions */
+    GUI_GTK_OPTION(migrated_from_gtk2) = TRUE;
+    GUI_GTK_OPTION(migrated_from_2_5) = TRUE;
+  } else {
+    if (!GUI_GTK_OPTION(migrated_from_gtk2)) {
+      migrate_options_from_gtk2();
+      /* We want a fresh look at screen-size-related defaults */
+      adjust_default_options();
+      /* We don't ever want to consider pre-2.6 fullscreen option again */
+      GUI_GTK_OPTION(migrated_from_2_5) = TRUE;
+    } else if (!GUI_GTK_OPTION(migrated_from_2_5)) {
+      /* This only affects the fullscreen option, which we don't want
+       * to touch if adjust_default_options() just adjusted it. */
+      migrate_options_from_2_5();
+    }
   }
 
   if (GUI_GTK_OPTION(fullscreen)) {
@@ -1798,8 +1811,6 @@ void ui_main(int argc, char **argv)
     reqtree_text_style = pango_font_description_copy(toplevel_font_name);
     log_error("reqtree_text_style should have been set by options.");
   }
-
-  set_city_names_font_sizes(city_names_font_size, city_productions_font_size);
 
   tileset_init(tileset);
   tileset_load_tiles(tileset);
@@ -1857,7 +1868,7 @@ void ui_main(int argc, char **argv)
   tileset_free_tiles(tileset);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether gui is currently running.
 **************************************************************************/
 bool is_gui_up(void)
@@ -1865,7 +1876,7 @@ bool is_gui_up(void)
   return gui_up;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Do any necessary UI-specific cleanup
 **************************************************************************/
 void ui_exit(void)
@@ -1876,7 +1887,7 @@ void ui_exit(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return our GUI type
 **************************************************************************/
 enum gui_type get_gui_type(void)
@@ -1884,15 +1895,15 @@ enum gui_type get_gui_type(void)
   return GUI_GTK3;
 }
 
-/**************************************************************************
- obvious...
+/**********************************************************************//**
+  Obvious...
 **************************************************************************/
 void sound_bell(void)
 {
   gdk_display_beep(gdk_display_get_default());
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set one of the unit icons in information area based on punit.
   Use punit == NULL to clear icon.
   Index 'idx' is -1 for "active unit", or 0 to (num_units_below - 1) for
@@ -1923,7 +1934,7 @@ void set_unit_icon(int idx, struct unit *punit)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set the "more arrow" for the unit icons to on(1) or off(0).
   Maintains a static record of current state to avoid unnecessary redraws.
   Note initial state should match initial gui setup (off).
@@ -1945,23 +1956,23 @@ void set_unit_icons_more_arrow(bool onoff)
   }
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Called when the set of units in focus (get_units_in_focus()) changes.
   Standard updates like update_unit_info_label() are handled in the platform-
   independent code; we use this to keep the goto/airlift dialog up to date,
   if it's visible.
-****************************************************************************/
+**************************************************************************/
 void real_focus_units_changed(void)
 {
   goto_dialog_focus_units_changed();
 }
 
-/**************************************************************************
- callback for clicking a unit icon underneath unit info box.
- these are the units on the same tile as the focus unit.
+/**********************************************************************//**
+  Callback for clicking a unit icon underneath unit info box.
+  these are the units on the same tile as the focus unit.
 **************************************************************************/
 static gboolean select_unit_image_callback(GtkWidget *w, GdkEvent *ev, 
-                                           gpointer data) 
+                                           gpointer data)
 {
   int i = GPOINTER_TO_INT(data);
   struct unit *punit;
@@ -1987,9 +1998,9 @@ static gboolean select_unit_image_callback(GtkWidget *w, GdkEvent *ev,
   return TRUE;
 }
 
-/**************************************************************************
- callback for clicking a unit icon underneath unit info box.
- these are the units on the same tile as the focus unit.
+/**********************************************************************//**
+  Callback for clicking a unit icon underneath unit info box.
+  these are the units on the same tile as the focus unit.
 **************************************************************************/
 static gboolean select_more_arrow_pixmap_callback(GtkWidget *w, GdkEvent *ev,
                                                   gpointer data)
@@ -2003,7 +2014,7 @@ static gboolean select_more_arrow_pixmap_callback(GtkWidget *w, GdkEvent *ev,
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Button released when showing info popup
 **************************************************************************/
 static gboolean show_info_button_release(GtkWidget *w, GdkEventButton *ev, gpointer data)
@@ -2014,7 +2025,7 @@ static gboolean show_info_button_release(GtkWidget *w, GdkEventButton *ev, gpoin
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Popup info box
 **************************************************************************/
 static gboolean show_info_popup(GtkWidget *w, GdkEventButton *ev, gpointer data)
@@ -2045,7 +2056,7 @@ static gboolean show_info_popup(GtkWidget *w, GdkEventButton *ev, gpointer data)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User clicked "Turn Done" button
 **************************************************************************/
 static void end_turn_callback(GtkWidget *w, gpointer data)
@@ -2054,7 +2065,7 @@ static void end_turn_callback(GtkWidget *w, gpointer data)
     user_ended_turn();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Read input from server socket
 **************************************************************************/
 static gboolean get_net_input(GIOChannel *source, GIOCondition condition,
@@ -2065,7 +2076,7 @@ static gboolean get_net_input(GIOChannel *source, GIOCondition condition,
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set socket writability state
 **************************************************************************/
 static void set_wait_for_writable_socket(struct connection *pc,
@@ -2075,8 +2086,9 @@ static void set_wait_for_writable_socket(struct connection *pc,
 
   fc_assert_ret(pc == &client.conn);
 
-  if (previous_state == socket_writable)
+  if (previous_state == socket_writable) {
     return;
+  }
 
   log_debug("set_wait_for_writable_socket(%d)", socket_writable);
 
@@ -2089,9 +2101,9 @@ static void set_wait_for_writable_socket(struct connection *pc,
   previous_state = socket_writable;
 }
 
-/**************************************************************************
- This function is called after the client succesfully
- has connected to the server
+/**********************************************************************//**
+  This function is called after the client succesfully
+  has connected to the server
 **************************************************************************/
 void add_net_input(int sock)
 {
@@ -2107,9 +2119,9 @@ void add_net_input(int sock)
   client.conn.notify_of_writable_data = set_wait_for_writable_socket;
 }
 
-/**************************************************************************
- This function is called if the client disconnects
- from the server
+/**********************************************************************//**
+  This function is called if the client disconnects
+  from the server
 **************************************************************************/
 void remove_net_input(void)
 {
@@ -2118,10 +2130,10 @@ void remove_net_input(void)
   gdk_window_set_cursor(root_window, NULL);
 }
 
-/****************************************************************
+/**********************************************************************//**
   This is the response callback for the dialog with the message:
   Are you sure you want to quit?
-****************************************************************/
+**************************************************************************/
 static void quit_dialog_response(GtkWidget *dialog, gint response)
 {
   gtk_widget_destroy(dialog);
@@ -2134,9 +2146,9 @@ static void quit_dialog_response(GtkWidget *dialog, gint response)
   }
 }
 
-/****************************************************************
+/**********************************************************************//**
   Exit gtk main loop.
-****************************************************************/
+**************************************************************************/
 void quit_gtk_main(void)
 {
   /* Quit gtk main loop. After this it will return to finish
@@ -2145,10 +2157,10 @@ void quit_gtk_main(void)
   gtk_main_quit();
 }
 
-/****************************************************************
+/**********************************************************************//**
   Popups the dialog with the message:
   Are you sure you want to quit?
-****************************************************************/
+**************************************************************************/
 void popup_quit_dialog(void)
 {
   static GtkWidget *dialog;
@@ -2172,9 +2184,9 @@ void popup_quit_dialog(void)
   gtk_window_present(GTK_WINDOW(dialog));
 }
 
-/****************************************************************
+/**********************************************************************//**
   Popups the quit dialog.
-****************************************************************/
+**************************************************************************/
 static gboolean quit_dialog_callback(void)
 {
   popup_quit_dialog();
@@ -2187,9 +2199,9 @@ struct callback {
   void *data;
 };
 
-/****************************************************************************
+/**********************************************************************//**
   A wrapper for the callback called through add_idle_callback.
-****************************************************************************/
+**************************************************************************/
 static gboolean idle_callback_wrapper(gpointer data)
 {
   struct callback *cb = data;
@@ -2200,11 +2212,11 @@ static gboolean idle_callback_wrapper(gpointer data)
   return FALSE;
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Enqueue a callback to be called during an idle moment.  The 'callback'
   function should be called sometimes soon, and passed the 'data' pointer
   as its data.
-****************************************************************************/
+**************************************************************************/
 void add_idle_callback(void (callback)(void *), void *data)
 {
   struct callback *cb = fc_malloc(sizeof(*cb));
@@ -2214,10 +2226,10 @@ void add_idle_callback(void (callback)(void *), void *data)
   g_idle_add(idle_callback_wrapper, cb);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Option callback for the 'allied_chat_only' gtk-gui option.
   This updates the state of the associated toggle button.
-****************************************************************************/
+**************************************************************************/
 static void allied_chat_only_callback(struct option *poption)
 {
   GtkWidget *button;
@@ -2230,9 +2242,9 @@ static void allied_chat_only_callback(struct option *poption)
                                option_bool_get(poption));
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Change the city names font.
-****************************************************************************/
+**************************************************************************/
 static void apply_city_names_font(struct option *poption)
 {
   gui_update_font_full(option_font_target(poption),
@@ -2241,9 +2253,9 @@ static void apply_city_names_font(struct option *poption)
   update_city_descriptions();
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Change the city productions font.
-****************************************************************************/
+**************************************************************************/
 static void apply_city_productions_font(struct option *poption)
 {
   gui_update_font_full(option_font_target(poption),
@@ -2252,9 +2264,9 @@ static void apply_city_productions_font(struct option *poption)
   update_city_descriptions();
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Change the city productions font.
-****************************************************************************/
+**************************************************************************/
 static void apply_reqtree_text_font(struct option *poption)
 {
   gui_update_font_full(option_font_target(poption),
@@ -2263,13 +2275,12 @@ static void apply_reqtree_text_font(struct option *poption)
   science_report_dialog_redraw();
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Extra initializers for client options.  Here we make set the callback
   for the specific gui-gtk-3.0 options.
-****************************************************************************/
+**************************************************************************/
 void options_extra_init(void)
 {
-
   struct option *poption;
 
 #define option_var_set_callback(var, callback)                              \
@@ -2291,7 +2302,7 @@ void options_extra_init(void)
 #undef option_var_set_callback
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set the chatline buttons to reflect the state of the game and current
   client options. This function should be called on game start.
 **************************************************************************/
@@ -2313,7 +2324,7 @@ void refresh_chat_buttons(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle a toggle of the "Allies Only" chat button.
 **************************************************************************/
 static void allied_chat_button_toggled(GtkToggleButton *button,
@@ -2322,7 +2333,7 @@ static void allied_chat_button_toggled(GtkToggleButton *button,
   GUI_GTK_OPTION(allied_chat_only) = gtk_toggle_button_get_active(button);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Insert build information to help
 **************************************************************************/
 void insert_client_build_info(char *outbuf, size_t outlen)
@@ -2335,7 +2346,7 @@ void insert_client_build_info(char *outbuf, size_t outlen)
                glib_major_version, glib_minor_version, glib_micro_version);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return width of the default screen
 **************************************************************************/
 int screen_width(void)
@@ -2355,7 +2366,7 @@ int screen_width(void)
   return gdk_screen_get_width(screen);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return height of the default screen
 **************************************************************************/
 int screen_height(void)
@@ -2375,7 +2386,7 @@ int screen_height(void)
   return gdk_screen_get_height(screen);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Give resolution requested by user, if any.
 **************************************************************************/
 struct video_mode *resolution_request_get(void)
@@ -2387,10 +2398,10 @@ struct video_mode *resolution_request_get(void)
   return NULL;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make dynamic adjustments to first-launch default options.
 **************************************************************************/
-void adjust_default_options(void)
+static void adjust_default_options(void)
 {
   int scr_height = screen_height();
 
@@ -2400,10 +2411,15 @@ void adjust_default_options(void)
     if (scr_height <= 480) {
       /* Freeciv is practically unusable outside fullscreen mode in so
        * small display */
+      log_verbose("Changing default to fullscreen due to very small screen");
       GUI_GTK_OPTION(fullscreen) = TRUE;
-    } else if (scr_height >= 1024) {
-      /* This is no small display */
-      GUI_GTK_OPTION(small_display_layout) = FALSE;
+    }
+    if (scr_height < 1024) {
+      /* This is a small display */
+      log_verbose("Defaulting to small widget layout due to small screen");
+      GUI_GTK_OPTION(small_display_layout) = TRUE;
+      log_verbose("Defaulting to merged messages/chat due to small screen");
+      GUI_GTK_OPTION(message_chat_location) = GUI_GTK_MSGCHAT_MERGED;
     }
   }
 }

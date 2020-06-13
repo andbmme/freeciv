@@ -181,23 +181,6 @@ const bv_extras *tile_extras_safe(const struct tile *ptile)
 }
 
 /************************************************************************//**
-  Adds base to tile.
-  FIXME: Should remove conflicting old base and return bool indicating that.
-****************************************************************************/
-void tile_add_base(struct tile *ptile, const struct base_type *pbase)
-{
-  tile_add_extra(ptile, base_extra_get(pbase));
-}
-
-/************************************************************************//**
-  Removes base from tile if such exist
-****************************************************************************/
-void tile_remove_base(struct tile *ptile, const struct base_type *pbase)
-{
-  tile_remove_extra(ptile, base_extra_get(pbase));
-}
-
-/************************************************************************//**
   Check if tile contains base providing effect
 ****************************************************************************/
 bool tile_has_base_flag(const struct tile *ptile, enum base_flag_id flag)
@@ -439,9 +422,11 @@ bool tile_is_seen(const struct tile *target_tile,
 
 /************************************************************************//**
   Time to complete the given activity on the given tile.
+
+  See also action_get_act_time()
 ****************************************************************************/
 int tile_activity_time(enum unit_activity activity, const struct tile *ptile,
-                       struct extra_type *tgt)
+                       const struct extra_type *tgt)
 {
   struct terrain *pterrain = tile_terrain(ptile);
 
@@ -456,6 +441,10 @@ int tile_activity_time(enum unit_activity activity, const struct tile *ptile,
     return terrain_extra_removal_time(pterrain, activity, tgt) * ACTIVITY_FACTOR;
   case ACTIVITY_TRANSFORM:
     return pterrain->transform_time * ACTIVITY_FACTOR;
+  case ACTIVITY_CULTIVATE:
+    return pterrain->irrigation_time * ACTIVITY_FACTOR;
+  case ACTIVITY_PLANT:
+    return pterrain->mining_time * ACTIVITY_FACTOR;
   case ACTIVITY_IRRIGATE:
   case ACTIVITY_MINE:
   case ACTIVITY_BASE:
@@ -657,7 +646,7 @@ static void tile_mine(struct tile *ptile, struct extra_type *tgt)
 }
 
 /************************************************************************//**
-  Transform (ACTIVITY_TRANSFORM) the tile.  This usually changes the tile's
+  Transform (ACTIVITY_TRANSFORM) the tile. This usually changes the tile's
   terrain type.
 ****************************************************************************/
 static void tile_transform(struct tile *ptile)
@@ -666,6 +655,34 @@ static void tile_transform(struct tile *ptile)
 
   if (pterrain->transform_result != T_NONE) {
     tile_change_terrain(ptile, pterrain->transform_result);
+  }
+}
+
+/************************************************************************//**
+  Plant (ACTIVITY_PLANT) the tile. This usually changes the tile's
+  terrain type.
+****************************************************************************/
+static void tile_plant(struct tile *ptile)
+{
+  struct terrain *pterrain = tile_terrain(ptile);
+
+  if (pterrain->mining_result != T_NONE
+      && pterrain->mining_result != pterrain) {
+    tile_change_terrain(ptile, pterrain->mining_result);
+  }
+}
+
+/************************************************************************//**
+  Cultivate (ACTIVITY_CULTIVATE) the tile. This usually changes the tile's
+  terrain type.
+****************************************************************************/
+static void tile_cultivate(struct tile *ptile)
+{
+  struct terrain *pterrain = tile_terrain(ptile);
+
+  if (pterrain->irrigation_result != T_NONE
+      && pterrain->irrigation_result != pterrain) {
+    tile_change_terrain(ptile, pterrain->irrigation_result);
   }
 }
 
@@ -679,7 +696,7 @@ bool tile_apply_activity(struct tile *ptile, Activity_type_id act,
 {
   /* FIXME: for irrigate, mine, and transform we always return TRUE
    * even if the activity fails. */
-  switch(act) {
+  switch (act) {
   case ACTIVITY_MINE:
     tile_mine(ptile, tgt);
     return TRUE;
@@ -690,6 +707,14 @@ bool tile_apply_activity(struct tile *ptile, Activity_type_id act,
 
   case ACTIVITY_TRANSFORM:
     tile_transform(ptile);
+    return TRUE;
+
+  case ACTIVITY_CULTIVATE:
+    tile_cultivate(ptile);
+    return TRUE;
+
+  case ACTIVITY_PLANT:
+    tile_plant(ptile);
     return TRUE;
 
   case ACTIVITY_OLD_ROAD:
@@ -859,26 +884,6 @@ bool tile_has_river(const struct tile *ptile)
 }
 
 /************************************************************************//**
-  Adds road to tile
-****************************************************************************/
-void tile_add_road(struct tile *ptile, const struct road_type *proad)
-{
-  if (proad != NULL) {
-    tile_add_extra(ptile, road_extra_get(proad));
-  }
-}
-
-/************************************************************************//**
-  Removes road from tile if such exist
-****************************************************************************/
-void tile_remove_road(struct tile *ptile, const struct road_type *proad)
-{
-  if (proad != NULL) {
-    tile_remove_extra(ptile, road_extra_get(proad));
-  }
-}
-
-/************************************************************************//**
   Check if tile contains road providing effect
 ****************************************************************************/
 bool tile_has_road_flag(const struct tile *ptile, enum road_flag_id flag)
@@ -998,7 +1003,7 @@ struct tile *tile_virtual_new(const struct tile *ptile)
   vtile = fc_calloc(1, sizeof(*vtile));
 
   /* initialise some values */
-  vtile->index = -1;
+  vtile->index = TILE_INDEX_NONE;
   vtile->continent = -1;
 
   BV_CLR_ALL(vtile->extras);
@@ -1007,6 +1012,7 @@ struct tile *tile_virtual_new(const struct tile *ptile)
   vtile->units = unit_list_new();
   vtile->worked = NULL;
   vtile->owner = NULL;
+  vtile->placing = NULL;
   vtile->extras_owner = NULL;
   vtile->claimer = NULL;
   vtile->spec_sprite = NULL;
@@ -1126,8 +1132,19 @@ bool tile_set_label(struct tile *ptile, const char *label)
   }
 
   if (label != NULL) {
+    if (strlen(label) >= MAX_LEN_MAP_LABEL) {
+      log_error("Overlong map label '%s'", label);
+    }
     ptile->label = fc_strdup(label);
   }
 
   return changed;
+}
+
+/************************************************************************//**
+  Is there a placing ongoing?
+****************************************************************************/
+bool tile_is_placing(const struct tile *ptile)
+{
+  return ptile->placing != NULL;
 }

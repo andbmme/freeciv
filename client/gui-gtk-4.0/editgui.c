@@ -106,7 +106,7 @@ static void try_to_set_editor_tool(enum editor_tool_type ett);
 static struct editbar *editor_toolbar;
 static struct editinfobox *editor_infobox;
 
-/****************************************************************************
+/************************************************************************//**
   Refresh the buttons in the given editbar according to the current
   editor state.
 ****************************************************************************/
@@ -137,7 +137,7 @@ static void refresh_all_buttons(struct editbar *eb)
     gtk_widget_set_sensitive(tb, editor_tool_has_mode(ett, i));
   }
 
-  if (0 <= ett && ett < NUM_EDITOR_TOOL_TYPES
+  if (ett < NUM_EDITOR_TOOL_TYPES
       && eb->tool_buttons[ett] != NULL) {
     tb = eb->tool_buttons[ett];
     disable_gobject_callback(G_OBJECT(tb),
@@ -148,7 +148,7 @@ static void refresh_all_buttons(struct editbar *eb)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Callback for all tool mode toggle buttons.
 ****************************************************************************/
 static void editbar_mode_button_toggled(GtkToggleButton *tb,
@@ -159,7 +159,7 @@ static void editbar_mode_button_toggled(GtkToggleButton *tb,
   enum editor_tool_type ett;
 
   etm = GPOINTER_TO_INT(userdata);
-  if (!(0 <= etm && etm < NUM_EDITOR_TOOL_MODES)) {
+  if (!(etm < NUM_EDITOR_TOOL_MODES)) {
     return;
   }
 
@@ -170,13 +170,13 @@ static void editbar_mode_button_toggled(GtkToggleButton *tb,
   editgui_refresh();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Try to set the given tool as the current editor tool. If the tool is
   unavailable (editor_tool_is_usable) an error popup is displayed.
 ****************************************************************************/
 static void try_to_set_editor_tool(enum editor_tool_type ett)
 {
-  if (!(0 <= ett && ett < NUM_EDITOR_TOOL_TYPES)) {
+  if (!(ett < NUM_EDITOR_TOOL_TYPES)) {
     return;
   }
 
@@ -195,7 +195,7 @@ static void try_to_set_editor_tool(enum editor_tool_type ett)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Callback to handle toggling of any of the tool buttons.
 ****************************************************************************/
 static void editbar_tool_button_toggled(GtkToggleButton *tb,
@@ -213,7 +213,7 @@ static void editbar_tool_button_toggled(GtkToggleButton *tb,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Refresh the player point-of-view indicator based on the client and
   editor state.
 
@@ -267,7 +267,7 @@ static void refresh_player_pov_indicator(struct editbar *eb)
   gtk_combo_box_set_active(GTK_COMBO_BOX(combo), index);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Callback to handle selection of a player/global observer in the
   player pov indicator.
 
@@ -312,7 +312,7 @@ static void editbar_player_pov_combobox_changed(GtkComboBox *combo,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Run the tool value selection dialog and return the value ID selected.
   Returns -1 if cancelled.
 ****************************************************************************/
@@ -347,7 +347,7 @@ static int tool_value_selector_run(struct tool_value_selector *tvs)
   return id;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Run the tool value selector for the given tool type. Sets the editor state
   and refreshes the editor GUI depending on the user's choices.
 
@@ -360,7 +360,7 @@ static bool editgui_run_tool_selection(enum editor_tool_type ett)
   int res = -1;
 
   eb = editgui_get_editbar();
-  if (eb == NULL || !(0 <= ett && ett < NUM_EDITOR_TOOL_TYPES)) {
+  if (eb == NULL || !(ett < NUM_EDITOR_TOOL_TYPES)) {
     return FALSE;
   }
 
@@ -383,16 +383,18 @@ static bool editgui_run_tool_selection(enum editor_tool_type ett)
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a mouse click on any of the tool buttons.
 ****************************************************************************/
 static gboolean editbar_tool_button_mouse_click(GtkWidget *w,
-                                                GdkEventButton *ev,
+                                                GdkEvent *ev,
                                                 gpointer userdata)
 {
   int ett;
+  guint button;
 
-  if (ev->button != 3) {
+  gdk_event_get_button(ev, &button);
+  if (button != 3) {
     return FALSE; /* Propagate event further. */
   }
 
@@ -400,7 +402,7 @@ static gboolean editbar_tool_button_mouse_click(GtkWidget *w,
   return editgui_run_tool_selection(ett);
 }
 
-/****************************************************************************
+/************************************************************************//**
   A helper function to create a toolbar button for the given editor tool.
   Packs the newly created button into the hbox 'eb->widget'.
 ****************************************************************************/
@@ -413,7 +415,7 @@ static void editbar_add_tool_button(struct editbar *eb,
   struct sprite *sprite;
   int i;
 
-  if (!eb || !(0 <= ett && ett < NUM_EDITOR_TOOL_TYPES)) {
+  if (!eb || !(ett < NUM_EDITOR_TOOL_TYPES)) {
     return;
   }
 
@@ -457,7 +459,7 @@ static void editbar_add_tool_button(struct editbar *eb,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a click on the player properties button in the editor toolbar.
 ****************************************************************************/
 static void editbar_player_properties_button_clicked(GtkButton *b,
@@ -471,7 +473,7 @@ static void editbar_player_properties_button_clicked(GtkButton *b,
   property_editor_popup(pe, OBJTYPE_PLAYER);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Helper function to add a tool mode button to the editor toolbar. The
   button will be packed into the start of the hbox 'eb->widget'.
 ****************************************************************************/
@@ -483,7 +485,7 @@ static void editbar_add_mode_button(struct editbar *eb,
   struct sprite *sprite;
   const char *tooltip;
 
-  if (!eb || !(0 <= etm && etm < NUM_EDITOR_TOOL_MODES)) {
+  if (!eb || !(etm < NUM_EDITOR_TOOL_MODES)) {
     return;
   }
 
@@ -513,7 +515,7 @@ static void editbar_add_mode_button(struct editbar *eb,
   eb->mode_buttons[etm] = button;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create and return an editor toolbar.
 ****************************************************************************/
 static struct editbar *editbar_create(void)
@@ -606,7 +608,7 @@ static struct editbar *editbar_create(void)
   return eb;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Refresh the tool value selector in the given toolbar for the given tool
   type with data from the editor state.
 ****************************************************************************/
@@ -645,7 +647,7 @@ static void refresh_tool_value_selector(struct editbar *eb,
   } while (gtk_tree_model_iter_next(model, &iter));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Refresh all tool value selectors in the given toolbar according to the
   current editor state.
 ****************************************************************************/
@@ -664,7 +666,7 @@ static void refresh_all_tool_value_selectors(struct editbar *eb)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Refresh the given toolbar according to the current editor state.
 ****************************************************************************/
 static void editbar_refresh(struct editbar *eb)
@@ -685,45 +687,7 @@ static void editbar_refresh(struct editbar *eb)
   gtk_widget_show(eb->widget);
 }
 
-/****************************************************************************
-  Create a pixbuf containing a representative image for the given extra
-  type, to be used as an icon in the GUI.
-
-  May return NULL on error.
-
-  NB: You must call g_object_unref on the non-NULL return value when you
-  no longer need it.
-****************************************************************************/
-static GdkPixbuf *create_extra_pixbuf(const struct extra_type *pextra)
-{
-  struct drawn_sprite sprs[80];
-  int count, w, h, canvas_x, canvas_y;
-  GdkPixbuf *pixbuf;
-  struct canvas canvas = FC_STATIC_CANVAS_INIT;
-  cairo_t *cr;
-
-  w = tileset_tile_width(tileset);
-  h = tileset_tile_height(tileset);
-
-  canvas.surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
-  canvas_x = 0;
-  canvas_y = 0;
-
-  cr = cairo_create(canvas.surface);
-  cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
-  cairo_paint(cr);
-  cairo_destroy(cr);
-
-  count = fill_basic_extra_sprite_array(tileset, sprs, pextra);
-  put_drawn_sprites(&canvas, 1.0, canvas_x, canvas_y, count, sprs, FALSE);
-
-  pixbuf = surface_get_pixbuf(canvas.surface, w, h);
-  cairo_surface_destroy(canvas.surface);
-
-  return pixbuf;
-}
-
-/****************************************************************************
+/************************************************************************//**
   Create a pixbuf containing a representative image for the given terrain
   type, to be used as an icon in the GUI.
 
@@ -763,7 +727,7 @@ static GdkPixbuf *create_terrain_pixbuf(struct terrain *pterrain)
   return pixbuf;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Clear icons from tool store, and the store itself.
 ****************************************************************************/
 static void clear_tool_store(GtkListStore *store)
@@ -785,7 +749,7 @@ static void clear_tool_store(GtkListStore *store)
   gtk_list_store_clear(store);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Clears all stores from the editbar.
 ****************************************************************************/
 static void clear_tool_stores(struct editbar *eb)
@@ -798,7 +762,7 @@ static void clear_tool_stores(struct editbar *eb)
   clear_tool_store(eb->tool_selectors[ETT_UNIT]->store);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Reload all tool value data from the tileset for the given toolbar.
 ****************************************************************************/
 static void editbar_reload_tileset(struct editbar *eb)
@@ -930,7 +894,7 @@ static void editbar_reload_tileset(struct editbar *eb)
   } unit_type_iterate_end;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Convert gdk modifier values to editor modifier values.
 ****************************************************************************/
 static int convert_modifiers(int gdk_event_state)
@@ -950,7 +914,7 @@ static int convert_modifiers(int gdk_event_state)
   return modifiers;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Convert gdk mouse button values to editor mouse button values.
 ****************************************************************************/
 static int convert_mouse_button(int gdk_mouse_button)
@@ -972,47 +936,67 @@ static int convert_mouse_button(int gdk_mouse_button)
   return MOUSE_BUTTON_OTHER;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Pass on the gdk mouse event to the editor's handler.
 ****************************************************************************/
-gboolean handle_edit_mouse_button_press(GdkEventButton *ev)
+gboolean handle_edit_mouse_button_press(GdkEvent *ev)
 {
-  if (ev->type != GDK_BUTTON_PRESS) {
+  gdouble e_x, e_y;
+  guint button;
+  GdkModifierType state;
+
+  if (gdk_event_get_event_type(ev) != GDK_BUTTON_PRESS) {
     return TRUE;
   }
 
-  editor_mouse_button_press(ev->x, ev->y,
-                            convert_mouse_button(ev->button),
-                            convert_modifiers(ev->state));
+  gdk_event_get_coords(ev, &e_x, &e_y);
+  gdk_event_get_button(ev, &button);
+  gdk_event_get_state(ev, &state);
+  editor_mouse_button_press(e_x, e_y,
+                            convert_mouse_button(button),
+                            convert_modifiers(state));
 
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Pass on the gdk mouse event to the editor's handler.
 ****************************************************************************/
-gboolean handle_edit_mouse_button_release(GdkEventButton *ev)
+gboolean handle_edit_mouse_button_release(GdkEvent *ev)
 {
-  if (ev->type != GDK_BUTTON_RELEASE) {
+  gdouble e_x, e_y;
+  guint button;
+  GdkModifierType state;
+
+  if (gdk_event_get_event_type(ev) != GDK_BUTTON_RELEASE) {
     return TRUE;
   }
 
-  editor_mouse_button_release(ev->x, ev->y,
-                              convert_mouse_button(ev->button),
-                              convert_modifiers(ev->state));
+  gdk_event_get_coords(ev, &e_x, &e_y);
+  gdk_event_get_button(ev, &button);
+  gdk_event_get_state(ev, &state);
+  editor_mouse_button_release(e_x, e_y,
+                              convert_mouse_button(button),
+                              convert_modifiers(state));
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Pass on the gdk mouse event to the editor's handler.
 ****************************************************************************/
-gboolean handle_edit_mouse_move(GdkEventMotion *ev)
+gboolean handle_edit_mouse_move(GdkEvent *ev)
 {
-  editor_mouse_move(ev->x, ev->y, convert_modifiers(ev->state));
+  gdouble e_x, e_y;
+  GdkModifierType state;
+
+  gdk_event_get_coords(ev, &e_x, &e_y);
+  gdk_event_get_state(ev, &state);
+  editor_mouse_move(e_x, e_y, convert_modifiers(state));
+
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a double-click on the tool value list.
 ****************************************************************************/
 static void tool_value_selector_treeview_row_activated(GtkTreeView *view,
@@ -1025,7 +1009,7 @@ static void tool_value_selector_treeview_row_activated(GtkTreeView *view,
   gtk_dialog_response(GTK_DIALOG(tvs->dialog), GTK_RESPONSE_ACCEPT);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a tool value selection dialog for the given toolbar.
 ****************************************************************************/
 static struct tool_value_selector *
@@ -1045,8 +1029,8 @@ create_tool_value_selector(struct editbar *eb,
 
   tvs->dialog = gtk_dialog_new_with_buttons(_("Select Tool Value"),
                                             GTK_WINDOW(toplevel), GTK_DIALOG_MODAL,
-                                            _("OK"), GTK_RESPONSE_ACCEPT,
-                                            _("Cancel"), GTK_RESPONSE_REJECT,
+                                            _("_OK"), GTK_RESPONSE_ACCEPT,
+                                            _("_Cancel"), GTK_RESPONSE_REJECT,
                                             NULL);
   vbox = gtk_dialog_get_content_area(GTK_DIALOG(tvs->dialog));
 
@@ -1064,7 +1048,7 @@ create_tool_value_selector(struct editbar *eb,
                                  GTK_POLICY_AUTOMATIC);
   gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrollwin),
                                              10 * tileset_tile_height(tileset));
-  gtk_box_pack_start(GTK_BOX(vbox), scrollwin, TRUE, TRUE);
+  gtk_box_pack_start(GTK_BOX(vbox), scrollwin);
 
   view = gtk_tree_view_new_with_model(GTK_TREE_MODEL(tvs->store));
   gtk_widget_set_size_request(view, -1, 10 * tileset_tile_height(tileset));
@@ -1114,7 +1098,7 @@ create_tool_value_selector(struct editbar *eb,
   return tvs;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a mouse click on the tool image area in the editor info box.
 ****************************************************************************/
 static gboolean editinfobox_handle_tool_image_button_press(GtkWidget *evbox,
@@ -1125,7 +1109,7 @@ static gboolean editinfobox_handle_tool_image_button_press(GtkWidget *evbox,
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a mouse click on the mode image area in the editor info box.
 ****************************************************************************/
 static gboolean editinfobox_handle_mode_image_button_press(GtkWidget *evbox,
@@ -1138,7 +1122,7 @@ static gboolean editinfobox_handle_mode_image_button_press(GtkWidget *evbox,
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Callback for spin button changes in the editor info box.
 ****************************************************************************/
 static void editinfobox_spin_button_value_changed(GtkSpinButton *spinbutton,
@@ -1173,7 +1157,7 @@ static void editinfobox_spin_button_value_changed(GtkSpinButton *spinbutton,
   editinfobox_refresh(ei);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Callback for changes in the applied player combobox in the editor
   info box.
 ****************************************************************************/
@@ -1199,12 +1183,12 @@ static void editinfobox_tool_applied_player_changed(GtkComboBox *combo,
   editor_tool_set_applied_player(editor_get_tool(), player_no);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create and return an editor info box widget bundle.
 ****************************************************************************/
 static struct editinfobox *editinfobox_create(void)
 {
-  GtkWidget *label, *vbox, *frame, *hbox, *vbox2, *image, *evbox;
+  GtkWidget *label, *vbox, *frame, *hbox, *vbox2, *image;
   GtkWidget *spin, *combo;
   GtkListStore *store;
   GtkCellRenderer *cell;
@@ -1235,14 +1219,11 @@ static struct editinfobox *editinfobox_create(void)
   gtk_grid_set_column_spacing(GTK_GRID(hbox), 8);
   gtk_container_add(GTK_CONTAINER(vbox), hbox);
 
-  evbox = gtk_event_box_new();
-  gtk_widget_set_tooltip_text(evbox, _("Click to change value if applicable."));
-  g_signal_connect(evbox, "button_press_event",
-      G_CALLBACK(editinfobox_handle_tool_image_button_press), NULL);
-  gtk_container_add(GTK_CONTAINER(hbox), evbox);
-
   image = gtk_image_new();
-  gtk_container_add(GTK_CONTAINER(evbox), image);
+  gtk_widget_set_tooltip_text(image, _("Click to change value if applicable."));
+  g_signal_connect(image, "button_press_event",
+      G_CALLBACK(editinfobox_handle_tool_image_button_press), NULL);
+  gtk_container_add(GTK_CONTAINER(hbox), image);
   ei->tool_image = image;
 
   vbox2 = gtk_grid_new();
@@ -1268,14 +1249,11 @@ static struct editinfobox *editinfobox_create(void)
   gtk_grid_set_column_spacing(GTK_GRID(hbox), 8);
   gtk_container_add(GTK_CONTAINER(vbox), hbox);
 
-  evbox = gtk_event_box_new();
-  gtk_widget_set_tooltip_text(evbox, _("Click to change tool mode."));
-  g_signal_connect(evbox, "button_press_event",
-      G_CALLBACK(editinfobox_handle_mode_image_button_press), NULL);
-  gtk_container_add(GTK_CONTAINER(hbox), evbox);
-
   image = gtk_image_new();
-  gtk_container_add(GTK_CONTAINER(evbox), image);
+  gtk_widget_set_tooltip_text(image, _("Click to change tool mode."));
+  g_signal_connect(image, "button_press_event",
+      G_CALLBACK(editinfobox_handle_mode_image_button_press), NULL);
+  gtk_container_add(GTK_CONTAINER(hbox), image);
   ei->mode_image = image;
 
   vbox2 = gtk_grid_new();
@@ -1375,7 +1353,7 @@ static struct editinfobox *editinfobox_create(void)
   return ei;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Refresh the given editinfobox's applied player combobox according to the
   current editor state.
 ****************************************************************************/
@@ -1441,7 +1419,7 @@ static void refresh_tool_applied_player_combo(struct editinfobox *ei)
   gtk_widget_show(combo);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return a pixbuf containing an image for the given editor tool sub-value,
   if one exists.
 
@@ -1511,7 +1489,7 @@ static GdkPixbuf *get_tool_value_pixbuf(enum editor_tool_type ett,
   return pixbuf;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return a pixbuf containing an image suitable for use as an icon
   respresenting the given editor tool mode.
 
@@ -1536,7 +1514,7 @@ static GdkPixbuf *get_tool_mode_pixbuf(enum editor_tool_mode etm)
   return pixbuf;
 }
 
-/****************************************************************************
+/************************************************************************//**
   NB: Assumes that widget 'old' has enough references to not be destroyed
   when removed from its parent container, and that the parent container
   is a GtkBox (or is descended from it).
@@ -1556,7 +1534,7 @@ static void replace_widget(GtkWidget *old, GtkWidget *new)
   gtk_widget_show(new);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Refresh the given editinfobox according to the current editor state.
 ****************************************************************************/
 static void editinfobox_refresh(struct editinfobox *ei)
@@ -1643,23 +1621,25 @@ static void editinfobox_refresh(struct editinfobox *ei)
   refresh_tool_applied_player_combo(ei);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle ctrl+<key> combinations.
 ****************************************************************************/
-static gboolean handle_edit_key_press_with_ctrl(GdkEventKey *ev)
+static gboolean handle_edit_key_press_with_ctrl(GdkEvent *ev)
 {
   return FALSE; /* Don't gobble. */
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle shift+<key> combinations.
 ****************************************************************************/
-static gboolean handle_edit_key_press_with_shift(GdkEventKey *ev)
+static gboolean handle_edit_key_press_with_shift(GdkEvent *ev)
 {
   enum editor_tool_type ett;
+  guint keyval;
 
   ett = editor_get_tool();
-  switch (ev->keyval) {
+  gdk_event_get_keyval(ev, &keyval);
+  switch (keyval) {
   case GDK_KEY_D:
     editor_tool_toggle_mode(ett, ETM_ERASE);
     break;
@@ -1699,24 +1679,28 @@ static gboolean handle_edit_key_press_with_shift(GdkEventKey *ev)
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle any kind of key press event.
 ****************************************************************************/
-gboolean handle_edit_key_press(GdkEventKey *ev)
+gboolean handle_edit_key_press(GdkEvent *ev)
 {
   enum editor_tool_type ett, new_ett = NUM_EDITOR_TOOL_TYPES;
+  GdkModifierType state;
+  guint keyval;
 
-  if (ev->state & GDK_SHIFT_MASK) {
+  gdk_event_get_state(ev, &state);
+  if (state & GDK_SHIFT_MASK) {
     return handle_edit_key_press_with_shift(ev);
   }
 
-  if (ev->state & GDK_CONTROL_MASK) {
+  if (state & GDK_CONTROL_MASK) {
     return handle_edit_key_press_with_ctrl(ev);
   }
 
   ett = editor_get_tool();
 
-  switch (ev->keyval) {
+  gdk_event_get_keyval(ev, &keyval);
+  switch (keyval) {
   case GDK_KEY_t:
     new_ett = ETT_TERRAIN;
     break;
@@ -1749,9 +1733,11 @@ gboolean handle_edit_key_press(GdkEventKey *ev)
   case GDK_KEY_KP_Add:
     if (editor_tool_has_size(ett)) {
       int size = editor_tool_get_size(ett);
+
       editor_tool_set_size(ett, size + 1);
     } else if (editor_tool_has_count(ett)) {
       int count = editor_tool_get_count(ett);
+
       editor_tool_set_count(ett, count + 1);
     }
     break;
@@ -1760,9 +1746,11 @@ gboolean handle_edit_key_press(GdkEventKey *ev)
   case GDK_KEY_KP_Subtract:
     if (editor_tool_has_size(ett)) {
       int size = editor_tool_get_size(ett);
+
       editor_tool_set_size(ett, size - 1);
     } else if (editor_tool_has_count(ett)) {
       int count = editor_tool_get_count(ett);
+
       editor_tool_set_count(ett, count - 1);
     }
     break;
@@ -1776,9 +1764,9 @@ gboolean handle_edit_key_press(GdkEventKey *ev)
   case GDK_KEY_8:
   case GDK_KEY_9:
     if (editor_tool_has_size(ett)) {
-      editor_tool_set_size(ett, ev->keyval - GDK_KEY_1 + 1);
+      editor_tool_set_size(ett, keyval - GDK_KEY_1 + 1);
     } else if (editor_tool_has_count(ett)) {
-      editor_tool_set_count(ett, ev->keyval - GDK_KEY_1 + 1);
+      editor_tool_set_count(ett, keyval - GDK_KEY_1 + 1);
     }
     break;
   case GDK_KEY_space:
@@ -1815,7 +1803,7 @@ gboolean handle_edit_key_press(GdkEventKey *ev)
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Key release handler.
 ****************************************************************************/
 gboolean handle_edit_key_release(GdkEventKey *ev)
@@ -1823,7 +1811,7 @@ gboolean handle_edit_key_release(GdkEventKey *ev)
   return FALSE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get the pointer for the editbar embedded in the client's GUI.
 ****************************************************************************/
 struct editbar *editgui_get_editbar(void)
@@ -1831,7 +1819,7 @@ struct editbar *editgui_get_editbar(void)
   return editor_toolbar;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Refresh all editor GUI widgets according to the current editor state.
 ****************************************************************************/
 void editgui_refresh(void)
@@ -1857,7 +1845,7 @@ void editgui_refresh(void)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create all editor GUI widgets.
 ****************************************************************************/
 void editgui_create_widgets(void)
@@ -1870,7 +1858,7 @@ void editgui_create_widgets(void)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free everything allocated for the editgui.
 ****************************************************************************/
 void editgui_free(void)
@@ -1880,7 +1868,7 @@ void editgui_free(void)
   clear_tool_stores(eb);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return a pointer to the editor info box embedded in the client's GUI.
 ****************************************************************************/
 struct editinfobox *editgui_get_editinfobox(void)
@@ -1888,7 +1876,7 @@ struct editinfobox *editgui_get_editinfobox(void)
   return editor_infobox;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Update all editor widget internal data for the new tileset. Call this
   after a new tileset has finished loading.
 ****************************************************************************/
@@ -1898,7 +1886,7 @@ void editgui_tileset_changed(void)
   editinfobox_refresh(editgui_get_editinfobox());
 }
 
-/****************************************************************************
+/************************************************************************//**
   Popup the property editor. If 'tiles' is non-NULL, the tiles, units and
   cities in those tiles are added to the property editor's object list. If
   'objtype' is a valid object type, the corresponding page of the property
@@ -1917,7 +1905,7 @@ void editgui_popup_properties(const struct tile_list *tiles, int objtype)
   property_editor_popup(pe, objtype);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Popup all dialog window of the editor.
 ****************************************************************************/
 void editgui_popdown_all(void)
@@ -1929,7 +1917,7 @@ void editgui_popdown_all(void)
   property_editor_clear(pe);    /* And clear it. */
 }
 
-/****************************************************************************
+/************************************************************************//**
   This is called to notify the editor GUI that some object (e.g. tile, unit,
   etc.) has changed (usually because the corresponding packet was received)
   and that widgets displaying the object should be updated.
@@ -1949,7 +1937,7 @@ void editgui_notify_object_changed(int objtype, int object_id, bool removal)
   property_editor_handle_object_changed(pe, objtype, object_id, removal);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Pass on the object creation notification to the property editor.
 ****************************************************************************/
 void editgui_notify_object_created(int tag, int id)

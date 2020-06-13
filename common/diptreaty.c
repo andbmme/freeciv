@@ -25,6 +25,8 @@
 
 #include "diptreaty.h"
 
+static struct clause_info clause_infos[CLAUSE_COUNT];
+
 /**********************************************************************//**
   Returns TRUE iff pplayer could do diplomancy in the game at all.
 **************************************************************************/
@@ -177,13 +179,16 @@ bool add_clause(struct Treaty *ptreaty, struct player *pfrom,
     return FALSE;
   }
 
-  if (!game.info.trading_gold && type == CLAUSE_GOLD) {
+  if (!clause_enabled(type, pfrom, pto)) {
     return FALSE;
   }
-  if (!game.info.trading_tech && type == CLAUSE_ADVANCE) {
-    return FALSE;
-  }
-  if (!game.info.trading_city && type == CLAUSE_CITY) {
+
+  if (!are_reqs_active(pfrom, pto,
+                      NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                      &clause_infos[type].giver_reqs, RPT_POSSIBLE)
+      || !are_reqs_active(pto, pfrom,
+                          NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                          &clause_infos[type].receiver_reqs, RPT_POSSIBLE)) {
     return FALSE;
   }
 
@@ -194,16 +199,16 @@ bool add_clause(struct Treaty *ptreaty, struct player *pfrom,
       /* same clause already there */
       return FALSE;
     }
-    if (is_pact_clause(type) &&
-        is_pact_clause(old_clause->type)) {
+    if (is_pact_clause(type)
+        && is_pact_clause(old_clause->type)) {
       /* pact clause already there */
       ptreaty->accept0 = FALSE;
       ptreaty->accept1 = FALSE;
       old_clause->type = type;
       return TRUE;
     }
-    if (type == CLAUSE_GOLD && old_clause->type == CLAUSE_GOLD &&
-        old_clause->from == pfrom) {
+    if (type == CLAUSE_GOLD && old_clause->type == CLAUSE_GOLD
+        && old_clause->from == pfrom) {
       /* gold clause there, different value */
       ptreaty->accept0 = FALSE;
       ptreaty->accept1 = FALSE;
@@ -214,14 +219,82 @@ bool add_clause(struct Treaty *ptreaty, struct player *pfrom,
 
   pclause = fc_malloc(sizeof(*pclause));
 
-  pclause->type=type;
-  pclause->from=pfrom;
-  pclause->value=val;
+  pclause->type  = type;
+  pclause->from  = pfrom;
+  pclause->value = val;
   
   clause_list_append(ptreaty->clauses, pclause);
 
   ptreaty->accept0 = FALSE;
   ptreaty->accept1 = FALSE;
+
+  return TRUE;
+}
+
+/**********************************************************************//**
+  Initialize clause info structures.
+**************************************************************************/
+void clause_infos_init(void)
+{
+  int i;
+
+  for (i = 0; i < CLAUSE_COUNT; i++) {
+    clause_infos[i].type = i;
+    clause_infos[i].enabled = FALSE;
+    requirement_vector_init(&(clause_infos[i].giver_reqs));
+    requirement_vector_init(&(clause_infos[i].receiver_reqs));
+  }
+}
+
+/**********************************************************************//**
+  Free memory associated with clause infos.
+**************************************************************************/
+void clause_infos_free(void)
+{
+  int i;
+
+  for (i = 0; i < CLAUSE_COUNT; i++) {
+    requirement_vector_free(&(clause_infos[i].giver_reqs));
+    requirement_vector_free(&(clause_infos[i].receiver_reqs));
+  }
+}
+
+/**********************************************************************//**
+  Free memory associated with clause infos.
+**************************************************************************/
+struct clause_info *clause_info_get(enum clause_type type)
+{
+  fc_assert(type >= 0 && type < CLAUSE_COUNT);
+
+  return &clause_infos[type];
+}
+
+/**********************************************************************//**
+  Is clause enabled in this game?
+  Currently this does not consider clause requirements that may change
+  during the game, but returned value is constant for the given clause type
+  thought the game. Try not to rely on that, though, as the goal is to
+  change this so that also non-constant requirements will be considered
+  in the future.
+**************************************************************************/
+bool clause_enabled(enum clause_type type, struct player *from,
+                    struct player *to)
+{
+  struct clause_info *info = &clause_infos[type];
+
+  if (!info->enabled) {
+    return FALSE;
+  }
+
+  if (!game.info.trading_gold && type == CLAUSE_GOLD) {
+    return FALSE;
+  }
+  if (!game.info.trading_tech && type == CLAUSE_ADVANCE) {
+    return FALSE;
+  }
+  if (!game.info.trading_city && type == CLAUSE_CITY) {
+    return FALSE;
+  }
 
   return TRUE;
 }

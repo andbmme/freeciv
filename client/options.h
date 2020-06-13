@@ -96,8 +96,7 @@ struct client_options
   bool use_prev_server;
   bool heartbeat_enabled;
   char default_metaserver[512];
-  char default_tileset_overhead_name[512];
-  char default_tileset_iso_name[512];
+  char default_tileset_square_name[512];
   char default_tileset_hex_name[512];
   char default_tileset_isohex_name[512];
   char default_sound_set_name[512];
@@ -111,6 +110,8 @@ struct client_options
   bool first_boot; /* There was no earlier options saved.
                     * This affects some migrations, but not all. */
   char default_tileset_name[512]; /* pre-2.6 had just this one tileset name */
+  char default_tileset_overhead_name[512]; /* 2.6 had separate tilesets for ... */
+  char default_tileset_iso_name[512];      /* ...overhead and iso topologies. */
   bool gui_gtk3_migrated_from_gtk2;
   bool gui_gtk3_22_migrated_from_gtk3;
   bool gui_gtk4_migrated_from_gtk3_22;
@@ -144,6 +145,7 @@ struct client_options
   bool popup_new_cities;
   bool popup_actor_arrival;
   bool popup_attack_actions;
+  bool popup_last_move_to_allied;
   bool update_city_text_in_refresh_tile;
   bool keyboardless_goto;
   bool enable_cursor_changes;
@@ -203,10 +205,10 @@ struct client_options
   bool zoom_set;
   float zoom_default_level;
 
-/* gui-gtk-2.0 client specific options. */
+/* gui-gtk-2.0 client specific options.
+ * These are still kept just so users can migrate them to gtk3-client */
 #define FC_GTK2_DEFAULT_THEME_NAME "Freeciv"
   char gui_gtk2_default_theme_name[512];
-  bool gui_gtk2_fullscreen;
   bool gui_gtk2_map_scrollbars;
   bool gui_gtk2_dialogs_on_top;
   bool gui_gtk2_show_task_icons;
@@ -217,8 +219,6 @@ struct client_options
   bool gui_gtk2_show_message_window_buttons;
   bool gui_gtk2_metaserver_tab_first;
   bool gui_gtk2_allied_chat_only;
-  int gui_gtk2_message_chat_location; /* enum GUI_GTK_MSGCHAT_* */
-  bool gui_gtk2_small_display_layout;
   bool gui_gtk2_mouse_over_map_focus;
   bool gui_gtk2_chatline_autocompletion;
   int gui_gtk2_citydlg_xsize;
@@ -361,6 +361,8 @@ struct client_options
   bool gui_sdl2_swrenderer;
   bool gui_sdl2_do_cursor_animation;
   bool gui_sdl2_use_color_cursors;
+  char gui_sdl2_font_city_names[64];
+  char gui_sdl2_font_city_productions[64];
 
 /* gui-qt client specific options. */
 #define FC_QT_DEFAULT_THEME_NAME "NightStalker"
@@ -369,18 +371,11 @@ struct client_options
   bool gui_qt_allied_chat_only;
   bool gui_qt_sidebar_left;
   char gui_qt_default_theme_name[512];
-  char gui_qt_font_city_label[512];
   char gui_qt_font_default[512];
   char gui_qt_font_notify_label[512];
-  char gui_qt_font_spaceship_label[512];
   char gui_qt_font_help_label[512];
-  char gui_qt_font_help_link[512];
   char gui_qt_font_help_text[512];
-  char gui_qt_font_help_title[512];
   char gui_qt_font_chatline[512];
-  char gui_qt_font_beta_label[512];
-  char gui_qt_font_small[512];
-  char gui_qt_font_comment_label[512];
   char gui_qt_font_city_names[512];
   char gui_qt_font_city_productions[512];
   char gui_qt_font_reqtree_text[512];

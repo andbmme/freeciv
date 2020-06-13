@@ -16,7 +16,7 @@
 [spec]
 
 ; Format and options of this spec file:
-options = "+Freeciv-spec-Devel-2015-Mar-25"
+options = "+Freeciv-spec-Devel-2019-Jul-03"
 
 [info]
 
@@ -115,8 +115,8 @@ tiles = { "row", "column", "tag"
  6,  0, "city.industrial_city_0"
  6,  1, "city.industrial_city_1"
  6,  2, "city.industrial_city_2"
- 6,  1, "city.industrial_city_3"
- 6,  2, "city.industrial_city_4"
+ 6,  3, "city.industrial_city_3"
+ 6,  4, "city.industrial_city_4"
 ;[S][HH]
  6,  5, "city.industrial_wall_0"
  6,  6, "city.industrial_wall_1"

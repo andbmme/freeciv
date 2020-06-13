@@ -59,6 +59,9 @@
 #include "tech.h"
 #include "worklist.h"
 
+/* common/aicore */
+#include "cm.h"
+
 #include "dataio.h"
 
 static bool get_conv(char *dst, size_t ndst, const char *src,
@@ -68,7 +71,7 @@ static DIO_PUT_CONV_FUN put_conv_callback = NULL;
 static DIO_GET_CONV_FUN get_conv_callback = get_conv;
 
 /* Uncomment to make field range tests to asserts, fatal with -F */
-#define FIELD_RANGE_ASSERT */
+/* #define FIELD_RANGE_ASSERT */
 
 #if defined(FREECIV_TESTMATIC) && !defined(FIELD_RANGE_ASSERT)
 #define FIELD_RANGE_ASSERT
@@ -508,51 +511,41 @@ void dio_put_string_raw(struct raw_data_out *dout, const char *value)
 }
 
 /**********************************************************************//**
-  Insert tech numbers from value array as 8 bit values until there is value
-  A_LAST or MAX_NUM_TECH_LIST tech numbers have been inserted.
+  Insert cm_parameter struct.
 **************************************************************************/
-void dio_put_tech_list_raw(struct raw_data_out *dout, const int *value)
+void dio_put_cm_parameter_raw(struct raw_data_out *dout,
+                              const struct cm_parameter *param)
 {
   int i;
 
-  for (i = 0; i < MAX_NUM_TECH_LIST; i++) {
-    dio_put_uint8_raw(dout, value[i]);
-    if (value[i] == A_LAST) {
-      break;
-    }
+  for (i = 0; i < O_LAST; i++) {
+    dio_put_sint16_raw(dout, param->minimal_surplus[i]);
   }
+
+  dio_put_bool8_raw(dout, param->max_growth);
+  dio_put_bool8_raw(dout, param->require_happy);
+  dio_put_bool8_raw(dout, param->allow_disorder);
+  dio_put_bool8_raw(dout, param->allow_specialists);
+
+  for (i = 0; i < O_LAST; i++) {
+    dio_put_uint16_raw(dout, param->factor[i]);
+  }
+
+  dio_put_uint16_raw(dout, param->happy_factor);
 }
 
 /**********************************************************************//**
-  Insert unit type numbers from value array as 8 bit values until there is
-  value U_LAST or MAX_NUM_UNIT_LIST numbers have been inserted.
+  Insert the given unit_order struct/
 **************************************************************************/
-void dio_put_unit_list_raw(struct raw_data_out *dout, const int *value)
+void dio_put_unit_order_raw(struct raw_data_out *dout,
+                            const struct unit_order *order)
 {
-  int i;
-
-  for (i = 0; i < MAX_NUM_UNIT_LIST; i++) {
-    dio_put_uint8_raw(dout, value[i]);
-    if (value[i] == U_LAST) {
-      break;
-    }
-  }
-}
-
-/**********************************************************************//**
-  Insert building type numbers from value array as 8 bit values until there
-  is value B_LAST or MAX_NUM_BUILDING_LIST numbers have been inserted.
-**************************************************************************/
-void dio_put_building_list_raw(struct raw_data_out *dout, const int *value)
-{
-  int i;
-
-  for (i = 0; i < MAX_NUM_BUILDING_LIST; i++) {
-    dio_put_uint8_raw(dout, value[i]);
-    if (value[i] == B_LAST) {
-      break;
-    }
-  }
+  dio_put_uint8_raw(dout, order->order);
+  dio_put_uint8_raw(dout, order->activity);
+  dio_put_sint32_raw(dout, order->target);
+  dio_put_sint16_raw(dout, order->sub_target);
+  dio_put_uint8_raw(dout, order->action);
+  dio_put_sint8_raw(dout, order->dir);
 }
 
 /**********************************************************************//**
@@ -843,76 +836,64 @@ bool dio_get_string_raw(struct data_in *din, char *dest, size_t max_dest_size)
 }
 
 /**********************************************************************//**
-  Take tech numbers until A_LAST encountered, or MAX_NUM_TECH_LIST techs
-  retrieved.
+  Get city manager parameters.
 **************************************************************************/
-bool dio_get_tech_list_raw(struct data_in *din, int *dest)
+bool dio_get_cm_parameter_raw(struct data_in *din,
+                              struct cm_parameter *param)
 {
   int i;
 
-  for (i = 0; i < MAX_NUM_TECH_LIST; i++) {
-    if (!dio_get_uint8_raw(din, &dest[i])) {
-      log_packet("Got a too short tech list");
+  for (i = 0; i < O_LAST; i++) {
+    if (!dio_get_sint16_raw(din, &param->minimal_surplus[i])) {
+      log_packet("Got a bad cm_parameter");
       return FALSE;
-    }
-    if (dest[i] == A_LAST) {
-      break;
     }
   }
 
-  for (; i < MAX_NUM_TECH_LIST; i++) {
-    dest[i] = A_LAST;
+  if (!dio_get_bool8_raw(din, &param->max_growth)
+      || !dio_get_bool8_raw(din, &param->require_happy)
+      || !dio_get_bool8_raw(din, &param->allow_disorder)
+      || !dio_get_bool8_raw(din, &param->allow_specialists)) {
+    log_packet("Got a bad cm_parameter");
+    return FALSE;
+  }
+
+  for (i = 0; i < O_LAST; i++) {
+    if (!dio_get_uint16_raw(din, &param->factor[i])) {
+      log_packet("Got a bad cm_parameter");
+      return FALSE;
+    }
+  }
+
+  if (!dio_get_uint16_raw(din, &param->happy_factor)) {
+    log_packet("Got a bad cm_parameter");
+    return FALSE;
   }
 
   return TRUE;
 }
 
 /**********************************************************************//**
-  Take unit type numbers until U_LAST encountered, or MAX_NUM_UNIT_LIST
-  types retrieved.
+  Take unit_order struct and put it in the provided orders.
 **************************************************************************/
-bool dio_get_unit_list_raw(struct data_in *din, int *dest)
+bool dio_get_unit_order_raw(struct data_in *din, struct unit_order *order)
 {
-  int i;
+  /* These fields are enums */
+  int iorder, iactivity, idir;
 
-  for (i = 0; i < MAX_NUM_UNIT_LIST; i++) {
-    if (!dio_get_uint8_raw(din, &dest[i])) {
-      log_packet("Got a too short unit list");
-      return FALSE;
-    }
-    if (dest[i] == U_LAST) {
-      break;
-    }
+  if (!dio_get_uint8_raw(din, &iorder)
+      || !dio_get_uint8_raw(din, &iactivity)
+      || !dio_get_sint32_raw(din, &order->target)
+      || !dio_get_sint16_raw(din, &order->sub_target)
+      || !dio_get_uint8_raw(din, &order->action)
+      || !dio_get_sint8_raw(din, &idir)) {
+    log_packet("Got a bad unit_order");
+    return FALSE;
   }
 
-  for (; i < MAX_NUM_UNIT_LIST; i++) {
-    dest[i] = U_LAST;
-  }
-
-  return TRUE;
-}
-
-/**********************************************************************//**
-  Take building type numbers until B_LAST encountered, or
-  MAX_NUM_BUILDING_LIST types retrieved.
-**************************************************************************/
-bool dio_get_building_list_raw(struct data_in *din, int *dest)
-{
-  int i;
-
-  for (i = 0; i < MAX_NUM_BUILDING_LIST; i++) {
-    if (!dio_get_uint8_raw(din, &dest[i])) {
-      log_packet("Got a too short building list");
-      return FALSE;
-    }
-    if (dest[i] == B_LAST) {
-      break;
-    }
-  }
-
-  for (; i < MAX_NUM_BUILDING_LIST; i++) {
-    dest[i] = B_LAST;
-  }
+  order->order = iorder;
+  order->activity = iactivity;
+  order->dir = idir;
 
   return TRUE;
 }

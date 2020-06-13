@@ -166,6 +166,8 @@ struct drawn_sprite {
 #define SPECENUM_VALUE21NAME "WorkerTask"
 #define SPECENUM_VALUE22 LAYER_EDITOR
 #define SPECENUM_VALUE22NAME "Editor"
+#define SPECENUM_VALUE23 LAYER_INFRAWORK
+#define SPECENUM_VALUE23NAME "InfraWork"
 #define SPECENUM_COUNT LAYER_COUNT
 #include "specenum_gen.h"
 
@@ -205,6 +207,7 @@ enum arrow_type {
 struct tileset;
 
 extern struct tileset *tileset;
+extern struct tileset *unscaled_tileset;
 
 struct strvec;
 const struct strvec *get_tileset_list(const struct option *poption);
@@ -220,9 +223,9 @@ bool tileset_is_fully_loaded(void);
 
 void finish_loading_sprites(struct tileset *t);
 
-void tilespec_try_read(const char *tileset_name, bool verbose, int topo_id,
+bool tilespec_try_read(const char *tileset_name, bool verbose, int topo_id,
                        bool global_default);
-void tilespec_reread(const char *tileset_name, bool game_fully_initialized,
+bool tilespec_reread(const char *tileset_name, bool game_fully_initialized,
                      float scale);
 void tilespec_reread_callback(struct option *poption);
 void tilespec_reread_frozen_refresh(const char *tname);
@@ -367,7 +370,7 @@ struct sprite *get_nation_shield_sprite(const struct tileset *t,
                                         const struct nation_type *nation);
 struct sprite *get_tech_sprite(const struct tileset *t, Tech_type_id tech);
 struct sprite *get_building_sprite(const struct tileset *t,
-                                   struct impr_type *pimprove);
+                                   const struct impr_type *pimprove);
 struct sprite *get_government_sprite(const struct tileset *t,
                                      const struct government *gov);
 struct sprite *get_unittype_sprite(const struct tileset *t,
@@ -416,6 +419,7 @@ struct color_system;
 struct color_system *get_color_system(const struct tileset *t);
 
 /* Tileset accessor functions. */
+struct tileset* get_tileset(void);
 const char *tileset_basename(const struct tileset *t);
 bool tileset_is_isometric(const struct tileset *t);
 int tileset_hex_width(const struct tileset *t);
@@ -442,10 +446,9 @@ bool tileset_use_hard_coded_fog(const struct tileset *t);
 
 /* These are used as array index -> can't be changed freely to values
    bigger than size of those arrays. */
-#define TS_TOPO_OVERHEAD 0
-#define TS_TOPO_ISO      1
-#define TS_TOPO_HEX      (1 << 1)
-#define TS_TOPO_ISOHEX   (TS_TOPO_ISO + TS_TOPO_HEX)
+#define TS_TOPO_SQUARE   0
+#define TS_TOPO_HEX      1
+#define TS_TOPO_ISOHEX   2
 
 const char *tileset_name_get(struct tileset *t);
 const char *tileset_version(struct tileset *t);

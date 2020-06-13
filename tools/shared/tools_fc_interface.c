@@ -25,7 +25,7 @@
 #include "tools_fc_interface.h"
 
 
-/***************************************************************************
+/***********************************************************************//**
   Unused but required by fc_interface_init()
 ***************************************************************************/
 static bool tool_player_tile_vision_get(const struct tile *ptile,
@@ -36,7 +36,7 @@ static bool tool_player_tile_vision_get(const struct tile *ptile,
   return FALSE;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Unused but required by fc_interface_init()
 ***************************************************************************/
 static int tool_player_tile_city_id_get(const struct tile *ptile,
@@ -46,7 +46,7 @@ static int tool_player_tile_city_id_get(const struct tile *ptile,
   return IDENTITY_NUMBER_ZERO;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Unused but required by fc_interface_init()
 ***************************************************************************/
 static void tool_gui_color_free(struct color *pcolor)
@@ -54,9 +54,9 @@ static void tool_gui_color_free(struct color *pcolor)
   log_error("Assumed unused function %s called.",  __FUNCTION__);
 }
 
-/***************************************************************
+/***********************************************************************//**
   Initialize tool specific functions.
-***************************************************************/
+***************************************************************************/
 void fc_interface_init_tool(void)
 {
   struct functions *funcs = fc_interface_funcs();
@@ -66,6 +66,7 @@ void fc_interface_init_tool(void)
   funcs->server_setting_name_get = server_ss_name_get;
   funcs->server_setting_type_get = server_ss_type_get;
   funcs->server_setting_val_bool_get = server_ss_val_bool_get;
+  funcs->server_setting_val_int_get = server_ss_val_int_get;
 
   /* Not used. Set to dummy functions. */
   funcs->player_tile_vision_get = tool_player_tile_vision_get;

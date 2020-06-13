@@ -32,9 +32,11 @@
 #include "fcintl.h"
 #include "log.h"
 #include "mem.h"
+#include "rand.h"
 #include "registry.h"
 #include "support.h"            /* fc__attribute, bool type, etc. */
 #include "timing.h"
+#include "section_file.h"
 
 /* common */
 #include "capability.h"
@@ -66,7 +68,6 @@
 #include "report.h"
 #include "ruleset.h"
 #include "sanitycheck.h"
-#include "savegame.h"
 #include "score.h"
 #include "sernet.h"
 #include "settings.h"
@@ -74,6 +75,9 @@
 #include "srv_main.h"
 #include "techtools.h"
 #include "voting.h"
+
+/* server/savegame */
+#include "savemain.h"
 
 /* server/scripting */
 #include "script_server.h"
@@ -142,7 +146,8 @@ static bool read_init_script_real(struct connection *caller,
 static bool reset_command(struct connection *caller, char *arg, bool check,
                           int read_recursion);
 static bool default_command(struct connection *caller, char *arg, bool check);
-static bool lua_command(struct connection *caller, char *arg, bool check);
+static bool lua_command(struct connection *caller, char *arg, bool check,
+                        int read_recursion);
 static bool kick_command(struct connection *caller, char *name, bool check);
 static bool delegate_command(struct connection *caller, char *arg,
                              bool check);
@@ -152,9 +157,11 @@ static bool fcdb_command(struct connection *caller, char *arg, bool check);
 static const char *fcdb_accessor(int i);
 static char setting_status(struct connection *caller,
                            const struct setting *pset);
-static bool player_name_check(const char* name, char *buf, size_t buflen);
+static bool player_name_check(const char *name, char *buf, size_t buflen);
 static bool playercolor_command(struct connection *caller,
                                 char *str, bool check);
+static bool playernation_command(struct connection *caller,
+                                 char *str, bool check);
 static bool mapimg_command(struct connection *caller, char *arg, bool check);
 static const char *mapimg_accessor(int i);
 
@@ -163,20 +170,20 @@ static void show_delegations(struct connection *caller);
 static const char horiz_line[] =
 "------------------------------------------------------------------------------";
 
-/********************************************************************
+/**********************************************************************//**
   Are we operating under a restricted security regime?  For now
   this does not do much.
-*********************************************************************/
+**************************************************************************/
 static bool is_restricted(struct connection *caller)
 {
   return (caller && caller->access_level != ALLOW_HACK);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Check the player name. Returns TRUE if the player name is valid else
   an error message is saved in 'buf'.
 **************************************************************************/
-static bool player_name_check(const char* name, char *buf, size_t buflen)
+static bool player_name_check(const char *name, char *buf, size_t buflen)
 {
   size_t len = strlen(name);
 
@@ -199,7 +206,7 @@ static bool player_name_check(const char* name, char *buf, size_t buflen)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Convert a named command into an id.
   If accept_ambiguity is true, return the first command in the
   enum list which matches, else return CMD_AMBIGUOUS on ambiguity.
@@ -223,7 +230,7 @@ static enum command_id command_named(const char *token, bool accept_ambiguity)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Initialize stuff related to this code module.
 **************************************************************************/
 void stdinhand_init(void)
@@ -235,7 +242,7 @@ void stdinhand_init(void)
   kick_table_by_user = kick_hash_new();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update stuff every turn that is related to this code module. Run this
   on turn end.
 **************************************************************************/
@@ -244,7 +251,7 @@ void stdinhand_turn(void)
   /* Nothing at the moment. */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Deinitialize stuff related to this code module.
 **************************************************************************/
 void stdinhand_free(void)
@@ -262,8 +269,8 @@ void stdinhand_free(void)
   }
 }
 
-/**************************************************************************
-  Whether the caller can use the specified command. caller == NULL means 
+/**********************************************************************//**
+  Whether the caller can use the specified command. caller == NULL means
   console.
 **************************************************************************/
 static bool may_use(struct connection *caller, enum command_id cmd)
@@ -274,7 +281,7 @@ static bool may_use(struct connection *caller, enum command_id cmd)
   return (caller->access_level >= command_level(command_by_number(cmd)));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Whether the caller cannot use any commands at all.
   caller == NULL means console.
 **************************************************************************/
@@ -286,7 +293,7 @@ static bool may_use_nothing(struct connection *caller)
   return (ALLOW_NONE == conn_get_access(caller));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return the status of the setting (changeable, locked, fixed).
   caller == NULL means console.
 **************************************************************************/
@@ -309,7 +316,7 @@ static char setting_status(struct connection *caller,
   return ' ';
 }
 
-/**************************************************************************
+/**********************************************************************//**
   feedback related to server commands
   caller == NULL means console.
   No longer duplicate all output to console.
@@ -359,7 +366,7 @@ static void cmd_reply_line(enum command_id cmd, struct connection *caller,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   va_list version which allow embedded newlines, and each line is sent
   separately. 'prefix' is prepended to every line _after_ the first line.
 **************************************************************************/
@@ -382,7 +389,7 @@ static void vcmd_reply_prefix(enum command_id cmd, struct connection *caller,
   cmd_reply_line(cmd, caller, rfc_status, (c0 == buf ? "" : prefix), c0);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   var-args version of above
   duplicate declaration required for attribute to work...
 **************************************************************************/
@@ -400,7 +407,7 @@ static void cmd_reply_prefix(enum command_id cmd, struct connection *caller,
   va_end(ap);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   var-args version as above, no prefix
 **************************************************************************/
 void cmd_reply(enum command_id cmd, struct connection *caller,
@@ -412,7 +419,7 @@ void cmd_reply(enum command_id cmd, struct connection *caller,
   va_end(ap);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Command specific argument parsing has detected that player argument
   is invalid. This function is common handling for that situation.
 **************************************************************************/
@@ -421,7 +428,7 @@ static void cmd_reply_no_such_player(enum command_id cmd,
 				     const char *name,
 				     enum m_pre_result match_result)
 {
-  switch(match_result) {
+  switch (match_result) {
   case M_PRE_EMPTY:
     cmd_reply(cmd, caller, C_SYNTAX,
 	      _("Name is empty, so cannot be a player."));
@@ -447,7 +454,7 @@ static void cmd_reply_no_such_player(enum command_id cmd,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Command specific argument parsing has detected that connection argument
   is invalid. This function is common handling for that situation.
 **************************************************************************/
@@ -456,7 +463,7 @@ static void cmd_reply_no_such_conn(enum command_id cmd,
 				   const char *name,
 				   enum m_pre_result match_result)
 {
-  switch(match_result) {
+  switch (match_result) {
   case M_PRE_EMPTY:
     cmd_reply(cmd, caller, C_SYNTAX,
 	      _("Name is empty, so cannot be a connection."));
@@ -482,7 +489,7 @@ static void cmd_reply_no_such_conn(enum command_id cmd,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Start sending game info to metaserver.
 **************************************************************************/
 static void open_metaserver_connection(struct connection *caller,
@@ -496,7 +503,7 @@ static void open_metaserver_connection(struct connection *caller,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Stop sending game info to metaserver.
 **************************************************************************/
 static void close_metaserver_connection(struct connection *caller)
@@ -509,7 +516,7 @@ static void close_metaserver_connection(struct connection *caller)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle metaconnection command.
 **************************************************************************/
 static bool metaconnection_command(struct connection *caller, char *arg, 
@@ -565,7 +572,7 @@ static bool metaconnection_command(struct connection *caller, char *arg,
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle metapatches command.
 **************************************************************************/
 static bool metapatches_command(struct connection *caller, 
@@ -590,7 +597,7 @@ static bool metapatches_command(struct connection *caller,
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle metamessage command.
 **************************************************************************/
 static bool metamessage_command(struct connection *caller, 
@@ -621,10 +628,10 @@ static bool metamessage_command(struct connection *caller,
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle metaserver command.
 **************************************************************************/
-static bool metaserver_command(struct connection *caller, char *arg, 
+static bool metaserver_command(struct connection *caller, char *arg,
                                bool check)
 {
   if (check) {
@@ -639,8 +646,8 @@ static bool metaserver_command(struct connection *caller, char *arg,
   return TRUE;
 }
 
-/**************************************************************************
- Returns the serverid 
+/**********************************************************************//**
+  Returns the serverid
 **************************************************************************/
 static bool show_serverid(struct connection *caller, char *arg)
 {
@@ -649,9 +656,9 @@ static bool show_serverid(struct connection *caller, char *arg)
   return TRUE;
 }
 
-/**************************************************************************
-For command "save foo";
-Save the game, with filename=arg, provided server state is ok.
+/**********************************************************************//**
+  For command "save foo";
+  Save the game, with filename=arg, provided server state is ok.
 **************************************************************************/
 static bool save_command(struct connection *caller, char *arg, bool check)
 {
@@ -666,7 +673,7 @@ static bool save_command(struct connection *caller, char *arg, bool check)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   For command "scensave foo";
   Save the game, with filename=arg, provided server state is ok.
 **************************************************************************/
@@ -683,7 +690,7 @@ static bool scensave_command(struct connection *caller, char *arg, bool check)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle ai player ai toggling.
 **************************************************************************/
 void toggle_ai_player_direct(struct connection *caller, struct player *pplayer)
@@ -708,7 +715,7 @@ void toggle_ai_player_direct(struct connection *caller, struct player *pplayer)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle aitoggle command.
 **************************************************************************/
 static bool toggle_ai_command(struct connection *caller, char *arg, bool check)
@@ -728,8 +735,8 @@ static bool toggle_ai_command(struct connection *caller, char *arg, bool check)
   return TRUE;
 }
 
-/**************************************************************************
-  Creates a named AI player. The function can be called befor the start
+/**********************************************************************//**
+  Creates a named AI player. The function can be called before the start
   of the game (see creat_command_pregame()) and for a running game
   (see creat_command_newcomer(). In the later case, first free player slots
   are used before the slots of dead players are (re)used.
@@ -783,7 +790,7 @@ static bool create_command(struct connection *caller, const char *str,
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Try to add a player to a running game in the following order:
 
   1. Try to reuse the slot of a dead player with the username 'name'.
@@ -951,7 +958,7 @@ enum rfc_status create_command_newcomer(const char *name,
   return C_OK;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create player in pregame.
 **************************************************************************/
 enum rfc_status create_command_pregame(const char *name,
@@ -1078,7 +1085,7 @@ enum rfc_status create_command_pregame(const char *name,
   return C_OK;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle remove command.
 **************************************************************************/
 static bool remove_player_command(struct connection *caller, char *arg,
@@ -1115,7 +1122,7 @@ static bool remove_player_command(struct connection *caller, char *arg,
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Main entry point for the read command.
 **************************************************************************/
 static bool read_command(struct connection *caller, char *arg, bool check,
@@ -1124,7 +1131,7 @@ static bool read_command(struct connection *caller, char *arg, bool check,
   return read_init_script_real(caller, arg, FALSE, check, read_recursion);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Main entry point for reading an init script.
 **************************************************************************/
 bool read_init_script(struct connection *caller, char *script_filename,
@@ -1134,14 +1141,14 @@ bool read_init_script(struct connection *caller, char *script_filename,
                                check, 0);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns FALSE iff there was an error.
 
   Security: We will look for a file with mandatory extension '.serv',
   and on public servers we will not look outside the data directories.
   As long as the user cannot create files with arbitrary names in the
   root of the data directories, this should ensure that we will not be 
-  tricked into loading non-approved content. The script is read with the 
+  tricked into loading non-approved content. The script is read with the
   permissions of the caller, so it will in any case not lead to elevated
   permissions unless there are other bugs.
 **************************************************************************/
@@ -1221,7 +1228,18 @@ static bool read_init_script_real(struct connection *caller,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
+  Return a list of init scripts found on the data path.
+  Caller should free.
+  These are conventionally scripts that load rulesets (generally
+  containing just a 'rulesetdir' command).
+**************************************************************************/
+struct strvec *get_init_script_choices(void)
+{
+  return fileinfolist(get_data_dirs(), RULESET_SUFFIX);
+}
+
+/**********************************************************************//**
   Write current settings to new init script.
 
   (Should this take a 'caller' argument for output? --dwp)
@@ -1230,7 +1248,7 @@ static void write_init_script(char *script_filename)
 {
   char real_filename[1024], buf[256];
   FILE *script_file;
-  
+
   interpret_tilde(real_filename, sizeof(real_filename), script_filename);
 
   if (is_reg_file_for_access(real_filename, TRUE)
@@ -1255,8 +1273,8 @@ static void write_init_script(char *script_filename)
     fprintf(script_file, "%s\n",
             ai_level_cmd(game.info.skill_level));
 
-    if (*srvarg.metaserver_addr != '\0' &&
-	((0 != strcmp(srvarg.metaserver_addr, DEFAULT_META_SERVER_ADDR)))) {
+    if (*srvarg.metaserver_addr != '\0'
+        && ((0 != strcmp(srvarg.metaserver_addr, DEFAULT_META_SERVER_ADDR)))) {
       fprintf(script_file, "metaserver %s\n", meta_addr_port());
     }
 
@@ -1281,8 +1299,8 @@ static void write_init_script(char *script_filename)
   }
 }
 
-/**************************************************************************
- Generate init script from settings currently in use
+/**********************************************************************//**
+  Generate init script from settings currently in use
 **************************************************************************/
 static bool write_command(struct connection *caller, char *arg, bool check)
 {
@@ -1297,8 +1315,8 @@ static bool write_command(struct connection *caller, char *arg, bool check)
   return TRUE;
 }
 
-/**************************************************************************
- set ptarget's cmdlevel to level if caller is allowed to do so
+/**********************************************************************//**
+  Set ptarget's cmdlevel to level if caller is allowed to do so
 **************************************************************************/
 static bool set_cmdlevel(struct connection *caller,
                          struct connection *ptarget,
@@ -1332,17 +1350,17 @@ static bool set_cmdlevel(struct connection *caller,
   }
 }
 
-/********************************************************************
+/**********************************************************************//**
   Returns true if there is at least one established connection.
-*********************************************************************/
+**************************************************************************/
 static bool a_connection_exists(void)
 {
   return conn_list_size(game.est_connections) > 0;
 }
 
-/********************************************************************
+/**********************************************************************//**
   Return whether first access level is already taken.
-*********************************************************************/
+**************************************************************************/
 static bool is_first_access_level_taken(void)
 {
   conn_list_iterate(game.est_connections, pconn) {
@@ -1354,9 +1372,9 @@ static bool is_first_access_level_taken(void)
   return FALSE;
 }
 
-/********************************************************************
+/**********************************************************************//**
   Return access level for next connection
-*********************************************************************/
+**************************************************************************/
 enum cmdlevel access_level_for_next_connection(void)
 {
   if ((first_access_level > default_access_level)
@@ -1367,10 +1385,10 @@ enum cmdlevel access_level_for_next_connection(void)
   }
 }
 
-/********************************************************************
+/**********************************************************************//**
   Check if first access level is available and if it is, notify
   connections about it.
-*********************************************************************/
+**************************************************************************/
 void notify_if_first_access_level_is_available(void)
 {
   if (first_access_level > default_access_level
@@ -1382,8 +1400,8 @@ void notify_if_first_access_level_is_available(void)
   }
 }
 
-/**************************************************************************
-   Change command access level for individual player, or all, or new.
+/**********************************************************************//**
+  Change command access level for individual player, or all, or new.
 **************************************************************************/
 static bool cmdlevel_command(struct connection *caller, char *str, bool check)
 {
@@ -1516,12 +1534,12 @@ CLEAN_UP:
   return ret;
 }
 
-/**************************************************************************
- This special command to set the command access level is not included into
- cmdlevel_command because of its lower access level: it can be used
- to promote one's own connection to 'first come' cmdlevel if that isn't
- already taken.
- **************************************************************************/
+/**********************************************************************//**
+  This special command to set the command access level is not included into
+  cmdlevel_command because of its lower access level: it can be used
+  to promote one's own connection to 'first come' cmdlevel if that isn't
+  already taken.
+**************************************************************************/
 static bool firstlevel_command(struct connection *caller, bool check)
 {
   if (!caller) {
@@ -1546,7 +1564,7 @@ static bool firstlevel_command(struct connection *caller, bool check)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Adjust default command level on game start.
 **************************************************************************/
 void set_running_game_access_level(void)
@@ -1558,7 +1576,7 @@ void set_running_game_access_level(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns possible parameters for the commands that take server options
   as parameters (CMD_EXPLAIN and CMD_SET).
 **************************************************************************/
@@ -1568,7 +1586,7 @@ static const char *optname_accessor(int i)
 }
 
 #ifdef FREECIV_HAVE_LIBREADLINE
-/**************************************************************************
+/**********************************************************************//**
   Returns possible parameters for the /show command.
 **************************************************************************/
 static const char *olvlname_accessor(int i)
@@ -1583,7 +1601,7 @@ static const char *olvlname_accessor(int i)
 }
 #endif /* FREECIV_HAVE_LIBREADLINE */
 
-/**************************************************************************
+/**********************************************************************//**
   Set timeout options.
 **************************************************************************/
 static bool timeout_command(struct connection *caller, char *str, bool check)
@@ -1627,8 +1645,8 @@ static bool timeout_command(struct connection *caller, char *str, bool check)
   return TRUE;
 }
 
-/**************************************************************************
-Find option level number by name.
+/**********************************************************************//**
+  Find option level number by name.
 **************************************************************************/
 static enum sset_level lookup_option_level(const char *name)
 {
@@ -1649,7 +1667,7 @@ static enum sset_level lookup_option_level(const char *name)
 #define LOOKUP_OPTION_LEVEL_NAME  (-3)
 #define LOOKUP_OPTION_RULESETDIR  (-4)
 
-/**************************************************************************
+/**********************************************************************//**
   Find option index by name. Return index (>=0) on success, else returned
   - LOOKUP_OPTION_NO_RESULT   if no suitable options were found
   - LOOKUP_OPTION_AMBIGUOUS   if several matches were found
@@ -1680,10 +1698,10 @@ static int lookup_option(const char *name)
   }
 }
 
-/**************************************************************************
- Show the caller detailed help for the single OPTION given by id.
- help_cmd is the command the player used.
- Only show option values for options which the caller can SEE.
+/**********************************************************************//**
+  Show the caller detailed help for the single OPTION given by id.
+  help_cmd is the command the player used.
+  Only show option values for options which the caller can SEE.
 **************************************************************************/
 static void show_help_option(struct connection *caller,
                              enum command_id help_cmd, int id)
@@ -1769,10 +1787,10 @@ static void show_help_option(struct connection *caller,
   }
 }
 
-/**************************************************************************
- Show the caller list of OPTIONS.
- help_cmd is the command the player used.
- Only show options which the caller can SEE.
+/**********************************************************************//**
+  Show the caller list of OPTIONS.
+  help_cmd is the command the player used.
+  Only show options which the caller can SEE.
 **************************************************************************/
 static void show_help_option_list(struct connection *caller,
 				  enum command_id help_cmd)
@@ -1807,7 +1825,7 @@ static void show_help_option_list(struct connection *caller,
   cmd_reply(help_cmd, caller, C_COMMENT, horiz_line);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle explain command
 **************************************************************************/
 static bool explain_option(struct connection *caller, char *str, bool check)
@@ -1840,9 +1858,9 @@ static bool explain_option(struct connection *caller, char *str, bool check)
   return TRUE;
 }
 
-/******************************************************************
+/**********************************************************************//**
   Send a message to all players
-******************************************************************/
+**************************************************************************/
 static bool wall(char *str, bool check)
 {
   if (!check) {
@@ -1852,9 +1870,9 @@ static bool wall(char *str, bool check)
   return TRUE;
 }
 
-/******************************************************************
+/**********************************************************************//**
   Set message to send to all new connections
-******************************************************************/
+**************************************************************************/
 static bool connectmsg_command(struct connection *caller, char *str,
                                bool check)
 {
@@ -1892,10 +1910,10 @@ static bool connectmsg_command(struct connection *caller, char *str,
   return TRUE;
 }
 
-/******************************************************************
+/**********************************************************************//**
   Translate an AI level back to its CMD_* value.
   If we just used /set ailevel <num> we wouldn't have to do this - rp
-******************************************************************/
+**************************************************************************/
 static enum command_id cmd_of_level(enum ai_level level)
 {
   switch (level) {
@@ -1915,9 +1933,9 @@ static enum command_id cmd_of_level(enum ai_level level)
   return CMD_NORMAL;
 }
 
-/******************************************************************
+/**********************************************************************//**
   Set an AI level from the server prompt.
-******************************************************************/
+**************************************************************************/
 void set_ai_level_direct(struct player *pplayer, enum ai_level level)
 {
   set_ai_level_directer(pplayer, level);
@@ -1929,9 +1947,9 @@ void set_ai_level_direct(struct player *pplayer, enum ai_level level)
   
 }
 
-/******************************************************************
+/**********************************************************************//**
   Handle a user command to set an AI level.
-******************************************************************/
+**************************************************************************/
 static bool set_ai_level_named(struct connection *caller, const char *name,
                                const char *level_name, bool check)
 {
@@ -1940,9 +1958,9 @@ static bool set_ai_level_named(struct connection *caller, const char *name,
   return set_ai_level(caller, name, level, check);
 }
 
-/******************************************************************
+/**********************************************************************//**
   Set AI level
-******************************************************************/
+**************************************************************************/
 static bool set_ai_level(struct connection *caller, const char *name,
                          enum ai_level level, bool check)
 {
@@ -1985,6 +2003,7 @@ static bool set_ai_level(struct connection *caller, const char *name,
       }
     } players_iterate_end;
     game.info.skill_level = level;
+    send_game_info(NULL);
     cmd_reply(cmd_of_level(level), caller, C_OK,
               _("Default AI skill level set to '%s'."),
               ai_level_translated_name(level));
@@ -1995,9 +2014,9 @@ static bool set_ai_level(struct connection *caller, const char *name,
   return TRUE;
 }
 
-/******************************************************************
+/**********************************************************************//**
   Set user to away mode.
-******************************************************************/
+**************************************************************************/
 static bool away_command(struct connection *caller, bool check)
 {
   struct player *pplayer;
@@ -2036,7 +2055,7 @@ static bool away_command(struct connection *caller, bool check)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Show changed settings and ruleset summary.
 **************************************************************************/
 static void show_ruleset_info(struct connection *caller, enum command_id cmd,
@@ -2061,7 +2080,7 @@ static void show_ruleset_info(struct connection *caller, enum command_id cmd,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   /show command: show settings and their values.
 **************************************************************************/
 static bool show_command(struct connection *caller, char *str, bool check)
@@ -2069,7 +2088,7 @@ static bool show_command(struct connection *caller, char *str, bool check)
   return show_settings(caller, CMD_SHOW, str, check);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Print a summary of the settings and their values. Note that most values
   are at most 4 digits, except seeds, which we let overflow their columns,
   plus a sign character. Only show options which the caller can SEE.
@@ -2135,7 +2154,7 @@ static bool show_settings(struct connection *caller,
 
   {
     const char *heading = NULL;
-    switch(level) {
+    switch (level) {
       case SSET_NONE:
         break;
       case SSET_CHANGED:
@@ -2179,7 +2198,7 @@ static bool show_settings(struct connection *caller,
   /* Update changed and locked levels. */
   settings_list_update();
 
-  switch(level) {
+  switch (level) {
   case SSET_NONE:
     /* Show _one_ setting. */
     fc_assert_ret_val(0 <= cmd, FALSE);
@@ -2233,7 +2252,7 @@ static bool show_settings(struct connection *caller,
 #undef cmd_reply_show
 }
 
-/*****************************************************************************
+/**********************************************************************//**
   Show one setting.
 
   Each option value will be displayed as:
@@ -2245,7 +2264,7 @@ static bool show_settings(struct connection *caller,
    - '+': you may change the option
    - '~': the option follows default value
    - '=': the value is same as default
-*****************************************************************************/
+**************************************************************************/
 static void show_settings_one(struct connection *caller, enum command_id cmd,
                               struct setting *pset)
 {
@@ -2305,9 +2324,9 @@ static void show_settings_one(struct connection *caller, enum command_id cmd,
                    value);
 }
 
-/******************************************************************
+/**********************************************************************//**
   Handle team command
-******************************************************************/
+**************************************************************************/
 static bool team_command(struct connection *caller, char *str, bool check)
 {
   struct player *pplayer;
@@ -2377,7 +2396,7 @@ static bool team_command(struct connection *caller, char *str, bool check)
   return res;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   List all running votes. Moved from /vote command.
 **************************************************************************/
 static void show_votes(struct connection *caller)
@@ -2399,6 +2418,7 @@ static void show_votes(struct connection *caller)
                   "%d against, and %d abstained out of %d players."),
                 title, pvote->vote_no, pvote->cmdline,
                 MIN(100, pvote->need_pc * 100 + 1),
+                /* TRANS: preserve leading space */
                 pvote->flags & VCF_NODISSENT ? _(" no dissent") : "",
                 pvote->yes, pvote->no, pvote->abstain, count_voters(pvote));
       count++;
@@ -2411,7 +2431,7 @@ static void show_votes(struct connection *caller)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Vote command argument definitions.
 **************************************************************************/
 static const char *const vote_args[] = {
@@ -2425,9 +2445,9 @@ static const char *vote_arg_accessor(int i)
   return vote_args[i];
 }
 
-/******************************************************************
+/**********************************************************************//**
   Make or participate in a vote.
-******************************************************************/
+**************************************************************************/
 static bool vote_command(struct connection *caller, char *str,
                          bool check)
 {
@@ -2530,7 +2550,7 @@ CLEANUP:
   return res;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Cancel a vote... /cancelvote <vote number>|all.
 **************************************************************************/
 static bool cancelvote_command(struct connection *caller,
@@ -2625,10 +2645,10 @@ static bool cancelvote_command(struct connection *caller,
   return TRUE;
 }
 
-/******************************************************************
+/**********************************************************************//**
   Turn on selective debugging.
-******************************************************************/
-static bool debug_command(struct connection *caller, char *str, 
+**************************************************************************/
+static bool debug_command(struct connection *caller, char *str,
                           bool check)
 {
   char buf[MAX_LEN_CONSOLE_LINE];
@@ -2832,10 +2852,10 @@ static bool debug_command(struct connection *caller, char *str,
   return TRUE;
 }
 
-/******************************************************************
+/**********************************************************************//**
   Helper to validate an argument referring to a server setting.
   Sends error message and returns NULL on failure.
-******************************************************************/
+**************************************************************************/
 static struct setting *validate_setting_arg(enum command_id cmd,
                                             struct connection *caller,
                                             char *arg)
@@ -2867,9 +2887,9 @@ static struct setting *validate_setting_arg(enum command_id cmd,
   return setting_by_number(opt);
 }
 
-/******************************************************************
+/**********************************************************************//**
   Handle set command
-******************************************************************/
+**************************************************************************/
 static bool set_command(struct connection *caller, char *str, bool check)
 {
   char *args[2];
@@ -3047,26 +3067,21 @@ static bool set_command(struct connection *caller, char *str, bool check)
   return ret;
 }
 
-/**************************************************************************
-  Check game.allow_take for permission to take or observe a player.
+/**********************************************************************//**
+  Check game.allow_take and fcdb if enabled for permission to take or
+  observe a player.
 
   NB: If this function returns FALSE, then callers expect that 'msg' will
   be filled in with a NULL-terminated string containing the reason.
 **************************************************************************/
-static bool is_allowed_to_take(struct player *pplayer, bool will_obs, 
+static bool is_allowed_to_take(struct connection *requester,
+                               struct connection *taker,
+                               struct player *pplayer, bool will_obs,
                                char *msg, size_t msg_len)
 {
   const char *allow;
 
-  if (!pplayer && will_obs) {
-    /* Global observer. */
-    if (!(allow = strchr(game.server.allow_take,
-                         (game.info.is_new_game ? 'O' : 'o')))) {
-      fc_strlcpy(msg, _("Sorry, one can't observe globally in this game."),
-                msg_len);
-      return FALSE;
-    }
-  } else if (!pplayer && !will_obs) {
+  if (!pplayer && !will_obs) {
     /* Auto-taking a new player */
 
     if (game_was_started()) {
@@ -3098,6 +3113,27 @@ static bool is_allowed_to_take(struct player *pplayer, bool will_obs,
 
     return TRUE;
 
+  }
+
+#ifdef HAVE_FCDB
+  if (srvarg.fcdb_enabled) {
+    bool ok = FALSE;
+
+    if (script_fcdb_call("user_take", requester, taker, pplayer, will_obs,
+			 &ok) && ok) {
+      return TRUE;
+    }
+  }
+#endif
+
+  if (!pplayer && will_obs) {
+    /* Global observer. */
+    if (!(allow = strchr(game.server.allow_take,
+                         (game.info.is_new_game ? 'O' : 'o')))) {
+      fc_strlcpy(msg, _("Sorry, one can't observe globally in this game."),
+                msg_len);
+      return FALSE;
+    }
   } else if (is_barbarian(pplayer)) {
     if (!(allow = strchr(game.server.allow_take, 'b'))) {
       if (will_obs) {
@@ -3175,10 +3211,10 @@ static bool is_allowed_to_take(struct player *pplayer, bool will_obs,
   return TRUE;
 }
 
-/**************************************************************************
- Observe another player. If we were already attached, detach 
- (see connection_detach()). The console and those with ALLOW_HACK can
- use the two-argument command and force others to observe.
+/**********************************************************************//**
+  Observe another player. If we were already attached, detach
+  (see connection_detach()). The console and those with ALLOW_HACK can
+  use the two-argument command and force others to observe.
 **************************************************************************/
 static bool observe_command(struct connection *caller, char *str, bool check)
 {
@@ -3242,7 +3278,7 @@ static bool observe_command(struct connection *caller, char *str, bool check)
   /******** PART II: do the observing ********/
 
   /* check allowtake for permission */
-  if (!is_allowed_to_take(pplayer, TRUE, msg, sizeof(msg))) {
+  if (!is_allowed_to_take(caller, pconn, pplayer, TRUE, msg, sizeof(msg))) {
     cmd_reply(CMD_OBSERVE, caller, C_FAIL, "%s", msg);
     goto end;
   }
@@ -3319,7 +3355,7 @@ static bool observe_command(struct connection *caller, char *str, bool check)
   return res;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Take over a player. If a connection already has control of that player, 
   disallow it. 
 
@@ -3404,7 +3440,7 @@ static bool take_command(struct connection *caller, char *str, bool check)
   }
 
   /* check allowtake for permission */
-  if (!is_allowed_to_take(pplayer, FALSE, msg, sizeof(msg))) {
+  if (!is_allowed_to_take(caller, pconn, pplayer, FALSE, msg, sizeof(msg))) {
     cmd_reply(CMD_TAKE, caller, C_FAIL, "%s", msg);
     goto end;
   }
@@ -3510,8 +3546,8 @@ static bool take_command(struct connection *caller, char *str, bool check)
   return res;
 }
 
-/**************************************************************************
-  Detach from a player. if that player wasn't /created and you were 
+/**********************************************************************//**
+  Detach from a player. if that player wasn't /created and you were
   controlling the player, remove it (and then detach any observers as well).
 
   If called for a global observer connection (where pconn->playing is NULL)
@@ -3602,7 +3638,7 @@ static bool detach_command(struct connection *caller, char *str, bool check)
   return res;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Loads a file, complete with access checks and error messages sent back
   to the caller on failure.
 
@@ -3802,7 +3838,7 @@ bool load_command(struct connection *caller, const char *filename, bool check,
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Load rulesets from a given ruleset directory.
 
   Security: There are some rudimentary checks in load_rulesets() to see
@@ -3861,7 +3897,7 @@ static bool set_rulesetdir(struct connection *caller, char *str, bool check,
 
     /* load the ruleset (and game settings defined in the ruleset) */
     player_info_freeze();
-    if (!load_rulesets(old, FALSE, TRUE, FALSE)) {
+    if (!load_rulesets(old, NULL, FALSE, NULL, TRUE, FALSE, TRUE)) {
       success = FALSE;
 
       /* While loading of the requested ruleset failed, we might
@@ -3893,9 +3929,9 @@ static bool set_rulesetdir(struct connection *caller, char *str, bool check,
   return TRUE;
 }
 
-/****************************************************************************
+/**********************************************************************//**
   /ignore command handler.
-****************************************************************************/
+**************************************************************************/
 static bool ignore_command(struct connection *caller, char *str, bool check)
 {
   char buf[128];
@@ -3928,9 +3964,9 @@ static bool ignore_command(struct connection *caller, char *str, bool check)
   return TRUE;
 }
 
-/****************************************************************************
+/**********************************************************************//**
   /unignore command handler.
-****************************************************************************/
+**************************************************************************/
 static bool unignore_command(struct connection *caller,
                              char *str, bool check)
 {
@@ -4017,9 +4053,9 @@ static bool unignore_command(struct connection *caller,
   return TRUE;
 }
 
-/****************************************************************************
+/**********************************************************************//**
   /playercolor command handler.
-****************************************************************************/
+**************************************************************************/
 static bool playercolor_command(struct connection *caller,
                                 char *str, bool check)
 {
@@ -4102,6 +4138,133 @@ static bool playercolor_command(struct connection *caller,
   return ret;
 }
 
+/**********************************************************************//**
+  /playernation command handler.
+**************************************************************************/
+static bool playernation_command(struct connection *caller,
+                                 char *str, bool check)
+{
+  enum m_pre_result match_result;
+  struct player *pplayer;
+  struct nation_type *pnation;
+  struct nation_style *pstyle;
+  bool is_male = FALSE;
+  int ntokens = 0;
+  char *token[5];
+
+  ntokens = get_tokens(str, token, 5, TOKEN_DELIMITERS);
+
+  if (ntokens == 0) {
+    cmd_reply(CMD_PLAYERNATION, caller, C_SYNTAX,
+              _("At least one argument needed. See '/help playernation'."));
+    free_tokens(token, ntokens);
+    return FALSE;
+  }
+
+  if (game_was_started()) {
+    cmd_reply(CMD_PLAYERNATION, caller, C_FAIL,
+              _("Can only set player nation before game starts."));
+    free_tokens(token, ntokens);
+    return FALSE;
+  }
+
+  pplayer = player_by_name_prefix(token[0], &match_result);
+  if (!pplayer) {
+    cmd_reply_no_such_player(CMD_PLAYERNATION, caller, token[0], match_result);
+    free_tokens(token, ntokens);
+    return FALSE;
+  }
+
+  if (ntokens == 1) {
+    if (!check) {
+      player_set_nation(pplayer, NO_NATION_SELECTED);
+
+      cmd_reply(CMD_PLAYERNATION, caller, C_OK,
+                _("Nation of player %s reset."), player_name(pplayer));
+      send_player_info_c(pplayer, game.est_connections);
+    }
+  } else {
+    pnation = nation_by_rule_name(token[1]);
+    if (pnation == NO_NATION_SELECTED) {
+      cmd_reply(CMD_PLAYERNATION, caller, C_FAIL,
+                _("Unrecognized nation: %s."), token[1]);
+      free_tokens(token, ntokens);
+      return FALSE;
+    }
+
+    if (!client_can_pick_nation(pnation)) {
+      cmd_reply(CMD_PLAYERNATION, caller, C_FAIL,
+                _("%s nation is not available for user selection."),
+                token[1]);
+      free_tokens(token, ntokens);
+      return FALSE;
+    }
+
+    if (pnation->player && pnation->player != pplayer) {
+      cmd_reply(CMD_PLAYERNATION, caller, C_FAIL,
+                _("%s nation is already in use."), token[1]);
+      free_tokens(token, ntokens);
+      return FALSE;
+    }
+
+    if (ntokens < 3) {
+      cmd_reply(CMD_PLAYERNATION, caller, C_FAIL,
+             /* TRANS: Nation resetting form of /playernation does not require sex */
+                _("Player sex must be given when setting nation."));
+      free_tokens(token, ntokens);
+      return FALSE;
+    }
+
+    if (!strcmp(token[2], "0")) {
+      is_male = FALSE;
+    } else if (!strcmp(token[2], "1")) {
+      is_male = TRUE;
+    } else {
+      cmd_reply(CMD_PLAYERNATION, caller, C_FAIL,
+                _("Unrecognized gender: %s, expecting 1 or 0."), token[2]);
+      free_tokens(token, ntokens);
+      return FALSE;
+    }
+
+    if (ntokens > 4) {
+      pstyle = style_by_rule_name(token[4]);
+      if (!pstyle) {
+        cmd_reply(CMD_PLAYERNATION, caller, C_FAIL,
+                  _("Unrecognized style: %s."), token[4]);
+        free_tokens(token, ntokens);
+        return FALSE;
+      }
+    } else {
+      pstyle = style_of_nation(pnation);
+    }
+
+    if (!check) {
+      char error_buf[256];
+
+      player_set_nation(pplayer, pnation);
+      pplayer->style = pstyle;
+      pplayer->is_male = is_male;
+
+      if (ntokens > 3) {
+        if (!server_player_set_name_full(caller, pplayer, pnation, token[3],
+                                         error_buf, sizeof(error_buf))) {
+          cmd_reply(CMD_PLAYERNATION, caller, C_WARNING, "%s", error_buf);
+        }
+      } else {
+        server_player_set_name(pplayer, token[0]);
+      }
+      cmd_reply(CMD_PLAYERNATION, caller, C_OK,
+                _("Nation of player %s set to [%s]."), player_name(pplayer),
+                nation_rule_name(pnation));
+      send_player_info_c(pplayer, game.est_connections);
+    }
+  }
+
+  free_tokens(token, ntokens);
+
+  return TRUE;
+}
+
 /**************************************************************************
   Handle quit command
 **************************************************************************/
@@ -4114,7 +4277,7 @@ static bool quit_game(struct connection *caller, bool check)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Main entry point for "command input".
 **************************************************************************/
 bool handle_stdin_input(struct connection *caller, char *str)
@@ -4122,7 +4285,7 @@ bool handle_stdin_input(struct connection *caller, char *str)
   return handle_stdin_input_real(caller, str, FALSE, 0);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle "command input", which could really come from stdin on console,
   or from client chat command, or read from file with -r, etc.
   caller == NULL means console, str is the input, which may optionally
@@ -4305,7 +4468,7 @@ static bool handle_stdin_input_real(struct connection *caller, char *str,
     }
   }
 
-  switch(cmd) {
+  switch (cmd) {
   case CMD_REMOVE:
     return remove_player_command(caller, arg, check);
   case CMD_SAVE:
@@ -4383,7 +4546,7 @@ static bool handle_stdin_input_real(struct connection *caller, char *str,
   case CMD_DEFAULT:
     return default_command(caller, arg, check);
   case CMD_LUA:
-    return lua_command(caller, arg, check);
+    return lua_command(caller, arg, check, read_recursion);
   case CMD_KICK:
     return kick_command(caller, arg, check);
   case CMD_DELEGATE:
@@ -4417,6 +4580,8 @@ static bool handle_stdin_input_real(struct connection *caller, char *str,
     return unignore_command(caller, arg, check);
   case CMD_PLAYERCOLOR:
     return playercolor_command(caller, arg, check);
+  case CMD_PLAYERNATION:
+    return playernation_command(caller, arg, check);
   case CMD_NUM:
   case CMD_UNRECOGNIZED:
   case CMD_AMBIGUOUS:
@@ -4427,7 +4592,7 @@ static bool handle_stdin_input_real(struct connection *caller, char *str,
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   End the game immediately in a draw.
 **************************************************************************/
 static bool end_command(struct connection *caller, char *str, bool check)
@@ -4451,7 +4616,7 @@ static bool end_command(struct connection *caller, char *str, bool check)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Concede the game.  You still continue playing until all but one player
   or team remains un-conceded.
 **************************************************************************/
@@ -4500,7 +4665,7 @@ static bool surrender_command(struct connection *caller, char *str, bool check)
 #define SPECENUM_VALUE3NAME "default"
 #include "specenum_gen.h"
 
-/**************************************************************************
+/**********************************************************************//**
   Returns possible parameters for the reset command.
 **************************************************************************/
 static const char *reset_accessor(int i)
@@ -4509,7 +4674,7 @@ static const char *reset_accessor(int i)
   return reset_args_name((enum reset_args) i);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Reload the game settings from the ruleset and reload the init script if
   one was used.
 **************************************************************************/
@@ -4617,7 +4782,7 @@ static bool reset_command(struct connection *caller, char *arg, bool check,
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set a setting to its default value
 **************************************************************************/
 static bool default_command(struct connection *caller, char *arg, bool check)
@@ -4660,19 +4825,20 @@ static bool default_command(struct connection *caller, char *arg, bool check)
 #define SPECENUM_VALUE3NAME "unsafe-file"
 #include "specenum_gen.h"
 
-/*****************************************************************************
+/**********************************************************************//**
   Returns possible parameters for the reset command.
-*****************************************************************************/
+**************************************************************************/
 static const char *lua_accessor(int i)
 {
   i = CLIP(0, i, lua_args_max());
   return lua_args_name((enum lua_args) i);
 }
 
-/*****************************************************************************
+/**********************************************************************//**
   Evaluate a line of lua script or a lua script file.
-*****************************************************************************/
-static bool lua_command(struct connection *caller, char *arg, bool check)
+**************************************************************************/
+static bool lua_command(struct connection *caller, char *arg, bool check,
+                        int read_recursion)
 {
   FILE *script_file;
   const char extension[] = ".lua", *real_filename = NULL;
@@ -4726,7 +4892,12 @@ static bool lua_command(struct connection *caller, char *arg, bool check)
     /* Nothing to check. */
     break;
   case LUA_UNSAFE_CMD:
-    if (is_restricted(caller)) {
+    if (read_recursion > 0) {
+      cmd_reply(CMD_LUA, caller, C_FAIL,
+                _("Unsafe Lua code can only be run by explicit command."));
+      ret = FALSE;
+      goto cleanup;
+    } else if (is_restricted(caller)) {
       cmd_reply(CMD_LUA, caller, C_FAIL,
                 _("You aren't allowed to run unsafe Lua code."));
       ret = FALSE;
@@ -4734,7 +4905,12 @@ static bool lua_command(struct connection *caller, char *arg, bool check)
     }
     break;
   case LUA_UNSAFE_FILE:
-    if (is_restricted(caller)) {
+    if (read_recursion > 0) {
+      cmd_reply(CMD_LUA, caller, C_FAIL,
+                _("Unsafe Lua code can only be run by explicit command."));
+      ret = FALSE;
+      goto cleanup;
+    } else if (is_restricted(caller)) {
       cmd_reply(CMD_LUA, caller, C_FAIL,
                 _("You aren't allowed to run unsafe Lua code."));
       ret = FALSE;
@@ -4842,18 +5018,18 @@ static bool lua_command(struct connection *caller, char *arg, bool check)
 #define SPECENUM_VALUE4NAME "to"
 #include "specenum_gen.h"
 
-/*****************************************************************************
+/**********************************************************************//**
   Returns possible parameters for the 'delegate' command.
-*****************************************************************************/
+**************************************************************************/
 static const char *delegate_accessor(int i)
 {
   i = CLIP(0, i, delegate_args_max());
   return delegate_args_name((enum delegate_args) i);
 }
 
-/*****************************************************************************
+/**********************************************************************//**
   Handle delegation of control.
-*****************************************************************************/
+**************************************************************************/
 static bool delegate_command(struct connection *caller, char *arg,
                              bool check)
 {
@@ -4910,10 +5086,13 @@ static bool delegate_command(struct connection *caller, char *arg,
     for (valid_args = delegate_args_begin();
          valid_args != delegate_args_end();
          valid_args = delegate_args_next(valid_args)) {
-      cat_snprintf(buf, sizeof(buf), "'%s'",
-                   delegate_args_name(valid_args));
-      if (valid_args != delegate_args_max()) {
-        cat_snprintf(buf, sizeof(buf), ", ");
+      const char *name = delegate_args_name(valid_args);
+
+      if (name != NULL) {
+        cat_snprintf(buf, sizeof(buf), "'%s'", name);
+        if (valid_args != delegate_args_max()) {
+          cat_snprintf(buf, sizeof(buf), ", ");
+        }
       }
     }
 
@@ -5009,44 +5188,9 @@ static bool delegate_command(struct connection *caller, char *arg,
     }
     break;
   case DELEGATE_TO:
-    /* delegate to <username> [player] */
-    if (ntokens > 1) {
-      username = tokens[1];
-    } else {
-      cmd_reply(CMD_DELEGATE, caller, C_SYNTAX,
-                _("Please specify a user to whom control is to be delegated."));
-      ret = FALSE;
-      goto cleanup;
-    }
-    if (ntokens > 2) {
-      if (!caller || conn_get_access(caller) >= ALLOW_ADMIN) {
-        player_specified = TRUE;
-        dplayer = player_by_name_prefix(tokens[2], &result);
-        if (!dplayer) {
-          cmd_reply_no_such_player(CMD_DELEGATE, caller, tokens[2], result);
-          ret = FALSE;
-          goto cleanup;
-        }
-      } else {
-        cmd_reply(CMD_DELEGATE, caller, C_SYNTAX,
-                  _("Command level '%s' or greater needed to modify "
-                    "others' delegations."), cmdlevel_name(ALLOW_ADMIN));
-        ret = FALSE;
-        goto cleanup;
-      }
-    } else {
-      dplayer = conn_controls_player(caller) ? conn_get_player(caller) : NULL;
-      if (!dplayer) {
-        cmd_reply(CMD_DELEGATE, caller, C_FAIL,
-                  _("You do not control a player."));
-        ret = FALSE;
-        goto cleanup;
-      }
-    }
     break;
   }
-
-  /* All checks done to this point will give pretty much the same result at
+   /* All checks done to this point will give pretty much the same result at
    * any time. Checks after this point are more likely to vary over time. */
   if (check) {
     ret = TRUE;
@@ -5055,6 +5199,48 @@ static bool delegate_command(struct connection *caller, char *arg,
 
   switch (ind) {
   case DELEGATE_TO:
+    /* delegate to <username> [player] */
+    if (ntokens > 1) {
+      username = tokens[1];
+    } else {
+      cmd_reply(CMD_DELEGATE, caller, C_SYNTAX,
+                _("Please specify a user to whom control is to be delegated."));
+      ret = FALSE;
+      break;
+    }
+    if (ntokens > 2) {
+      player_specified = TRUE;
+      dplayer = player_by_name_prefix(tokens[2], &result);
+      if (!dplayer) {
+        cmd_reply_no_such_player(CMD_DELEGATE, caller, tokens[2], result);
+        ret = FALSE;
+        break;
+      }
+#ifndef HAVE_FCDB
+      if (caller && conn_get_access(caller) < ALLOW_ADMIN) {
+#else
+      if (caller && conn_get_access(caller) < ALLOW_ADMIN
+          && !(srvarg.fcdb_enabled
+               && script_fcdb_call("user_delegate_to", caller, dplayer,
+                                   username, &ret) && ret)) {
+#endif
+        cmd_reply(CMD_DELEGATE, caller, C_SYNTAX,
+                  _("Command level '%s' or greater or special permission "
+                    "needed to modify others' delegations."),
+                  cmdlevel_name(ALLOW_ADMIN));
+        ret = FALSE;
+        break;
+      }
+    } else {
+      dplayer = conn_controls_player(caller) ? conn_get_player(caller) : NULL;
+      if (!dplayer) {
+        cmd_reply(CMD_DELEGATE, caller, C_FAIL,
+                  _("You do not control a player."));
+        ret = FALSE;
+        break;
+      }
+    }
+
     /* Delegate control of player to another user. */
     fc_assert_ret_val(dplayer, FALSE);
     fc_assert_ret_val(username != NULL, FALSE);
@@ -5091,7 +5277,7 @@ static bool delegate_command(struct connection *caller, char *arg,
                     "a delegated player yourself."));
       }
       ret = FALSE;
-      goto cleanup;
+      break;
     }
 
     /* Forbid delegation to player's original owner
@@ -5115,7 +5301,7 @@ static bool delegate_command(struct connection *caller, char *arg,
                     "delegation."));
       }
       ret = FALSE;
-      goto cleanup;
+      break;
     }
 
     /* FIXME: if control was already delegated to someone else, that
@@ -5126,7 +5312,6 @@ static bool delegate_command(struct connection *caller, char *arg,
               _("Control of player '%s' delegated to user %s."),
               player_name(dplayer), username);
     ret = TRUE;
-    goto cleanup;
     break;
 
   case DELEGATE_SHOW:
@@ -5144,7 +5329,6 @@ static bool delegate_command(struct connection *caller, char *arg,
                 player_name(dplayer), player_delegation_get(dplayer));
     }
     ret = TRUE;
-    goto cleanup;
     break;
 
   case DELEGATE_CANCEL:
@@ -5154,7 +5338,7 @@ static bool delegate_command(struct connection *caller, char *arg,
                 _("No delegation defined for '%s'."),
                 player_name(dplayer));
       ret = FALSE;
-      goto cleanup;
+      break;
     }
 
     if (player_delegation_active(dplayer)) {
@@ -5173,7 +5357,7 @@ static bool delegate_command(struct connection *caller, char *arg,
                                       pdelegate->server.delegation.observer));
         cmd_reply(CMD_DELEGATE, caller, C_FAIL, _("Unexpected failure."));
         ret = FALSE;
-        goto cleanup;
+        break;
       }
       notify_conn(pdelegate->self, NULL, E_CONNECTION, ftc_server,
                   _("Your delegated control of player '%s' was canceled."),
@@ -5184,7 +5368,6 @@ static bool delegate_command(struct connection *caller, char *arg,
     cmd_reply(CMD_DELEGATE, caller, C_OK, _("Delegation of '%s' canceled."),
               player_name(dplayer));
     ret = TRUE;
-    goto cleanup;
     break;
 
   case DELEGATE_TAKE:
@@ -5199,7 +5382,7 @@ static bool delegate_command(struct connection *caller, char *arg,
                   "Use '/delegate restore' to relinquish control of your "
                   "current player first."));
       ret = FALSE;
-      goto cleanup;
+      break;
     }
 
     /* Don't allow 'put aside' players to be delegated; the invariant is
@@ -5213,7 +5396,7 @@ static bool delegate_command(struct connection *caller, char *arg,
                   "yourself. Use '/delegate cancel' to cancel your own "
                   "delegation first."));
       ret = FALSE;
-      goto cleanup;
+      break;
     }
 
     /* Taking your own player makes no sense. */
@@ -5222,7 +5405,7 @@ static bool delegate_command(struct connection *caller, char *arg,
       cmd_reply(CMD_DELEGATE, caller, C_FAIL, _("You already control '%s'."),
                 player_name(conn_get_player(caller)));
       ret = FALSE;
-      goto cleanup;
+      break;
     }
 
     if (!player_delegation_get(dplayer)
@@ -5231,7 +5414,7 @@ static bool delegate_command(struct connection *caller, char *arg,
                 _("Control of player '%s' has not been delegated to you."),
                 player_name(dplayer));
       ret = FALSE;
-      goto cleanup;
+      break;
     }
 
     /* If the player is controlled by another user, fail. */
@@ -5240,7 +5423,7 @@ static bool delegate_command(struct connection *caller, char *arg,
                 _("Another user already controls player '%s'."),
                 player_name(dplayer));
       ret = FALSE;
-      goto cleanup;
+      break;
     }
 
     if (!connection_delegate_take(caller, dplayer)) {
@@ -5249,14 +5432,13 @@ static bool delegate_command(struct connection *caller, char *arg,
                 caller->username, player_name(dplayer));
       cmd_reply(CMD_DELEGATE, caller, C_FAIL, _("Unexpected failure."));
       ret = FALSE;
-      goto cleanup;
+      break;
     }
 
     cmd_reply(CMD_DELEGATE, caller, C_OK,
               _("%s is now controlling player '%s'."), caller->username,
               player_name(conn_get_player(caller)));
     ret = TRUE;
-    goto cleanup;
     break;
 
   case DELEGATE_RESTORE:
@@ -5268,7 +5450,7 @@ static bool delegate_command(struct connection *caller, char *arg,
       cmd_reply(CMD_DELEGATE, caller, C_FAIL,
                 _("You are not currently controlling a delegated player."));
       ret = FALSE;
-      goto cleanup;
+      break;
     }
 
     if (!connection_delegate_restore(caller)) {
@@ -5279,7 +5461,7 @@ static bool delegate_command(struct connection *caller, char *arg,
                                     caller->server.delegation.observer));
       cmd_reply(CMD_DELEGATE, caller, C_FAIL, _("Unexpected failure."));
       ret = FALSE;
-      goto cleanup;
+      break;
     }
 
     cmd_reply(CMD_DELEGATE, caller, C_OK,
@@ -5288,7 +5470,6 @@ static bool delegate_command(struct connection *caller, char *arg,
               _("%s is now connected as %s."), caller->username,
               delegate_player_str(conn_get_player(caller), caller->observer));
     ret = TRUE;
-    goto cleanup;
     break;
   }
 
@@ -5297,9 +5478,9 @@ static bool delegate_command(struct connection *caller, char *arg,
   return ret;
 }
 
-/*****************************************************************************
+/**********************************************************************//**
   Return static string describing what a connection is connected to.
-*****************************************************************************/
+**************************************************************************/
 static const char *delegate_player_str(struct player *pplayer, bool observer)
 {
   static struct astring buf;
@@ -5336,7 +5517,7 @@ static const char *delegate_player_str(struct player *pplayer, bool observer)
 #define SPECENUM_COUNT      MAPIMG_COUNT
 #include "specenum_gen.h"
 
-/**************************************************************************
+/**********************************************************************//**
   Returns possible parameters for the mapimg command.
 **************************************************************************/
 static const char *mapimg_accessor(int i)
@@ -5345,7 +5526,7 @@ static const char *mapimg_accessor(int i)
   return mapimg_args_name((enum mapimg_args) i);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle mapimg command
 **************************************************************************/
 static bool mapimg_command(struct connection *caller, char *arg, bool check)
@@ -5570,9 +5751,9 @@ static bool mapimg_command(struct connection *caller, char *arg, bool check)
   return ret;
 }
 
-/*****************************************************************************
+/**********************************************************************//**
   Execute a command in the context of the AI of the player.
-*****************************************************************************/
+**************************************************************************/
 static bool aicmd_command(struct connection *caller, char *arg, bool check)
 {
   enum m_pre_result match_result;
@@ -5644,7 +5825,7 @@ static bool aicmd_command(struct connection *caller, char *arg, bool check)
 #define SPECENUM_COUNT      FCDB_COUNT
 #include "specenum_gen.h"
 
-/**************************************************************************
+/**********************************************************************//**
   Returns possible parameters for the fcdb command.
 **************************************************************************/
 static const char *fcdb_accessor(int i)
@@ -5653,7 +5834,7 @@ static const char *fcdb_accessor(int i)
   return fcdb_args_name((enum fcdb_args) i);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle the freeciv database script module.
 **************************************************************************/
 static bool fcdb_command(struct connection *caller, char *arg, bool check)
@@ -5756,8 +5937,8 @@ static bool fcdb_command(struct connection *caller, char *arg, bool check)
   return ret;
 }
 
-/**************************************************************************
- Send start command related message
+/**********************************************************************//**
+  Send start command related message
 **************************************************************************/
 static void start_cmd_reply(struct connection *caller, bool notify, char *msg)
 {
@@ -5767,8 +5948,8 @@ static void start_cmd_reply(struct connection *caller, bool notify, char *msg)
   }
 }
 
-/**************************************************************************
- Handle start command. Notify all players about errors if notify set.
+/**********************************************************************//**
+  Handle start command. Notify all players about errors if notify set.
 **************************************************************************/
 bool start_command(struct connection *caller, bool check, bool notify)
 {
@@ -5890,7 +6071,7 @@ bool start_command(struct connection *caller, bool check, bool notify)
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle cut command
 **************************************************************************/
 static bool cut_client_connection(struct connection *caller, char *name, 
@@ -5922,9 +6103,9 @@ static bool cut_client_connection(struct connection *caller, char *name,
 }
 
 
-/****************************************************************************
+/**********************************************************************//**
   Utility for 'kick_hash' tables.
-****************************************************************************/
+**************************************************************************/
 static time_t *time_duplicate(const time_t *t)
 {
   time_t *d = fc_malloc(sizeof(*d));
@@ -5932,10 +6113,10 @@ static time_t *time_duplicate(const time_t *t)
   return d;
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Returns FALSE if the connection isn't kicked and can connect the server
   normally.
-****************************************************************************/
+**************************************************************************/
 bool conn_is_kicked(struct connection *pconn, int *time_remaining)
 {
   time_t time_of_addr_kick, time_of_user_kick;
@@ -5981,9 +6162,9 @@ bool conn_is_kicked(struct connection *pconn, int *time_remaining)
   return TRUE;
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Kick command handler.
-****************************************************************************/
+**************************************************************************/
 static bool kick_command(struct connection *caller, char *name, bool check)
 {
   char ipaddr[FC_MEMBER_SIZEOF(struct connection, server.ipaddr)];
@@ -6061,7 +6242,7 @@ static bool kick_command(struct connection *caller, char *name, bool check)
 }
 
 
-/**************************************************************************
+/**********************************************************************//**
   Show caller introductory help about the server. help_cmd is the command
   the player used.
 **************************************************************************/
@@ -6094,9 +6275,9 @@ static void show_help_intro(struct connection *caller,
   FC_FREE(help);
 }
 
-/**************************************************************************
- Show the caller detailed help for the single COMMAND given by id.
- help_cmd is the command the player used.
+/**********************************************************************//**
+  Show the caller detailed help for the single COMMAND given by id.
+  help_cmd is the command the player used.
 **************************************************************************/
 static void show_help_command(struct connection *caller,
 			      enum command_id help_cmd,
@@ -6140,9 +6321,9 @@ static void show_help_command(struct connection *caller,
   }
 }
 
-/**************************************************************************
- Show the caller list of COMMANDS.
- help_cmd is the command the player used.
+/**********************************************************************//**
+  Show the caller list of COMMANDS.
+  help_cmd is the command the player used.
 **************************************************************************/
 static void show_help_command_list(struct connection *caller,
                                    enum command_id help_cmd)
@@ -6178,7 +6359,7 @@ static void show_help_command_list(struct connection *caller,
   cmd_reply(help_cmd, caller, C_COMMENT, horiz_line);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Send a reply to the caller listing the matched names from an ambiguous
   prefix.
 **************************************************************************/
@@ -6235,7 +6416,7 @@ static void cmd_reply_matches(enum command_id cmd,
 **************************************************************************/
 #define HELP_ARG_NUM (CMD_NUM + HELP_GENERAL_COUNT + settings_number())
 
-/**************************************************************************
+/**********************************************************************//**
   Convert unified helparg index to string; see above.
 **************************************************************************/
 static const char *helparg_accessor(int i)
@@ -6253,7 +6434,7 @@ static const char *helparg_accessor(int i)
   return optname_accessor(i);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle help command
 **************************************************************************/
 static bool show_help(struct connection *caller, char *arg)
@@ -6315,9 +6496,9 @@ static bool show_help(struct connection *caller, char *arg)
   return FALSE;
 }
 
-/****************************************************************************
+/**********************************************************************//**
   List connections; initially mainly for debugging
-****************************************************************************/
+**************************************************************************/
 static void show_connections(struct connection *caller)
 {
   char buf[MAX_LEN_CONSOLE_LINE];
@@ -6341,9 +6522,9 @@ static void show_connections(struct connection *caller)
   cmd_reply(CMD_LIST, caller, C_COMMENT, horiz_line);
 }
 
-/*****************************************************************************
+/**********************************************************************//**
   List all delegations of the current game.
-*****************************************************************************/
+**************************************************************************/
 static void show_delegations(struct connection *caller)
 {
   bool empty = TRUE;
@@ -6362,6 +6543,7 @@ static void show_delegations(struct connection *caller)
                 /* TRANS: last %s is either " (active)" or empty string */
                 _("%s delegates control over player '%s' to user %s%s."),
                 owner, player_name(pplayer), delegate_to,
+                /* TRANS: preserve leading space */
                 player_delegation_active(pplayer) ? _(" (active)") : "");
       empty = FALSE;
     }
@@ -6374,9 +6556,9 @@ static void show_delegations(struct connection *caller)
   cmd_reply(CMD_LIST, caller, C_COMMENT, horiz_line);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Show the ignore list of the 
-****************************************************************************/
+**************************************************************************/
 static bool show_ignore(struct connection *caller)
 {
   char buf[128];
@@ -6404,9 +6586,9 @@ static bool show_ignore(struct connection *caller)
   return TRUE;
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Show the list of the players of the game.
-****************************************************************************/
+**************************************************************************/
 void show_players(struct connection *caller)
 {
   cmd_reply(CMD_LIST, caller, C_COMMENT, _("List of players:"));
@@ -6490,6 +6672,7 @@ void show_players(struct connection *caller)
                     cmdlevel_name(pconn->access_level),
                     (pconn->send_buffer->nsize >> 10));
         if (pconn->observer) {
+          /* TRANS: preserve leading space */
           sz_strlcat(buf, _(" (observer mode)"));
         }
         cmd_reply(CMD_LIST, caller, C_COMMENT, "    %s", buf);
@@ -6499,9 +6682,32 @@ void show_players(struct connection *caller)
   cmd_reply(CMD_LIST, caller, C_COMMENT, horiz_line);
 }
 
-/****************************************************************************
+/**********************************************************************//**
+  List rulesets (strictly, .serv init script files that conventionally
+  accompany rulesets).
+**************************************************************************/
+static void show_rulesets(struct connection *caller)
+{
+  struct strvec *serv_list;
+
+  cmd_reply(CMD_LIST, caller, C_COMMENT,
+            /* TRANS: don't translate text between '' */
+            _("List of rulesets available with '%sread' command:"),
+	    (caller ? "/" : ""));
+  cmd_reply(CMD_LIST, caller, C_COMMENT, horiz_line);
+
+  serv_list = get_init_script_choices();
+  strvec_iterate(serv_list, s) {
+    cmd_reply(CMD_LIST, caller, C_COMMENT, "%s", s);
+  } strvec_iterate_end;
+  strvec_destroy(serv_list);
+
+  cmd_reply(CMD_LIST, caller, C_COMMENT, horiz_line);
+}
+
+/**********************************************************************//**
   List scenarios. We look both in the DATA_PATH and DATA_PATH/scenario
-****************************************************************************/
+**************************************************************************/
 static void show_scenarios(struct connection *caller)
 {
   char buf[MAX_LEN_CONSOLE_LINE];
@@ -6513,17 +6719,21 @@ static void show_scenarios(struct connection *caller)
   files = fileinfolist_infix(get_scenario_dirs(), ".sav", TRUE);
   
   fileinfo_list_iterate(files, pfile) {
-    fc_snprintf(buf, sizeof(buf), "%s", pfile->name);
-    cmd_reply(CMD_LIST, caller, C_COMMENT, "%s", buf);
+    struct section_file *sf = secfile_load_section(pfile->fullname, "scenario", TRUE);
+
+    if (secfile_lookup_bool_default(sf, TRUE, "scenario.is_scenario")) {
+        fc_snprintf(buf, sizeof(buf), "%s", pfile->name);
+        cmd_reply(CMD_LIST, caller, C_COMMENT, "%s", buf);
+    }
   } fileinfo_list_iterate_end;
   fileinfo_list_destroy(files);
 
   cmd_reply(CMD_LIST, caller, C_COMMENT, horiz_line);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   List nation sets in the current ruleset.
-****************************************************************************/
+**************************************************************************/
 static void show_nationsets(struct connection *caller)
 {
   cmd_reply(CMD_LIST, caller, C_COMMENT,
@@ -6558,9 +6768,9 @@ static void show_nationsets(struct connection *caller)
   cmd_reply(CMD_LIST, caller, C_COMMENT, horiz_line);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Show a list of teams on the command line.
-****************************************************************************/
+**************************************************************************/
 static void show_teams(struct connection *caller)
 {
   /* Currently this just lists all teams (typically 32 of them) with their
@@ -6588,9 +6798,9 @@ static void show_teams(struct connection *caller)
   cmd_reply(CMD_LIST, caller, C_COMMENT, horiz_line);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Show a list of all map image definitions on the command line.
-****************************************************************************/
+**************************************************************************/
 static void show_mapimg(struct connection *caller, enum command_id cmd)
 {
   int id;
@@ -6609,9 +6819,9 @@ static void show_mapimg(struct connection *caller, enum command_id cmd)
   }
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Show a list of all players with the assigned color.
-****************************************************************************/
+**************************************************************************/
 static void show_colors(struct connection *caller)
 {
   cmd_reply(CMD_LIST, caller, C_COMMENT, _("List of player colors:"));
@@ -6628,33 +6838,35 @@ static void show_colors(struct connection *caller)
   cmd_reply(CMD_LIST, caller, C_COMMENT, horiz_line);
 }
 
-/****************************************************************************
+/**************************************************************************
   '/list' arguments
 **************************************************************************/
 #define SPECENUM_NAME list_args
-#define SPECENUM_VALUE0     LIST_COLORS
-#define SPECENUM_VALUE0NAME "colors"
-#define SPECENUM_VALUE1     LIST_CONNECTIONS
-#define SPECENUM_VALUE1NAME "connections"
-#define SPECENUM_VALUE2     LIST_DELEGATIONS
-#define SPECENUM_VALUE2NAME "delegations"
-#define SPECENUM_VALUE3     LIST_IGNORE
-#define SPECENUM_VALUE3NAME "ignored users"
-#define SPECENUM_VALUE4     LIST_MAPIMG
-#define SPECENUM_VALUE4NAME "map image definitions"
-#define SPECENUM_VALUE5     LIST_PLAYERS
-#define SPECENUM_VALUE5NAME "players"
-#define SPECENUM_VALUE6     LIST_SCENARIOS
-#define SPECENUM_VALUE6NAME "scenarios"
-#define SPECENUM_VALUE7     LIST_NATIONSETS
-#define SPECENUM_VALUE7NAME "nationsets"
-#define SPECENUM_VALUE8     LIST_TEAMS
-#define SPECENUM_VALUE8NAME "teams"
-#define SPECENUM_VALUE9     LIST_VOTES
-#define SPECENUM_VALUE9NAME "votes"
+#define SPECENUM_VALUE0      LIST_COLORS
+#define SPECENUM_VALUE0NAME  "colors"
+#define SPECENUM_VALUE1      LIST_CONNECTIONS
+#define SPECENUM_VALUE1NAME  "connections"
+#define SPECENUM_VALUE2      LIST_DELEGATIONS
+#define SPECENUM_VALUE2NAME  "delegations"
+#define SPECENUM_VALUE3      LIST_IGNORE
+#define SPECENUM_VALUE3NAME  "ignored users"
+#define SPECENUM_VALUE4      LIST_MAPIMG
+#define SPECENUM_VALUE4NAME  "map image definitions"
+#define SPECENUM_VALUE5      LIST_PLAYERS
+#define SPECENUM_VALUE5NAME  "players"
+#define SPECENUM_VALUE6      LIST_RULESETS
+#define SPECENUM_VALUE6NAME  "rulesets"
+#define SPECENUM_VALUE7      LIST_SCENARIOS
+#define SPECENUM_VALUE7NAME  "scenarios"
+#define SPECENUM_VALUE8      LIST_NATIONSETS
+#define SPECENUM_VALUE8NAME  "nationsets"
+#define SPECENUM_VALUE9      LIST_TEAMS
+#define SPECENUM_VALUE9NAME  "teams"
+#define SPECENUM_VALUE10     LIST_VOTES
+#define SPECENUM_VALUE10NAME "votes"
 #include "specenum_gen.h"
 
-/**************************************************************************
+/**********************************************************************//**
   Returns possible parameters for the list command.
 **************************************************************************/
 static const char *list_accessor(int i)
@@ -6663,7 +6875,7 @@ static const char *list_accessor(int i)
   return list_args_name((enum list_args) i);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Show list of players or connections, or connection statistics.
 **************************************************************************/
 static bool show_list(struct connection *caller, char *arg)
@@ -6688,7 +6900,7 @@ static bool show_list(struct connection *caller, char *arg)
     ind = LIST_PLAYERS;
   }
 
-  switch(ind) {
+  switch (ind) {
   case LIST_COLORS:
     show_colors(caller);
     return TRUE;
@@ -6705,6 +6917,9 @@ static bool show_list(struct connection *caller, char *arg)
     return TRUE;
   case LIST_PLAYERS:
     show_players(caller);
+    return TRUE;
+  case LIST_RULESETS:
+    show_rulesets(caller);
     return TRUE;
   case LIST_SCENARIOS:
     show_scenarios(caller);
@@ -6733,7 +6948,7 @@ static bool show_list(struct connection *caller, char *arg)
    the type is relevant for.
 */
 
-/**************************************************************************
+/**********************************************************************//**
   A generalised generator function: text and state are "standard"
   parameters to a readline generator function;
   num is number of possible completions, or -1 if this is not known and 
@@ -6779,7 +6994,7 @@ static char *generic_generator(const char *text, int state, int num,
   return ((char *)NULL);
 }
 
-/**************************************************************************
+/**********************************************************************//**
 The valid commands at the root of the prompt.
 **************************************************************************/
 static char *command_generator(const char *text, int state)
@@ -6787,7 +7002,7 @@ static char *command_generator(const char *text, int state)
   return generic_generator(text, state, CMD_NUM, command_name_by_number);
 }
 
-/**************************************************************************
+/**********************************************************************//**
 The valid arguments to "set" and "explain"
 **************************************************************************/
 static char *option_generator(const char *text, int state)
@@ -6795,7 +7010,7 @@ static char *option_generator(const char *text, int state)
   return generic_generator(text, state, settings_number(), optname_accessor);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   The valid arguments to "show"
 **************************************************************************/
 static char *olevel_generator(const char *text, int state)
@@ -6804,7 +7019,7 @@ static char *olevel_generator(const char *text, int state)
                            olvlname_accessor);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Accessor for values of the enum/bitwise option defined by
   'completion_option'.
 **************************************************************************/
@@ -6823,7 +7038,7 @@ static const char *option_value_accessor(int idx) {
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   The valid arguments to "set OPT", where OPT is the enumerated or
   bitwise option previously defined by completion_option
 **************************************************************************/
@@ -6832,7 +7047,7 @@ static char *option_value_generator(const char *text, int state)
   return generic_generator(text, state, -1, option_value_accessor);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Access player name.
 **************************************************************************/
 static const char *playername_accessor(int idx)
@@ -6846,7 +7061,7 @@ static const char *playername_accessor(int idx)
   return player_name(player_slot_get_player(pslot));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   The valid playername arguments.
 **************************************************************************/
 static char *player_generator(const char *text, int state)
@@ -6855,7 +7070,7 @@ static char *player_generator(const char *text, int state)
                            playername_accessor);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Access connection user name, from game.all_connections.
 **************************************************************************/
 static const char *connection_name_accessor(int idx)
@@ -6863,7 +7078,7 @@ static const char *connection_name_accessor(int idx)
   return conn_list_get(game.all_connections, idx)->username;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   The valid connection user name arguments.
 **************************************************************************/
 static char *connection_generator(const char *text, int state)
@@ -6872,7 +7087,7 @@ static char *connection_generator(const char *text, int state)
 			   connection_name_accessor);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Extra accessor function since cmdlevel_name() takes enum argument, not int.
 **************************************************************************/
 static const char *cmdlevel_arg1_accessor(int idx)
@@ -6880,7 +7095,7 @@ static const char *cmdlevel_arg1_accessor(int idx)
   return cmdlevel_name(idx);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   The valid first argument to "cmdlevel"
 **************************************************************************/
 static char *cmdlevel_arg1_generator(const char *text, int state)
@@ -6889,7 +7104,7 @@ static char *cmdlevel_arg1_generator(const char *text, int state)
                            cmdlevel_arg1_accessor);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Accessor for the second argument to "cmdlevel": "first" or "new" or
   a connection name.
 **************************************************************************/
@@ -6900,7 +7115,7 @@ static const char *cmdlevel_arg2_accessor(int idx)
           connection_name_accessor(idx - 2));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   The valid arguments for the second argument to "cmdlevel".
 **************************************************************************/
 static char *cmdlevel_arg2_generator(const char *text, int state)
@@ -6911,7 +7126,7 @@ static char *cmdlevel_arg2_generator(const char *text, int state)
 			   cmdlevel_arg2_accessor);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Accessor for the second argument to "create": ai type name
 **************************************************************************/
 static const char *aitype_accessor(int idx)
@@ -6919,7 +7134,7 @@ static const char *aitype_accessor(int idx)
   return get_ai_type(idx)->name;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   The valid arguments for the second argument to "create".
 **************************************************************************/
 static char *aitype_generator(const char *text, int state)
@@ -6928,7 +7143,7 @@ static char *aitype_generator(const char *text, int state)
                            aitype_accessor);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   The valid arguments for the argument to "reset".
 **************************************************************************/
 static char *reset_generator(const char *text, int state)
@@ -6936,7 +7151,7 @@ static char *reset_generator(const char *text, int state)
   return generic_generator(text, state, reset_args_max() + 1, reset_accessor);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   The valid arguments for the argument to "vote".
 **************************************************************************/
 static char *vote_generator(const char *text, int state)
@@ -6944,7 +7159,7 @@ static char *vote_generator(const char *text, int state)
   return generic_generator(text, state, -1, vote_arg_accessor);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   The valid arguments for the first argument to "delegate".
 **************************************************************************/
 static char *delegate_generator(const char *text, int state)
@@ -6953,7 +7168,7 @@ static char *delegate_generator(const char *text, int state)
                            delegate_accessor);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   The valid arguments for the first argument to "mapimg".
 **************************************************************************/
 static char *mapimg_generator(const char *text, int state)
@@ -6962,7 +7177,7 @@ static char *mapimg_generator(const char *text, int state)
                            mapimg_accessor);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   The valid arguments for the argument to "fcdb".
 **************************************************************************/
 static char *fcdb_generator(const char *text, int state)
@@ -6970,7 +7185,7 @@ static char *fcdb_generator(const char *text, int state)
   return generic_generator(text, state, FCDB_COUNT, fcdb_accessor);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   The valid arguments for the argument to "lua".
 **************************************************************************/
 static char *lua_generator(const char *text, int state)
@@ -6978,23 +7193,23 @@ static char *lua_generator(const char *text, int state)
   return generic_generator(text, state, lua_args_max() + 1, lua_accessor);
 }
 
-/**************************************************************************
-The valid first arguments to "help".
+/**********************************************************************//**
+  The valid first arguments to "help".
 **************************************************************************/
 static char *help_generator(const char *text, int state)
 {
   return generic_generator(text, state, HELP_ARG_NUM, helparg_accessor);
 }
 
-/**************************************************************************
-The valid first arguments to "list".
+/**********************************************************************//**
+  The valid first arguments to "list".
 **************************************************************************/
 static char *list_generator(const char *text, int state)
 {
   return generic_generator(text, state, list_args_max() + 1, list_accessor);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Generalised version of contains_str_before_start, which searches the
   N'th token in rl_line_buffer (0=first).
 **************************************************************************/
@@ -7040,7 +7255,7 @@ static bool contains_token_before_start(int start, int token, const char *arg,
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns whether the text between the start of rl_line_buffer and the
   start position is of the form [non-alpha]*cmd[non-alpha]*
   allow_fluff changes the regexp to [non-alpha]*cmd[non-alpha].*
@@ -7051,7 +7266,7 @@ static bool contains_str_before_start(int start, const char *cmd,
   return contains_token_before_start(start, 0, cmd, allow_fluff);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether we are completing command name. This can be either
   command itself, or argument to 'help'.
 **************************************************************************/
@@ -7073,8 +7288,8 @@ static bool is_command(int start)
   return TRUE;
 }
 
-/**************************************************************************
-number of tokens in rl_line_buffer before start
+/**********************************************************************//**
+  Number of tokens in rl_line_buffer before start
 **************************************************************************/
 static int num_tokens(int start)
 {
@@ -7117,7 +7332,7 @@ static const int player_cmd[] = {
   -1
 };
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether we are completing player name argument.
 **************************************************************************/
 static bool is_player(int start)
@@ -7135,7 +7350,7 @@ static bool is_player(int start)
 }
 
 /**************************************************************************
-Commands that may be followed by a connection name
+  Commands that may be followed by a connection name
 **************************************************************************/
 static const int connection_cmd[] = {
   CMD_CUT,
@@ -7143,7 +7358,7 @@ static const int connection_cmd[] = {
   -1
 };
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether we are completing connection name argument.
 **************************************************************************/
 static bool is_connection(int start)
@@ -7162,7 +7377,7 @@ static bool is_connection(int start)
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether we are completing cmdlevel command argument 2.
 **************************************************************************/
 static bool is_cmdlevel_arg2(int start)
@@ -7171,7 +7386,7 @@ static bool is_cmdlevel_arg2(int start)
 	  && num_tokens(start) == 2);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether we are completing cmdlevel command argument.
 **************************************************************************/
 static bool is_cmdlevel_arg1(int start)
@@ -7192,7 +7407,7 @@ static const int server_option_cmd[] = {
   -1
 };
 
-/**************************************************************************
+/**********************************************************************//**
   Returns TRUE if the readline buffer string matches a server option at
   the given position.
 **************************************************************************/
@@ -7219,7 +7434,7 @@ static const int option_level_cmd[] = {
   -1
 };
 
-/**************************************************************************
+/**********************************************************************//**
   Returns true if the readline buffer string matches an option level or an
   option at the given position.
 **************************************************************************/
@@ -7238,7 +7453,7 @@ static bool is_option_level(int start)
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns TRUE if the readline buffer string is such that we expect an
   enumerated value at the given position. The option for which values
   should be completed is written to opt_p.
@@ -7267,7 +7482,7 @@ static bool is_enum_option_value(int start, int *opt_p)
 }
 
 /**************************************************************************
-Commands that may be followed by a filename
+  Commands that may be followed by a filename
 **************************************************************************/
 static const int filename_cmd[] = {
   CMD_LOAD,
@@ -7277,7 +7492,7 @@ static const int filename_cmd[] = {
   -1
 };
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether we are completing filename.
 **************************************************************************/
 static bool is_filename(int start)
@@ -7294,7 +7509,7 @@ static bool is_filename(int start)
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether we are completing second argument for create command
 **************************************************************************/
 static bool is_create_arg2(int start)
@@ -7303,7 +7518,7 @@ static bool is_create_arg2(int start)
 	  && num_tokens(start) == 2);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether we are completing argument for reset command
 **************************************************************************/
 static bool is_reset(int start)
@@ -7313,7 +7528,7 @@ static bool is_reset(int start)
                                    FALSE);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether we are completing argument for vote command
 **************************************************************************/
 static bool is_vote(int start)
@@ -7323,7 +7538,7 @@ static bool is_vote(int start)
                                    FALSE);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether we are completing first argument for delegate command
 **************************************************************************/
 static bool is_delegate_arg1(int start)
@@ -7333,7 +7548,7 @@ static bool is_delegate_arg1(int start)
                                    FALSE);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether we are completing first argument for mapimg command
 **************************************************************************/
 static bool is_mapimg(int start)
@@ -7343,7 +7558,7 @@ static bool is_mapimg(int start)
                                    FALSE);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether we are completing argument for fcdb command
 **************************************************************************/
 static bool is_fcdb(int start)
@@ -7353,7 +7568,7 @@ static bool is_fcdb(int start)
                                    FALSE);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether we are completing argument for lua command
 **************************************************************************/
 static bool is_lua(int start)
@@ -7363,7 +7578,7 @@ static bool is_lua(int start)
                                    FALSE);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether we are completing help command argument.
 **************************************************************************/
 static bool is_help(int start)
@@ -7371,7 +7586,7 @@ static bool is_help(int start)
   return contains_str_before_start(start, command_name_by_number(CMD_HELP), FALSE);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether we are completing list command argument.
 **************************************************************************/
 static bool is_list(int start)
@@ -7379,12 +7594,12 @@ static bool is_list(int start)
   return contains_str_before_start(start, command_name_by_number(CMD_LIST), FALSE);
 }
 
-/**************************************************************************
-Attempt to complete on the contents of TEXT.  START and END bound the
-region of rl_line_buffer that contains the word to complete.  TEXT is
-the word to complete.  We can use the entire contents of rl_line_buffer
-in case we want to do some simple parsing.  Return the array of matches,
-or NULL if there aren't any.
+/**********************************************************************//**
+  Attempt to complete on the contents of TEXT.  START and END bound the
+  region of rl_line_buffer that contains the word to complete.  TEXT is
+  the word to complete.  We can use the entire contents of rl_line_buffer
+  in case we want to do some simple parsing.  Return the array of matches,
+  or NULL if there aren't any.
 **************************************************************************/
 char **freeciv_completion(const char *text, int start, int end)
 {

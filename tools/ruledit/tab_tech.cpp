@@ -33,14 +33,13 @@
 #include "tech.h"
 
 // ruledit
-#include "effect_edit.h"
 #include "ruledit.h"
 #include "ruledit_qt.h"
 #include "validity.h"
 
 #include "tab_tech.h"
 
-/**************************************************************************
+/**********************************************************************//**
   Setup tab_tech object
 **************************************************************************/
 tab_tech::tab_tech(ruledit_gui *ui_in) : QWidget()
@@ -123,14 +122,14 @@ tab_tech::tab_tech(ruledit_gui *ui_in) : QWidget()
   show_experimental(delete_button);
 
   refresh();
-  update_tech_info(0);
+  update_tech_info(nullptr);
 
   main_layout->addLayout(tech_layout);
 
   setLayout(main_layout);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh the information.
 **************************************************************************/
 void tab_tech::refresh()
@@ -150,7 +149,7 @@ void tab_tech::refresh()
   techs_to_menu(root_req);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Build tech req button
 **************************************************************************/
 QMenu *tab_tech::prepare_req_button(QToolButton *button, enum tech_req rn)
@@ -180,7 +179,7 @@ QMenu *tab_tech::prepare_req_button(QToolButton *button, enum tech_req rn)
   return menu;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Fill menu with all possible tech values
 **************************************************************************/
 void tab_tech::techs_to_menu(QMenu *fill_menu)
@@ -192,7 +191,7 @@ void tab_tech::techs_to_menu(QMenu *fill_menu)
   } advance_iterate_end;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Display name of the tech
 **************************************************************************/
 QString tab_tech::tech_name(struct advance *padv)
@@ -204,7 +203,7 @@ QString tab_tech::tech_name(struct advance *padv)
   return QString::fromUtf8(advance_rule_name(padv));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update info of the tech
 **************************************************************************/
 void tab_tech::update_tech_info(struct advance *adv)
@@ -240,7 +239,7 @@ void tab_tech::update_tech_info(struct advance *adv)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected tech from the list.
 **************************************************************************/
 void tab_tech::select_tech()
@@ -248,11 +247,14 @@ void tab_tech::select_tech()
   QList<QListWidgetItem *> select_list = tech_list->selectedItems();
 
   if (!select_list.isEmpty()) {
-    update_tech_info(advance_by_rule_name(select_list.at(0)->text().toUtf8().data()));
+    QByteArray tn_bytes;
+
+    tn_bytes = select_list.at(0)->text().toUtf8();
+    update_tech_info(advance_by_rule_name(tn_bytes.data()));
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Req1 of the current tech selected.
 **************************************************************************/
 void tab_tech::req1_jump()
@@ -262,7 +264,7 @@ void tab_tech::req1_jump()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Req2 of the current tech selected.
 **************************************************************************/
 void tab_tech::req2_jump()
@@ -272,7 +274,7 @@ void tab_tech::req2_jump()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Root req of the current tech selected.
 **************************************************************************/
 void tab_tech::root_req_jump()
@@ -282,12 +284,16 @@ void tab_tech::root_req_jump()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected tech to be req1
 **************************************************************************/
 void tab_tech::req1_menu(QAction *action)
 {
-  struct advance *padv = advance_by_rule_name(action->text().toUtf8().data());
+  struct advance *padv;
+  QByteArray an_bytes;
+
+  an_bytes = action->text().toUtf8();
+  padv = advance_by_rule_name(an_bytes.data());
 
   if (padv != 0 && selected != 0) {
     selected->require[AR_ONE] = padv;
@@ -296,12 +302,16 @@ void tab_tech::req1_menu(QAction *action)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected tech to be req2
 **************************************************************************/
 void tab_tech::req2_menu(QAction *action)
 {
-  struct advance *padv = advance_by_rule_name(action->text().toUtf8().data());
+  struct advance *padv;
+  QByteArray an_bytes;
+
+  an_bytes = action->text().toUtf8();
+  padv = advance_by_rule_name(an_bytes.data());
 
   if (padv != 0 && selected != 0) {
     selected->require[AR_TWO] = padv;
@@ -310,12 +320,16 @@ void tab_tech::req2_menu(QAction *action)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected tech to be root_req
 **************************************************************************/
 void tab_tech::root_req_menu(QAction *action)
 {
-  struct advance *padv = advance_by_rule_name(action->text().toUtf8().data());
+  struct advance *padv;
+  QByteArray an_bytes;
+
+  an_bytes = action->text().toUtf8();
+  padv = advance_by_rule_name(an_bytes.data());
 
   if (padv != 0 && selected != 0) {
     selected->require[AR_ROOT] = padv;
@@ -324,16 +338,20 @@ void tab_tech::root_req_menu(QAction *action)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User entered name for tech
 **************************************************************************/
 void tab_tech::name_given()
 {
   if (selected != nullptr) {
+    QByteArray name_bytes;
+    QByteArray rname_bytes;
+
     advance_iterate(A_FIRST, padv) {
       if (padv != selected
           && padv->require[AR_ONE] != A_NEVER) {
-        if (!strcmp(advance_rule_name(padv), rname->text().toUtf8().data())) {
+        rname_bytes = rname->text().toUtf8();
+        if (!strcmp(advance_rule_name(padv), rname_bytes.data())) {
           ui->display_msg(R__("A tech with that rule name already exists!"));
           return;
         }
@@ -344,14 +362,16 @@ void tab_tech::name_given()
       name->setText(rname->text());
     }
 
+    name_bytes = name->text().toUtf8();
+    rname_bytes = rname->text().toUtf8();
     names_set(&(selected->name), 0,
-              name->text().toUtf8().data(),
-              rname->text().toUtf8().data());
+              name_bytes.data(),
+              rname_bytes.data());
     refresh();
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested tech deletion 
 **************************************************************************/
 void tab_tech::delete_now()
@@ -367,11 +387,11 @@ void tab_tech::delete_now()
     selected->require[AR_ONE] = A_NEVER;
 
     refresh();
-    update_tech_info(0);
+    update_tech_info(nullptr);
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Initialize new tech for use.
 **************************************************************************/
 bool tab_tech::initialize_new_tech(struct advance *padv)
@@ -390,7 +410,7 @@ bool tab_tech::initialize_new_tech(struct advance *padv)
   return true;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested new tech
 **************************************************************************/
 void tab_tech::add_now()
@@ -420,12 +440,12 @@ void tab_tech::add_now()
   if (initialize_new_tech(new_adv)) {
     update_tech_info(new_adv);
     refresh();
-  } else{
+  } else {
     game.control.num_tech_types--; // Restore
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Toggled whether rule_name and name should be kept identical
 **************************************************************************/
 void tab_tech::same_name_toggle(bool checked)
@@ -436,21 +456,18 @@ void tab_tech::same_name_toggle(bool checked)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User wants to edit effects
 **************************************************************************/
 void tab_tech::edit_effects()
 {
   if (selected != nullptr) {
-    effect_edit *e_edit;
     struct universal uni;
 
     uni.value.advance = selected;
     uni.kind = VUT_ADVANCE;
 
-    e_edit = new effect_edit(ui, QString::fromUtf8(advance_rule_name(selected)),
-                             &uni);
-
-    e_edit->show();
+    ui->open_effect_edit(QString::fromUtf8(advance_rule_name(selected)),
+                         &uni, EFMC_NORMAL);
   }
 }

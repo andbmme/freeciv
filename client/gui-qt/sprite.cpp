@@ -27,7 +27,7 @@
 
 static const char **gfx_array_extensions = nullptr;
 
-/****************************************************************************
+/************************************************************************//**
   Return a NULL-terminated, permanently allocated array of possible
   graphics types extensions.  Extensions listed first will be checked
   first.
@@ -44,20 +44,22 @@ const char **gfx_fileextensions(void)
 
   gfx_ext = QImageReader::supportedImageFormats();
 
-  gfx_array_extensions = new const char *[gfx_ext.count()];
-  while (gfx_ext.isEmpty() == false) {
+  gfx_array_extensions = new const char *[gfx_ext.count() + 1];
+  while (!gfx_ext.isEmpty()) {
     char *ext;
+
     cp = gfx_ext.takeFirst();
     ext = static_cast<char *>(fc_malloc(sizeof(cp.data())));
     strncpy(ext, cp.data(), sizeof(cp));
     gfx_array_extensions[j] = ext;
     j++;
   }
+  gfx_array_extensions[j] = NULL;
 
   return gfx_array_extensions;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Load the given graphics file into a sprite.  This function loads an
   entire image file, which may later be broken up into individual sprites
   with crop_sprite.
@@ -65,13 +67,20 @@ const char **gfx_fileextensions(void)
 struct sprite *qtg_load_gfxfile(const char *filename)
 {
   sprite *entire = new sprite;
+  QPixmap *pm = new QPixmap;
 
-  entire->pm = new QPixmap(filename);
+  if (QPixmapCache::find(QString(filename), pm)) {
+    entire->pm = pm;
+    return entire;
+  }
+  pm->load(QString(filename));
+  entire->pm = pm;
+  QPixmapCache::insert(QString(filename), *pm);
 
   return entire;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a new sprite by cropping and taking only the given portion of
   the image.
 
@@ -148,7 +157,7 @@ struct sprite *qtg_crop_sprite(struct sprite *source,
   return cropped;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Find the dimensions of the sprite.
 ****************************************************************************/
 void qtg_get_sprite_dimensions(struct sprite *sprite, int *width, int *height)
@@ -157,7 +166,7 @@ void qtg_get_sprite_dimensions(struct sprite *sprite, int *width, int *height)
   *height = sprite->pm->height();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free a sprite and all associated image data.
 ****************************************************************************/
 void qtg_free_sprite(struct sprite *s)
@@ -166,7 +175,7 @@ void qtg_free_sprite(struct sprite *s)
   delete s;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a new sprite with the given height, width and color.
 ****************************************************************************/
 struct sprite *qtg_create_sprite(int width, int height, struct color *pcolor)

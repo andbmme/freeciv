@@ -93,18 +93,18 @@ void update_map_canvas_scrollbars_size(void)
 
 static bool is_flush_queued = FALSE;
 
-/**************************************************************************
+/**********************************************************************//**
   Flush the mapcanvas part of the buffer(s) to the screen.
 **************************************************************************/
-void flush_mapcanvas(int canvas_x, int canvas_y,
-                     int pixel_width, int pixel_height)
+static void flush_mapcanvas(int canvas_x, int canvas_y,
+                            int pixel_width, int pixel_height)
 {
   SDL_Rect rect = {canvas_x, canvas_y, pixel_width, pixel_height};
 
   alphablit(mapview.store->surf, &rect, Main.map, &rect, 255);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Flush the given part of the buffer(s) to the screen.
 **************************************************************************/
 void flush_rect(SDL_Rect *rect, bool force_flush)
@@ -140,7 +140,7 @@ void flush_rect(SDL_Rect *rect, bool force_flush)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   A callback invoked as a result of a FLUSH event, this function simply
   flushes the mapview canvas.
 **************************************************************************/
@@ -151,7 +151,7 @@ void unqueue_flush(void)
   is_flush_queued = FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Called when a region is marked dirty, this function queues a flush event
   to be handled later by SDL.  The flush may end up being done
   by freeciv before then, in which case it will be a wasted call.
@@ -171,7 +171,7 @@ void queue_flush(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Save Flush area used by "end" flush.
 **************************************************************************/
 void dirty_rect(int canvas_x, int canvas_y,
@@ -182,7 +182,7 @@ void dirty_rect(int canvas_x, int canvas_y,
   dirty_sdl_rect(&Rect);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Save Flush rect used by "end" flush.
 **************************************************************************/
 void dirty_sdl_rect(SDL_Rect *Rect)
@@ -193,7 +193,7 @@ void dirty_sdl_rect(SDL_Rect *Rect)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Select entire screen area to "end" flush and block "save" new areas.
 **************************************************************************/
 void dirty_all(void)
@@ -202,7 +202,7 @@ void dirty_all(void)
   queue_flush();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   flush entire screen.
 **************************************************************************/
 void flush_all(void)
@@ -212,7 +212,7 @@ void flush_all(void)
   flush_dirty();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make "end" Flush "saved" parts/areas of the buffer(s) to the screen.
   Function is called in handle_procesing_finished and handle_thaw_hint
 **************************************************************************/
@@ -225,9 +225,9 @@ void flush_dirty(void)
   }
 
   if (Main.rects_count >= RECT_LIMIT) {
-    
-    if ((C_S_RUNNING == client_state()) &&
-        (get_client_page() == PAGE_GAME)) {
+
+    if ((C_S_RUNNING == client_state())
+        && (get_client_page() == PAGE_GAME)) {
       flush_mapcanvas(0, 0, main_window_width(), main_window_height());
       refresh_overview();
     }
@@ -288,7 +288,7 @@ void flush_dirty(void)
   Main.rects_count = 0;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   This function is called when the map has changed.
 **************************************************************************/
 void gui_flush(void)
@@ -300,7 +300,7 @@ void gui_flush(void)
 
 /* ===================================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Set information for the indicator icons typically shown in the main
   client window.  The parameters tell which sprite to use for the
   indicator.
@@ -315,11 +315,13 @@ void set_indicator_icons(struct sprite *bulb, struct sprite *sol,
   FREESURFACE(pBuf->theme);
   pBuf->theme = adj_surf(GET_SURF(sol));
   widget_redraw(pBuf);
+  widget_mark_dirty(pBuf);
 
   pBuf = get_widget_pointer_form_main_list(ID_COOLING_ICON);
   FREESURFACE(pBuf->theme);
   pBuf->theme = adj_surf(GET_SURF(flake));
   widget_redraw(pBuf);
+  widget_mark_dirty(pBuf);
 
   pBuf = get_revolution_widget();
   set_new_icon2_theme(pBuf, adj_surf(GET_SURF(gov)), TRUE);
@@ -377,12 +379,12 @@ void set_indicator_icons(struct sprite *bulb, struct sprite *sol,
   widget_mark_dirty(pBuf);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Called when the map size changes. This may be used to change the
   size of the GUI element holding the overview canvas. The
   overview.width and overview.height are updated if this function is
   called.
-****************************************************************************/
+**************************************************************************/
 void overview_size_changed(void)
 {
   map_canvas_resized(main_window_width(), main_window_height());
@@ -396,7 +398,7 @@ void overview_size_changed(void)
   resize_minimap();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Typically an info box is provided to tell the player about the state
   of their civilization.  This function is called when the label is
   changed.
@@ -495,12 +497,12 @@ void update_info_label(void)
   queue_flush();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with the focus units widget.
 **************************************************************************/
 static int focus_units_info_callback(struct widget *pwidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     struct unit *punit = pwidget->data.unit;
 
     if (punit) {
@@ -512,7 +514,7 @@ static int focus_units_info_callback(struct widget *pwidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Read Function Name :)
   FIXME: should use same method as client/text.c popup_info_text()
 **************************************************************************/
@@ -791,7 +793,7 @@ void redraw_unit_info_label(struct unit_list *punitlist)
         struct ADVANCED_DLG *pDlg = pInfo_Window->private_data.adv_dlg;
         struct widget *pBuf = NULL, *pEnd = NULL, *pDock;
         struct city *pHome_City;
-        struct unit_type *pUType;
+        const struct unit_type *putype;
         int num_w, num_h;
 
         if (pDlg->pEndActiveWidgetList && pDlg->pBeginActiveWidgetList) {
@@ -809,18 +811,18 @@ void redraw_unit_info_label(struct unit_list *punitlist)
             continue;
 	  }
 
-          pUType = unit_type_get(aunit);
-          vetname = utype_veteran_name_translation(pUType, aunit->veteran);
+          putype = unit_type_get(aunit);
+          vetname = utype_veteran_name_translation(putype, aunit->veteran);
           pHome_City = game_city_by_number(aunit->homecity);
           fc_snprintf(buffer, sizeof(buffer), "%s (%d,%d,%s)%s%s\n%s\n(%d/%d)\n%s",
-                      utype_name_translation(pUType),
-                      pUType->attack_strength,
-                      pUType->defense_strength,
-                      move_points_text(pUType->move_rate, FALSE),
+                      utype_name_translation(putype),
+                      putype->attack_strength,
+                      putype->defense_strength,
+                      move_points_text(putype->move_rate, FALSE),
                       (vetname != NULL ? "\n" : ""),
                       (vetname != NULL ? vetname : ""),
                       unit_activity_text(aunit),
-                      aunit->hp, pUType->hp,
+                      aunit->hp, putype->hp,
                       pHome_City ? city_name_get(pHome_City) : Q_("?homecity:None"));
 
           buf_surf = create_surf(tileset_full_tile_width(tileset),
@@ -961,7 +963,7 @@ void redraw_unit_info_label(struct unit_list *punitlist)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Is the focus animation enabled?
 **************************************************************************/
 static bool is_focus_anim_enabled(void)
@@ -969,7 +971,7 @@ static bool is_focus_anim_enabled(void)
   return (SDL_Client_Flags & CF_FOCUS_ANIMATION) == CF_FOCUS_ANIMATION;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set one of the unit icons in the information area based on punit.
   NULL will be passed to clear the icon. idx == -1 will be passed to
   indicate this is the active unit, or idx in [0..num_units_below - 1] for
@@ -981,7 +983,7 @@ void set_unit_icon(int idx, struct unit *punit)
   /*  update_unit_info_label(punit);*/
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Most clients use an arrow (e.g., sprites.right_arrow) to indicate when
   the units_below will not fit. This function is called to activate and
   deactivate the arrow.
@@ -991,17 +993,17 @@ void set_unit_icons_more_arrow(bool onoff)
 /* Balast */
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Called when the set of units in focus (get_units_in_focus()) changes.
   Standard updates like update_unit_info_label() are handled in the platform-
   independent code, so some clients will not need to do anything here.
-****************************************************************************/
+**************************************************************************/
 void real_focus_units_changed(void)
 {
   /* Nothing to do */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update the information label which gives info on the current unit and
   the square under the current unit, for specified unit.  Note that in
   practice punit is always the focus unit.
@@ -1031,7 +1033,7 @@ void update_unit_info_label(struct unit_list *punitlist)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh timeout label.
 **************************************************************************/
 void update_timeout_label(void)
@@ -1039,7 +1041,7 @@ void update_timeout_label(void)
   log_debug("MAPVIEW: update_timeout_label : PORT ME");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh turn done button.
 **************************************************************************/
 void update_turn_done_button(bool do_restore)
@@ -1051,7 +1053,7 @@ void update_turn_done_button(bool do_restore)
 /* ========================== City Descriptions ======================== */
 /* ===================================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Update (refresh) all of the city descriptions on the mapview.
 **************************************************************************/
 void update_city_descriptions(void)
@@ -1065,7 +1067,7 @@ void update_city_descriptions(void)
 /* =============================== Mini Map ============================ */
 /* ===================================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Toggle between overview modes.
 **************************************************************************/
 void toggle_overview_mode(void)
@@ -1078,18 +1080,18 @@ void toggle_overview_mode(void)
   }
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Return a canvas that is the overview window.
-****************************************************************************/
+**************************************************************************/
 struct canvas *get_overview_window(void)
 {
   return overview_canvas;  
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Return the dimensions of the area (container widget; maximum size) for
   the overview.
-****************************************************************************/
+**************************************************************************/
 void get_overview_area_dimensions(int *width, int *height)
 {
   /* calculate the dimensions in a way to always get a resulting
@@ -1118,7 +1120,7 @@ void get_overview_area_dimensions(int *width, int *height)
   OVERVIEW_TILE_SIZE = overview_tile_size_bak;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh (update) the viewrect on the overview. This is the rectangle
   showing the area covered by the mapview.
 **************************************************************************/
@@ -1142,7 +1144,7 @@ void refresh_overview(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update (refresh) the locations of the mapview scrollbars (if it uses
   them).
 **************************************************************************/
@@ -1151,7 +1153,7 @@ void update_map_canvas_scrollbars(void)
   /* No scrollbars. */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Draw a cross-hair overlay on a tile.
 **************************************************************************/
 void put_cross_overlay_tile(struct tile *ptile)
@@ -1159,8 +1161,8 @@ void put_cross_overlay_tile(struct tile *ptile)
   log_debug("MAPVIEW: put_cross_overlay_tile : PORT ME");
 }
 
-/**************************************************************************
- Area Selection
+/**********************************************************************//**
+  Area Selection
 **************************************************************************/
 void draw_selection_rectangle(int canvas_x, int canvas_y, int w, int h)
 {
@@ -1170,7 +1172,7 @@ void draw_selection_rectangle(int canvas_x, int canvas_y, int w, int h)
                get_theme_color(COLOR_THEME_SELECTIONRECTANGLE));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   This function is called when the tileset is changed.
 **************************************************************************/
 void tileset_changed(void)
@@ -1185,7 +1187,7 @@ void tileset_changed(void)
 				City MAP
    ===================================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Create new city map surface.
 **************************************************************************/
 SDL_Surface *create_city_map(struct city *pcity)
@@ -1204,7 +1206,7 @@ SDL_Surface *create_city_map(struct city *pcity)
   return city_map_canvas->surf;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return surface containing terrain of the tile.
 **************************************************************************/
 SDL_Surface *get_terrain_surface(struct tile *ptile)
@@ -1223,10 +1225,16 @@ SDL_Surface *get_terrain_surface(struct tile *ptile)
   return terrain_canvas->surf;
 }
 
-/**************************************************************************
- Sets the position of the overview scroll window based on mapview position.
+/**********************************************************************//**
+  Sets the position of the overview scroll window based on mapview position.
 **************************************************************************/
 void update_overview_scroll_window_pos(int x, int y)
 {
   /* TODO: PORTME. */
 }
+
+/**********************************************************************//**
+  New turn callback
+**************************************************************************/
+void start_turn(void)
+{}

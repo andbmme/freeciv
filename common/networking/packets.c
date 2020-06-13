@@ -65,6 +65,8 @@
 #define log_compress    log_debug
 #define log_compress2   log_debug
 
+#define MAX_DECOMPRESSION 400
+
 #endif /* USE_COMPRESSION */
 
 /* 
@@ -434,25 +436,34 @@ void *get_packet_from_connection_raw(struct connection *pc,
 
   if (compressed_packet) {
     uLong compressed_size = whole_packet_len - header_size;
-    /* 
-     * We don't know the decompressed size. We assume a bad case
-     * here: an expansion by an factor of 100. 
-     */
-    unsigned long int decompressed_size = 100 * compressed_size;
-    void *decompressed = fc_malloc(decompressed_size);
-    int error;
+    int decompress_factor = 80;
+    unsigned long int decompressed_size = decompress_factor * compressed_size;
+    int error = Z_DATA_ERROR;
     struct socket_packet_buffer *buffer = pc->buffer;
-    
-    error =
-	uncompress(decompressed, &decompressed_size,
-		   ADD_TO_POINTER(buffer->data, header_size), 
-		   compressed_size);
-    if (error != Z_OK) {
-      log_verbose("Uncompressing of the packet stream failed. "
-                  "The connection will be closed now.");
-      connection_close(pc, _("decoding error"));
-      return NULL;
-    }
+    void *decompressed = fc_malloc(decompressed_size);
+
+    do {
+      error =
+        uncompress(decompressed, &decompressed_size,
+                   ADD_TO_POINTER(buffer->data, header_size),
+                   compressed_size);
+
+      if (error == Z_DATA_ERROR) {
+        decompress_factor += 50;
+        decompressed_size = decompress_factor * compressed_size;
+        decompressed = fc_realloc(decompressed, decompressed_size);
+      }
+
+      if (error != Z_OK) {
+        if (error != Z_DATA_ERROR || decompress_factor > MAX_DECOMPRESSION ) {
+          log_verbose("Uncompressing of the packet stream failed. "
+                      "The connection will be closed now.");
+          connection_close(pc, _("decoding error"));
+          return NULL;
+        }
+      }
+
+    } while (error != Z_OK);
 
     buffer->ndata -= whole_packet_len;
     /* 
@@ -503,8 +514,7 @@ void *get_packet_from_connection_raw(struct connection *pc,
   dio_get_type_raw(&din, pc->packet_header.type, &utype.itype);
   utype.type = utype.itype;
 
-  if (utype.type < 0
-      || utype.type >= PACKET_LAST
+  if (utype.type >= PACKET_LAST
       || (receive_handler = pc->phs.handlers->receive[utype.type]) == NULL) {
     log_verbose("Received unsupported packet type %d (%s). The connection "
                 "will be closed now.",

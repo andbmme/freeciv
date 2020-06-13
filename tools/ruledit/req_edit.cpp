@@ -36,7 +36,7 @@
 
 #include "req_edit.h"
 
-/**************************************************************************
+/**********************************************************************//**
   Setup req_edit object
 **************************************************************************/
 req_edit::req_edit(ruledit_gui *ui_in, QString target,
@@ -139,7 +139,7 @@ req_edit::req_edit(ruledit_gui *ui_in, QString target,
   setWindowTitle(target);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh the information.
 **************************************************************************/
 void req_edit::refresh()
@@ -153,7 +153,7 @@ void req_edit::refresh()
     QListWidgetItem *item;
 
     buf[0] = '\0';
-    if (!req_text_insert(buf, sizeof(buf), NULL, preq, VERB_ACTUAL)) {
+    if (!req_text_insert(buf, sizeof(buf), NULL, preq, VERB_ACTUAL, "")) {
       if (preq->present) {
         universal_name_translation(&preq->source, buf, sizeof(buf));
       } else {
@@ -173,7 +173,7 @@ void req_edit::refresh()
   fill_active();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User pushed close button
 **************************************************************************/
 void req_edit::close_now()
@@ -182,7 +182,7 @@ void req_edit::close_now()
   done(0);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected requirement from the list.
 **************************************************************************/
 void req_edit::select_req()
@@ -208,7 +208,7 @@ struct uvb_data
   struct universal *univ;
 };
 
-/**************************************************************************
+/**********************************************************************//**
   Callback for filling menu values
 **************************************************************************/
 static void universal_value_cb(const char *value, bool current, void *cbdata)
@@ -230,7 +230,7 @@ static void universal_value_cb(const char *value, bool current, void *cbdata)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Fill active menus from selected req.
 **************************************************************************/
 void req_edit::fill_active()
@@ -256,12 +256,13 @@ void req_edit::fill_active()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected type for the requirement.
 **************************************************************************/
 void req_edit::req_type_menu(QAction *action)
 {
-  enum universals_n univ = universals_n_by_name(action->text().toUtf8().data(),
+  QByteArray un_bytes = action->text().toUtf8();
+  enum universals_n univ = universals_n_by_name(un_bytes.data(),
                                                 fc_strcasecmp);
 
   if (selected != nullptr) {
@@ -272,12 +273,13 @@ void req_edit::req_type_menu(QAction *action)
   refresh();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected range for the requirement.
 **************************************************************************/
 void req_edit::req_range_menu(QAction *action)
 {
-  enum req_range range = req_range_by_name(action->text().toUtf8().data(),
+  QByteArray un_bytes = action->text().toUtf8();
+  enum req_range range = req_range_by_name(un_bytes.data(),
                                            fc_strcasecmp);
 
   if (selected != nullptr) {
@@ -287,7 +289,7 @@ void req_edit::req_range_menu(QAction *action)
   refresh();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected 'present' value for the requirement.
 **************************************************************************/
 void req_edit::req_present_menu(QAction *action)
@@ -303,32 +305,36 @@ void req_edit::req_present_menu(QAction *action)
   refresh();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected value for the requirement.
 **************************************************************************/
 void req_edit::univ_value_enum_menu(QAction *action)
 {
   if (selected != nullptr) {
-    universal_value_from_str(&selected->source, action->text().toUtf8().data());
+    QByteArray un_bytes = action->text().toUtf8();
+
+    universal_value_from_str(&selected->source, un_bytes.data());
 
     refresh();
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User entered numerical requirement value.
 **************************************************************************/
 void req_edit::univ_value_edit()
 {
   if (selected != nullptr) {
+    QByteArray num_bytes = edit_value_nbr_field->text().toUtf8();
+
     universal_value_from_str(&selected->source,
-                             edit_value_nbr_field->text().toUtf8().data());
+                             num_bytes.data());
 
     refresh();
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested new requirement
 **************************************************************************/
 void req_edit::add_now()
@@ -343,7 +349,7 @@ void req_edit::add_now()
   refresh();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested requirement deletion 
 **************************************************************************/
 void req_edit::delete_now()
@@ -364,7 +370,7 @@ void req_edit::delete_now()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User clicked windows close button.
 **************************************************************************/
 void req_edit::closeEvent(QCloseEvent *event)

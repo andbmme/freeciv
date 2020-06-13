@@ -1,4 +1,4 @@
-/**********************************************************************
+/***********************************************************************
  Freeciv - Copyright (C) 1996-2005 - Freeciv Development Team
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,7 +25,6 @@
 #include <QResizeEvent>
 #include <QScrollBar>
 #include <QSettings>
-#include <QSignalMapper>
 #include <QSocketNotifier>
 #include <QSpinBox>
 #include <QStackedLayout>
@@ -55,13 +54,13 @@ fc_icons* fc_icons::m_instance = 0;
 fc_font* fc_font::m_instance = 0;
 extern "C" {
   bool get_turn_done_button_state();
-  void real_science_report_dialog_update(void);
+  void real_science_report_dialog_update(void*);
 }
 extern void write_shortcuts();
 
 QString current_theme;
 
-/****************************************************************************
+/************************************************************************//**
   Constructor
 ****************************************************************************/
 fc_client::fc_client() : QMainWindow()
@@ -121,6 +120,7 @@ fc_client::fc_client() : QMainWindow()
   battlelog_wdg = nullptr;
   interface_locked = false;
   map_scale = 1.0f;
+  map_font_scale = true;
   for (int i = 0; i <= PAGE_GAME; i++) {
     pages_layout[i] = NULL;
     pages[i] = NULL;
@@ -128,7 +128,7 @@ fc_client::fc_client() : QMainWindow()
   init();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Initializes layouts for all pages
 ****************************************************************************/
 void fc_client::init()
@@ -143,7 +143,7 @@ void fc_client::init()
   // General part not related to any single page
   menu_bar = new mr_menu();
   corner_wid = new fc_corner(this);
-  if (gui_options.gui_qt_show_titlebar == false) {
+  if (!gui_options.gui_qt_show_titlebar) {
     menu_bar->setCornerWidget(corner_wid);
   }
   setMenuBar(menu_bar);
@@ -153,7 +153,7 @@ void fc_client::init()
   status_bar->addWidget(status_bar_label, 1);
   set_status_bar(_("Welcome to Freeciv"));
   create_cursors();
-  switch_page_mapper = new QSignalMapper;
+
   // PAGE_MAIN
   pages[PAGE_MAIN] = new QWidget(central_wdg);
   page = PAGE_MAIN;
@@ -179,7 +179,7 @@ void fc_client::init()
   // PAGE_GAME
   gui_options.gui_qt_allied_chat_only = true;
   path = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
-  if (path.isEmpty() == false) {
+  if (!path.isEmpty()) {
     QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, path);
   }
   pages[PAGE_GAME] = new QWidget(central_wdg);
@@ -210,29 +210,35 @@ void fc_client::init()
   central_wdg->setLayout(central_layout);
   setCentralWidget(central_wdg);
 
-  connect(switch_page_mapper, SIGNAL(mapped( int)),
-                this, SLOT(switch_page(int)));
   resize(pages[PAGE_MAIN]->minimumSizeHint());
   setVisible(true);
 
   game_tab_widget->init();
   chat_listener::listen();
 
+  QPixmapCache::setCacheLimit(80000);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Destructor
 ****************************************************************************/
 fc_client::~fc_client()
 {
   status_bar_queue.clear();
+  if (fc_shortcuts::sc()) {
+    delete fc_shortcuts::sc();
+  }
+  delete_cursors();
 }
 
 
-/****************************************************************************
-  Main part of gui-qt
+/************************************************************************//**
+  Main part of gui-qt.
+  This is not called simply 'fc_client::main()', since SDL includes
+  ould sometimes cause 'main' to be considered an macro that expands to
+  'SDL_main'
 ****************************************************************************/
-void fc_client::main(QApplication *qapp)
+void fc_client::fc_main(QApplication *qapp)
 {
   qRegisterMetaType<QTextCursor>("QTextCursor");
   qRegisterMetaType<QTextBlock>("QTextBlock");
@@ -251,7 +257,7 @@ void fc_client::main(QApplication *qapp)
   tileset_free_tiles(tileset);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns status if fc_client is being closed
 ****************************************************************************/
 bool fc_client::is_closing()
@@ -259,7 +265,7 @@ bool fc_client::is_closing()
   return quitting;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Called when fc_client is going to quit
 ****************************************************************************/
 void fc_client::closing()
@@ -267,7 +273,7 @@ void fc_client::closing()
   quitting = true;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Slot to send fake chat messages. Do not use in new code.
 ****************************************************************************/
 void fc_client::send_fake_chat_message(const QString &message)
@@ -275,7 +281,7 @@ void fc_client::send_fake_chat_message(const QString &message)
   send_chat_message(message);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Appends text to chat window
 ****************************************************************************/
 void fc_client::chat_message_received(const QString &message,
@@ -292,7 +298,7 @@ void fc_client::chat_message_received(const QString &message,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return whether chatline should be active on page.
 ****************************************************************************/
 bool fc_client::chat_active_on_page(enum client_pages check)
@@ -304,7 +310,7 @@ bool fc_client::chat_active_on_page(enum client_pages check)
   return false;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Switch from one client page to another.
   Argument is int cause QSignalMapper doesn't want to work with enum
   Because chat widget is in 2 layouts we need to switch between them here
@@ -325,7 +331,7 @@ void fc_client::switch_page(int new_pg)
     return;
   }
 
-  if (page == PAGE_NETWORK){
+  if (page == PAGE_NETWORK) {
     destroy_server_scans();
   }
   menuBar()->setVisible(false);
@@ -347,7 +353,7 @@ void fc_client::switch_page(int new_pg)
     update_load_page();
     break;
   case PAGE_GAME:
-    if (gui_options.gui_qt_show_titlebar == false) {
+    if (!gui_options.gui_qt_show_titlebar) {
       setWindowFlags(Qt::Window | Qt::CustomizeWindowHint);
     }
     showMaximized();
@@ -355,7 +361,7 @@ void fc_client::switch_page(int new_pg)
     showMaximized();
     gui()->infotab->chtwdg->update_widgets();
     status_bar->setVisible(false);
-    if (gui_options.gui_qt_fullscreen){
+    if (gui_options.gui_qt_fullscreen) {
       gui()->showFullScreen();
       gui()->game_tab_widget->showFullScreen();
     }
@@ -367,7 +373,7 @@ void fc_client::switch_page(int new_pg)
     minimapview_wdg->reset();
     overview_size_changed();
     update_sidebar_tooltips();
-    real_science_report_dialog_update();
+    real_science_report_dialog_update(nullptr);
     show_new_turn_info();
     break;
   case PAGE_SCENARIO:
@@ -394,7 +400,7 @@ void fc_client::switch_page(int new_pg)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns currently open page
 ****************************************************************************/
 enum client_pages fc_client::current_page()
@@ -402,7 +408,7 @@ enum client_pages fc_client::current_page()
   return page;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Add notifier for server input
 ****************************************************************************/
 void fc_client::add_server_source(int sock)
@@ -413,7 +419,7 @@ void fc_client::add_server_source(int sock)
           &fc_client::server_input);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Event handler
 ****************************************************************************/
 bool fc_client::event(QEvent *event)
@@ -428,7 +434,7 @@ bool fc_client::event(QEvent *event)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Closes main window
 ****************************************************************************/
 void fc_client::closeEvent(QCloseEvent *event) {
@@ -436,7 +442,7 @@ void fc_client::closeEvent(QCloseEvent *event) {
   event->ignore();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Removes notifier
 ****************************************************************************/
 void fc_client::remove_server_source()
@@ -444,7 +450,7 @@ void fc_client::remove_server_source()
   server_notifier->deleteLater();
 }
 
-/****************************************************************************
+/************************************************************************//**
   There is input from server
 ****************************************************************************/
 void fc_client::server_input(int sock)
@@ -454,7 +460,7 @@ void fc_client::server_input(int sock)
   server_notifier->setEnabled(true);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Timer event handling
 ****************************************************************************/
 void fc_client::timerEvent(QTimerEvent *event)
@@ -467,7 +473,7 @@ void fc_client::timerEvent(QTimerEvent *event)
   startTimer(real_timer_callback() * 1000);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Quit App
 ****************************************************************************/
 void fc_client::quit()
@@ -479,7 +485,7 @@ void fc_client::quit()
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Disconnect from server and return to MAIN PAGE
 ****************************************************************************/
 void fc_client::slot_disconnect()
@@ -491,7 +497,7 @@ void fc_client::slot_disconnect()
   switch_page(PAGE_MAIN);
 }
 
-/****************************************************************************
+/************************************************************************//**
   User clicked Observe button in START_PAGE
 ****************************************************************************/
 void fc_client::slot_pregame_observe()
@@ -509,7 +515,7 @@ void fc_client::slot_pregame_observe()
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   User clicked Start in START_PAGE
 ****************************************************************************/
 void fc_client::slot_pregame_start()
@@ -523,8 +529,23 @@ void fc_client::slot_pregame_start()
   }
 }
 
-
 /****************************************************************************
+  Deletes cursors
+****************************************************************************/
+void fc_client::delete_cursors(void)
+{
+  int frame;
+  int cursor;
+
+  for (cursor = 0; cursor < CURSOR_LAST; cursor++) {
+    for (frame = 0; frame < NUM_CURSOR_FRAMES; frame++) {
+      delete fc_cursors[cursor][frame];
+    }
+  }
+}
+
+
+/************************************************************************//**
   Finds not used index on game_view_tab and returns it
 ****************************************************************************/
 void fc_client::gimme_place(QWidget *widget, QString str)
@@ -541,7 +562,7 @@ void fc_client::gimme_place(QWidget *widget, QString str)
   return;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Checks if given report is opened, if you create new report as tab on game
   page, figure out some original string and put in in repodlg.h as comment to
   that QWidget class.
@@ -559,8 +580,8 @@ bool fc_client::is_repo_dlg_open(QString str)
   return true;
 }
 
-/****************************************************************************
-  Returns index on game tab page of given report dialog 
+/************************************************************************//**
+  Returns index on game tab page of given report dialog
 ****************************************************************************/
 int fc_client::gimme_index_of(QString str)
 {
@@ -576,14 +597,14 @@ int fc_client::gimme_index_of(QString str)
   return i;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Loads qt-specific options
 ****************************************************************************/
 void fc_client::read_settings()
 {
   QSettings s(QSettings::IniFormat, QSettings::UserScope,
               "freeciv-qt-client");
-  if (s.contains("Fonts-set") == false) {
+  if (!s.contains("Fonts-set")) {
     configure_fonts();
   }
   if (s.contains("Chat-fx-size")) {
@@ -636,6 +657,11 @@ void fc_client::read_settings()
   } else {
     qt_settings.minimap_height = 0.2;
   }
+  if (s.contains("battlelog_scale")) {
+    qt_settings.battlelog_scale = s.value("battlelog_scale").toFloat();
+  } else {
+    qt_settings.battlelog_scale = 1;
+  }
 
   if (s.contains("City-dialog")) {
     qt_settings.city_geometry = s.value("City-dialog").toByteArray();
@@ -648,6 +674,12 @@ void fc_client::read_settings()
   }
   if (s.contains("splitter3")) {
     qt_settings.city_splitter3 = s.value("splitter3").toByteArray();
+  }
+  if (s.contains("help-dialog")) {
+    qt_settings.help_geometry = s.value("help-dialog").toByteArray();
+  }
+  if (s.contains("help_splitter1")) {
+    qt_settings.help_splitter1 = s.value("help_splitter1").toByteArray();
   }
   if (s.contains("new_turn_text")) {
     qt_settings.show_new_turn_text = s.value("new_turn_text").toBool();
@@ -690,6 +722,9 @@ void fc_client::read_settings()
   if (qt_settings.battlelog_y < 0.0) {
     qt_settings.battlelog_y = 0.0;
   }
+  if (qt_settings.battlelog_scale > 5.0) {
+    qt_settings.battlelog_y = 5.0;
+  }
   if (qt_settings.minimap_x < 0 || qt_settings.minimap_x > 1) {
     qt_settings.chat_fx_pos = 0.84;
   }
@@ -698,7 +733,7 @@ void fc_client::read_settings()
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Save qt-specific options
 ****************************************************************************/
 void fc_client::write_settings()
@@ -714,12 +749,15 @@ void fc_client::write_settings()
   s.setValue("splitter1", qt_settings.city_splitter1);
   s.setValue("splitter2", qt_settings.city_splitter2);
   s.setValue("splitter3", qt_settings.city_splitter3);
+  s.setValue("help-dialog", qt_settings.help_geometry);
+  s.setValue("help_splitter1", qt_settings.help_splitter1);
   s.setValue("unit_fx", qt_settings.unit_info_pos_fx);
   s.setValue("unit_fy", qt_settings.unit_info_pos_fy);
   s.setValue("minimap_x", qt_settings.minimap_x);
   s.setValue("minimap_y", qt_settings.minimap_y);
   s.setValue("minimap_width", qt_settings.minimap_width);
   s.setValue("minimap_height", qt_settings.minimap_height);
+  s.setValue("battlelog_scale", qt_settings.battlelog_scale);
   s.setValue("battlelog_x", qt_settings.battlelog_x);
   s.setValue("battlelog_y", qt_settings.battlelog_y);
   s.setValue("new_turn_text", qt_settings.show_new_turn_text);
@@ -727,7 +765,7 @@ void fc_client::write_settings()
   write_shortcuts();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Shows/closes unit selection widget
 ****************************************************************************/
 void fc_client::toggle_unit_sel_widget(struct tile *ptile)
@@ -743,42 +781,42 @@ void fc_client::toggle_unit_sel_widget(struct tile *ptile)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Update unit selection widget if open
 ****************************************************************************/
 void fc_client::update_unit_sel()
 {
-  if (unit_sel != NULL){
+  if (unit_sel != NULL) {
     unit_sel->update_units();
     unit_sel->create_pixmap();
     unit_sel->update();
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Closes unit selection widget.
 ****************************************************************************/
 void fc_client::popdown_unit_sel()
 {
-  if (unit_sel != nullptr){
+  if (unit_sel != nullptr) {
     unit_sel->close();
     delete unit_sel;
     unit_sel = nullptr;
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Removes report dialog string from the list marking it as closed
 ****************************************************************************/
 void fc_client::remove_repo_dlg(QString str)
 {
   /* if app is closing opened_repo_dlg is already deleted */
-  if (is_closing() == false) {
+  if (!is_closing()) {
     opened_repo_dlgs.remove(str);
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Popups client options
 ****************************************************************************/
 void fc_client::popup_client_options()
@@ -786,7 +824,9 @@ void fc_client::popup_client_options()
   option_dialog_popup(_("Set local options"), client_optset);
 }
 
-
+/************************************************************************//**
+  Setup cursors
+****************************************************************************/
 void fc_client::create_cursors(void)
 {
   enum cursor_type curs;
@@ -807,8 +847,7 @@ void fc_client::create_cursors(void)
   }
 }
 
-
-/****************************************************************************
+/************************************************************************//**
   Contructor for corner widget (used for menubar)
 ****************************************************************************/
 fc_corner::fc_corner(QMainWindow *qmw): QWidget()
@@ -840,7 +879,7 @@ fc_corner::fc_corner(QMainWindow *qmw): QWidget()
   setLayout(hb);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Slot for closing freeciv via corner widget
 ****************************************************************************/
 void fc_corner::close_fc()
@@ -848,19 +887,19 @@ void fc_corner::close_fc()
   mw->close();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Slot for maximizing freeciv window via corner widget
 ****************************************************************************/
 void fc_corner::maximize()
 {
-  if (mw->isMaximized() == false) {
+  if (!mw->isMaximized()) {
     mw->showMaximized();
   } else {
     mw->showNormal();
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Slot for minimizing freeciv window via corner widget
 ****************************************************************************/
 void fc_corner::minimize()
@@ -868,14 +907,14 @@ void fc_corner::minimize()
   mw->showMinimized();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Game tab widget constructor
 ****************************************************************************/
 fc_game_tab_widget::fc_game_tab_widget(): QStackedWidget()
 {
 }
 
-/****************************************************************************
+/************************************************************************//**
   Init default settings for game_tab_widget
 ****************************************************************************/
 void fc_game_tab_widget::init()
@@ -883,25 +922,25 @@ void fc_game_tab_widget::init()
   connect(this, &QStackedWidget::currentChanged, this, &fc_game_tab_widget::current_changed);
 }
 
-
-/****************************************************************************
+/************************************************************************//**
   Icon provider constructor
 ****************************************************************************/
 fc_icons::fc_icons()
 {
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns instance of fc_icons
 ****************************************************************************/
 fc_icons *fc_icons::instance()
 {
-  if (!m_instance)
+  if (!m_instance) {
     m_instance = new fc_icons;
+  }
   return m_instance;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Deletes fc_icons instance
 ****************************************************************************/
 void fc_icons::drop()
@@ -912,31 +951,36 @@ void fc_icons::drop()
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns icon by given name
 ****************************************************************************/
 QIcon fc_icons::get_icon(const QString &id)
 {
   QIcon icon;
   QString str;
+  QByteArray pn_bytes;
+  QByteArray png_bytes;
 
   str = QString("themes") + DIR_SEPARATOR + "gui-qt" + DIR_SEPARATOR;
   /* Try custom icon from theme */
+  pn_bytes = str.toLocal8Bit();
+  png_bytes = QString(pn_bytes.data() + current_theme + DIR_SEPARATOR
+                      + id + ".png").toLocal8Bit();
   icon.addFile(fileinfoname(get_data_dirs(),
-                            QString(str.toLocal8Bit().data() + current_theme
-                                    + DIR_SEPARATOR
-                                    + id + ".png").toLocal8Bit().data()));
+                            png_bytes.data()));
   str = str + "icons" + DIR_SEPARATOR;
   /* Try icon from icons dir */
   if (icon.isNull()) {
-  icon.addFile(fileinfoname(get_data_dirs(),
-                            QString(str.toLocal8Bit().data()
-                                    + id + ".png").toLocal8Bit().data()));
+    pn_bytes = str.toLocal8Bit();
+    png_bytes = QString(pn_bytes.data() + id + ".png").toLocal8Bit();
+    icon.addFile(fileinfoname(get_data_dirs(),
+                              png_bytes.data()));
   }
+
   return QIcon(icon);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns pixmap by given name, pixmap needs to be deleted by someone else
 ****************************************************************************/
 QPixmap* fc_icons::get_pixmap(const QString &id)
@@ -944,36 +988,45 @@ QPixmap* fc_icons::get_pixmap(const QString &id)
   QPixmap *pm;
   bool status;
   QString str;
+  QByteArray png_bytes;
 
   pm = new QPixmap;
-  str = QString("themes") + DIR_SEPARATOR + "gui-qt" + DIR_SEPARATOR;
-  status = pm->load(fileinfoname(get_data_dirs(),
-                                 QString(str + current_theme
-                                 + DIR_SEPARATOR
-                                 + id + ".png").toLocal8Bit().data()));
-
-  if (status == false) {
-    str = str + "icons" + DIR_SEPARATOR;
-    pm->load(fileinfoname(get_data_dirs(), QString(str
-                          + id + ".png").toLocal8Bit().data()));
+  if (QPixmapCache::find(id, pm)) {
+    return pm;
   }
+  str = QString("themes") + DIR_SEPARATOR + "gui-qt" + DIR_SEPARATOR;
+  png_bytes = QString(str + current_theme + DIR_SEPARATOR
+                      + id + ".png").toLocal8Bit();
+  status = pm->load(fileinfoname(get_data_dirs(),
+                                 png_bytes.data()));
+
+  if (!status) {
+    str = str + "icons" + DIR_SEPARATOR;
+    png_bytes = QString(str + id + ".png").toLocal8Bit();
+    pm->load(fileinfoname(get_data_dirs(), png_bytes.data()));
+  }
+  QPixmapCache::insert(id, *pm);
+
   return pm;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns path for icon
 ****************************************************************************/
 QString fc_icons::get_path(const QString &id)
 {
   QString str;
-  
+  QByteArray png_bytes;
+
   str = QString("themes") + DIR_SEPARATOR + "gui-qt"
         + DIR_SEPARATOR + "icons" + DIR_SEPARATOR;
+  png_bytes = QString(str + id + ".png").toLocal8Bit();
+
   return fileinfoname(get_data_dirs(),
-                      QString(str + id + ".png").toLocal8Bit().data());
+                      png_bytes.data());
 }
 
-/****************************************************************************
+/************************************************************************//**
   Resize event for all game tab widgets
 ****************************************************************************/
 void fc_game_tab_widget::resizeEvent(QResizeEvent *event)
@@ -981,7 +1034,7 @@ void fc_game_tab_widget::resizeEvent(QResizeEvent *event)
   QSize size;
   size = event->size();
   if (C_S_RUNNING <= client_state()) {
-    gui()->sidebar_wdg->resize_me(size.width(), size.height());
+    gui()->sidebar_wdg->resize_me(size.height());
     map_canvas_resized(size.width(), size.height());
     gui()->infotab->resize(qRound((size.width()
                              * gui()->qt_settings.chat_fwidth)),
@@ -1000,6 +1053,7 @@ void fc_game_tab_widget::resizeEvent(QResizeEvent *event)
                                    * mapview.width),
                                    qRound(gui()->qt_settings.minimap_height
                                    * mapview.height));
+    gui()->battlelog_wdg->set_scale(gui()->qt_settings.battlelog_scale);
     gui()->battlelog_wdg->move(qRound(gui()->qt_settings.battlelog_x
                                * mapview.width),
                                qRound(gui()->qt_settings.battlelog_y
@@ -1013,7 +1067,7 @@ void fc_game_tab_widget::resizeEvent(QResizeEvent *event)
   event->setAccepted(true);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Tab has been changed
 ****************************************************************************/
 void fc_game_tab_widget::current_changed(int index)
@@ -1040,14 +1094,14 @@ void fc_game_tab_widget::current_changed(int index)
 
 }
 
-/****************************************************************************
+/************************************************************************//**
   Pregame options contructor
 ****************************************************************************/
 pregame_options::pregame_options(QWidget *parent) : QWidget(parent)
 {
 }
 
-/****************************************************************************
+/************************************************************************//**
   Init's layout and default values for options in START_PAGE
 ****************************************************************************/
 void pregame_options::init()
@@ -1108,7 +1162,7 @@ void pregame_options::init()
   update_buttons();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Update the ruleset list
 ****************************************************************************/
 void pregame_options::set_rulesets(int num_rulesets, char **rulesets)
@@ -1118,7 +1172,7 @@ void pregame_options::set_rulesets(int num_rulesets, char **rulesets)
 
   cruleset->clear();
   cruleset->blockSignals(true);
-  for (i = 0; i < num_rulesets; i++){
+  for (i = 0; i < num_rulesets; i++) {
     cruleset->addItem(rulesets[i], i);
     if (!strcmp("default", rulesets[i])) {
       def_idx = i;
@@ -1130,7 +1184,7 @@ void pregame_options::set_rulesets(int num_rulesets, char **rulesets)
   cruleset->blockSignals(false);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Sets the value of the "aifill" option. Doesn't send the new value to the
   server
 ****************************************************************************/
@@ -1141,7 +1195,7 @@ void pregame_options::set_aifill(int aifill)
   max_players->blockSignals(false);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Updates the buttons whenever the game state has changed
 ****************************************************************************/
 void pregame_options::update_buttons()
@@ -1153,7 +1207,9 @@ void pregame_options::update_buttons()
   // Update the "Select Nation" button
   if (pplayer != nullptr) {
     if (pplayer->nation != nullptr) {
-      nation->setText(nation_adjective_for_player(pplayer));
+      // Defeat keyboard shortcut mnemonics
+      nation->setText(QString(nation_adjective_for_player(pplayer))
+                      .replace("&", "&&"));
       psprite = get_nation_shield_sprite(tileset, pplayer->nation);
       pixmap = psprite->pm;
       nation->setIconSize(pixmap->size());
@@ -1165,7 +1221,23 @@ void pregame_options::update_buttons()
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
+  Updates the AI skill level control
+****************************************************************************/
+void pregame_options::update_ai_level()
+{
+  enum ai_level level = server_ai_level();
+
+  if (ai_level_is_valid(level)) {
+    int i = ailevel->findData(level);
+
+    ailevel->setCurrentIndex(i);
+  } else {
+    ailevel->setCurrentIndex(-1);
+  }
+}
+
+/************************************************************************//**
   Slot for changing aifill value
 ****************************************************************************/
 void pregame_options::max_players_change(int i)
@@ -1173,30 +1245,39 @@ void pregame_options::max_players_change(int i)
   option_int_set(optset_option_by_name(server_optset, "aifill"), i);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Slot for changing level of AI
 ****************************************************************************/
 void pregame_options::ailevel_change(int i)
 {
-  int k;
-  const char *name;
+  QVariant v = ailevel->currentData();
 
-  k = ailevel->currentData().toInt();
-  name = ai_level_cmd(static_cast<ai_level>(k));
-  send_chat_printf("/%s", name);
+  if (v.isValid()) {
+    enum ai_level k = static_cast<ai_level>(v.toInt());
+
+    /* Suppress changes provoked by server rather than local user */
+    if (server_ai_level() != k) {
+      const char *name = ai_level_cmd(k);
+
+      send_chat_printf("/%s", name);
+    }
+  }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Slot for changing ruleset
 ****************************************************************************/
 void pregame_options::ruleset_change(int i)
 {
   if (!cruleset->currentText().isEmpty()) {
-    set_ruleset(cruleset->currentText().toLocal8Bit().data());
+    QByteArray rn_bytes;
+
+    rn_bytes = cruleset->currentText().toLocal8Bit();
+    set_ruleset(rn_bytes.data());
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Slot for picking a nation
 ****************************************************************************/
 void pregame_options::pick_nation()
@@ -1204,11 +1285,10 @@ void pregame_options::pick_nation()
   popup_races_dialog(client_player());
 }
 
-/****************************************************************************
+/************************************************************************//**
   Popups client options
 ****************************************************************************/
 void pregame_options::popup_server_options()
 {
   option_dialog_popup(_("Set server options"), server_optset);
 }
-

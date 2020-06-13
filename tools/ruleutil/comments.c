@@ -48,9 +48,10 @@ static struct {
   char *nations;
   char *nationgroups;
   char *nationsets;
+  char *clauses;
 } comments_storage;
 
-/**************************************************************************
+/**********************************************************************//**
   Load comments to add to the saved rulesets.
 **************************************************************************/
 bool comments_load(void)
@@ -58,7 +59,7 @@ bool comments_load(void)
   struct section_file *comment_file;
   const char *fullpath;
 
-  fullpath = fileinfoname(get_data_dirs(), "ruledit/comments.txt");
+  fullpath = fileinfoname(get_data_dirs(), "ruledit/" COMMENTS_FILE_NAME);
 
   if (fullpath == NULL) {
     return FALSE;
@@ -69,33 +70,53 @@ bool comments_load(void)
     return FALSE;
   }
 
-  comments_storage.file_header = fc_strdup(secfile_lookup_str(comment_file, "common.header"));
-  comments_storage.buildings = fc_strdup(secfile_lookup_str(comment_file, "typedoc.buildings"));
-  comments_storage.tech_classes = fc_strdup(secfile_lookup_str(comment_file, "typedoc.tech_classes"));
-  comments_storage.techs = fc_strdup(secfile_lookup_str(comment_file, "typedoc.techs"));
-  comments_storage.govs = fc_strdup(secfile_lookup_str(comment_file, "typedoc.governments"));
-  comments_storage.policies = fc_strdup(secfile_lookup_str(comment_file, "typedoc.policies"));
-  comments_storage.uclasses = fc_strdup(secfile_lookup_str(comment_file, "typedoc.uclasses"));
-  comments_storage.utypes = fc_strdup(secfile_lookup_str(comment_file, "typedoc.utypes"));
-  comments_storage.terrains = fc_strdup(secfile_lookup_str(comment_file, "typedoc.terrains"));
-  comments_storage.resources = fc_strdup(secfile_lookup_str(comment_file, "typedoc.resources"));
-  comments_storage.extras = fc_strdup(secfile_lookup_str(comment_file, "typedoc.extras"));
-  comments_storage.bases = fc_strdup(secfile_lookup_str(comment_file, "typedoc.bases"));
-  comments_storage.roads = fc_strdup(secfile_lookup_str(comment_file, "typedoc.roads"));
-  comments_storage.styles = fc_strdup(secfile_lookup_str(comment_file, "typedoc.styles"));
-  comments_storage.citystyles = fc_strdup(secfile_lookup_str(comment_file, "typedoc.citystyles"));
-  comments_storage.musicstyles = fc_strdup(secfile_lookup_str(comment_file, "typedoc.musicstyles"));
-  comments_storage.effects = fc_strdup(secfile_lookup_str(comment_file, "typedoc.effects"));
-  comments_storage.disasters = fc_strdup(secfile_lookup_str(comment_file, "typedoc.disasters"));
-  comments_storage.achievements = fc_strdup(secfile_lookup_str(comment_file,
-                                                               "typedoc.achievements"));
-  comments_storage.goods = fc_strdup(secfile_lookup_str(comment_file, "typedoc.goods"));
-  comments_storage.enablers = fc_strdup(secfile_lookup_str(comment_file, "typedoc.enablers"));
-  comments_storage.specialists = fc_strdup(secfile_lookup_str(comment_file, "typedoc.specialists"));
-  comments_storage.nations = fc_strdup(secfile_lookup_str(comment_file, "typedoc.nations"));
-  comments_storage.nationgroups = fc_strdup(secfile_lookup_str(comment_file,
-                                                               "typedoc.nationgroups"));
-  comments_storage.nationsets = fc_strdup(secfile_lookup_str(comment_file, "typedoc.nationsets"));
+#define comment_load(target, comment_file, comment_path)                  \
+{                                                                         \
+  const char *comment;                                                    \
+                                                                          \
+  if ((comment = secfile_lookup_str(comment_file, comment_path))) {       \
+    target = fc_strdup(comment);                                          \
+  } else {                                                                \
+    return FALSE;                                                         \
+  }                                                                       \
+}
+
+  comment_load(comments_storage.file_header, comment_file, "common.header");
+  comment_load(comments_storage.buildings,
+               comment_file, "typedoc.buildings");
+  comment_load(comments_storage.tech_classes,
+               comment_file, "typedoc.tech_classes");
+  comment_load(comments_storage.techs, comment_file, "typedoc.techs");
+  comment_load(comments_storage.govs, comment_file, "typedoc.governments");
+  comment_load(comments_storage.policies, comment_file, "typedoc.policies");
+  comment_load(comments_storage.uclasses, comment_file, "typedoc.uclasses");
+  comment_load(comments_storage.utypes, comment_file, "typedoc.utypes");
+  comment_load(comments_storage.terrains, comment_file, "typedoc.terrains");
+  comment_load(comments_storage.resources,
+               comment_file, "typedoc.resources");
+  comment_load(comments_storage.extras, comment_file, "typedoc.extras");
+  comment_load(comments_storage.bases, comment_file, "typedoc.bases");
+  comment_load(comments_storage.roads, comment_file, "typedoc.roads");
+  comment_load(comments_storage.styles, comment_file, "typedoc.styles");
+  comment_load(comments_storage.citystyles,
+               comment_file, "typedoc.citystyles");
+  comment_load(comments_storage.musicstyles,
+               comment_file, "typedoc.musicstyles");
+  comment_load(comments_storage.effects, comment_file, "typedoc.effects");
+  comment_load(comments_storage.disasters,
+               comment_file, "typedoc.disasters");
+  comment_load(comments_storage.achievements,
+               comment_file, "typedoc.achievements");
+  comment_load(comments_storage.goods, comment_file, "typedoc.goods");
+  comment_load(comments_storage.enablers, comment_file, "typedoc.enablers");
+  comment_load(comments_storage.specialists,
+               comment_file, "typedoc.specialists");
+  comment_load(comments_storage.nations, comment_file, "typedoc.nations");
+  comment_load(comments_storage.nationgroups,
+               comment_file, "typedoc.nationgroups");
+  comment_load(comments_storage.nationsets,
+               comment_file, "typedoc.nationsets");
+  comment_load(comments_storage.clauses, comment_file, "typedoc.clauses");
 
   secfile_check_unused(comment_file);
   secfile_destroy(comment_file);
@@ -103,7 +124,7 @@ bool comments_load(void)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Free comments.
 **************************************************************************/
 void comments_free(void)
@@ -111,7 +132,7 @@ void comments_free(void)
   free(comments_storage.file_header);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Generic comment writing function with some error checking.
 **************************************************************************/
 static void comment_write(struct section_file *sfile, const char *comment,
@@ -125,7 +146,7 @@ static void comment_write(struct section_file *sfile, const char *comment,
   secfile_insert_long_comment(sfile, comment);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write file header.
 **************************************************************************/
 void comment_file_header(struct section_file *sfile)
@@ -133,7 +154,7 @@ void comment_file_header(struct section_file *sfile)
   comment_write(sfile, comments_storage.file_header, "File header");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write buildings header.
 **************************************************************************/
 void comment_buildings(struct section_file *sfile)
@@ -141,7 +162,7 @@ void comment_buildings(struct section_file *sfile)
   comment_write(sfile, comments_storage.buildings, "Buildings");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write tech classess header.
 **************************************************************************/
 void comment_tech_classes(struct section_file *sfile)
@@ -149,7 +170,7 @@ void comment_tech_classes(struct section_file *sfile)
   comment_write(sfile, comments_storage.tech_classes, "Tech Classes");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write techs header.
 **************************************************************************/
 void comment_techs(struct section_file *sfile)
@@ -157,7 +178,7 @@ void comment_techs(struct section_file *sfile)
   comment_write(sfile, comments_storage.techs, "Techs");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write governments header.
 **************************************************************************/
 void comment_govs(struct section_file *sfile)
@@ -165,7 +186,7 @@ void comment_govs(struct section_file *sfile)
   comment_write(sfile, comments_storage.govs, "Governments");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write policies header.
 **************************************************************************/
 void comment_policies(struct section_file *sfile)
@@ -173,7 +194,7 @@ void comment_policies(struct section_file *sfile)
   comment_write(sfile, comments_storage.policies, "Policies");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write unit classes header.
 **************************************************************************/
 void comment_uclasses(struct section_file *sfile)
@@ -181,7 +202,7 @@ void comment_uclasses(struct section_file *sfile)
   comment_write(sfile, comments_storage.uclasses, "Unit classes");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write unit types header.
 **************************************************************************/
 void comment_utypes(struct section_file *sfile)
@@ -189,7 +210,7 @@ void comment_utypes(struct section_file *sfile)
   comment_write(sfile, comments_storage.utypes, "Unit types");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write terrains header.
 **************************************************************************/
 void comment_terrains(struct section_file *sfile)
@@ -197,7 +218,7 @@ void comment_terrains(struct section_file *sfile)
   comment_write(sfile, comments_storage.terrains, "Terrains");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write resources header.
 **************************************************************************/
 void comment_resources(struct section_file *sfile)
@@ -205,7 +226,7 @@ void comment_resources(struct section_file *sfile)
   comment_write(sfile, comments_storage.resources, "Resources");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write extras header.
 **************************************************************************/
 void comment_extras(struct section_file *sfile)
@@ -213,7 +234,7 @@ void comment_extras(struct section_file *sfile)
   comment_write(sfile, comments_storage.extras, "Extras");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write bases header.
 **************************************************************************/
 void comment_bases(struct section_file *sfile)
@@ -221,7 +242,7 @@ void comment_bases(struct section_file *sfile)
   comment_write(sfile, comments_storage.bases, "Bases");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write roads header.
 **************************************************************************/
 void comment_roads(struct section_file *sfile)
@@ -229,7 +250,7 @@ void comment_roads(struct section_file *sfile)
   comment_write(sfile, comments_storage.roads, "Roads");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write styles header.
 **************************************************************************/
 void comment_styles(struct section_file *sfile)
@@ -237,7 +258,7 @@ void comment_styles(struct section_file *sfile)
   comment_write(sfile, comments_storage.styles, "Styles");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write city styles header.
 **************************************************************************/
 void comment_citystyles(struct section_file *sfile)
@@ -245,7 +266,7 @@ void comment_citystyles(struct section_file *sfile)
   comment_write(sfile, comments_storage.citystyles, "City Styles");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write music styles header.
 **************************************************************************/
 void comment_musicstyles(struct section_file *sfile)
@@ -253,7 +274,7 @@ void comment_musicstyles(struct section_file *sfile)
   comment_write(sfile, comments_storage.musicstyles, "Music Styles");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write effects header.
 **************************************************************************/
 void comment_effects(struct section_file *sfile)
@@ -261,7 +282,7 @@ void comment_effects(struct section_file *sfile)
   comment_write(sfile, comments_storage.effects, "Effects");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write disasters header.
 **************************************************************************/
 void comment_disasters(struct section_file *sfile)
@@ -269,7 +290,7 @@ void comment_disasters(struct section_file *sfile)
   comment_write(sfile, comments_storage.disasters, "Disasters");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write achievements header.
 **************************************************************************/
 void comment_achievements(struct section_file *sfile)
@@ -277,7 +298,7 @@ void comment_achievements(struct section_file *sfile)
   comment_write(sfile, comments_storage.achievements, "Achievements");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write goods header.
 **************************************************************************/
 void comment_goods(struct section_file *sfile)
@@ -285,7 +306,7 @@ void comment_goods(struct section_file *sfile)
   comment_write(sfile, comments_storage.goods, "Goods");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write action enablers header.
 **************************************************************************/
 void comment_enablers(struct section_file *sfile)
@@ -293,7 +314,7 @@ void comment_enablers(struct section_file *sfile)
   comment_write(sfile, comments_storage.enablers, "Action Enablers");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write specialists header.
 **************************************************************************/
 void comment_specialists(struct section_file *sfile)
@@ -301,7 +322,7 @@ void comment_specialists(struct section_file *sfile)
   comment_write(sfile, comments_storage.specialists, "Specialists");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write nations header.
 **************************************************************************/
 void comment_nations(struct section_file *sfile)
@@ -309,7 +330,7 @@ void comment_nations(struct section_file *sfile)
   comment_write(sfile, comments_storage.nations, "Nations");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write nationgroups header.
 **************************************************************************/
 void comment_nationgroups(struct section_file *sfile)
@@ -317,7 +338,7 @@ void comment_nationgroups(struct section_file *sfile)
   comment_write(sfile, comments_storage.nationgroups, "Nationgroups");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Write nationsets header.
 **************************************************************************/
 void comment_nationsets(struct section_file *sfile)
@@ -325,3 +346,10 @@ void comment_nationsets(struct section_file *sfile)
   comment_write(sfile, comments_storage.nationsets, "Nationsets");
 }
 
+/**********************************************************************//**
+  Write clauses header.
+**************************************************************************/
+void comment_clauses(struct section_file *sfile)
+{
+  comment_write(sfile, comments_storage.clauses, "Clauses");
+}

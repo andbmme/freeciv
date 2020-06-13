@@ -28,7 +28,6 @@
 
 /* client/gui-sdl2 */
 #include "colors.h"
-#include "gui_iconv.h"
 #include "gui_id.h"
 #include "gui_string.h"
 #include "gui_tilespec.h"
@@ -44,7 +43,7 @@ struct combo_menu {
 static int (*baseclass_redraw) (struct widget *widget) = NULL;
 
 
-/****************************************************************************
+/************************************************************************//**
   Redraw the combo box widget.
 ****************************************************************************/
 static int combo_redraw(struct widget *combo)
@@ -101,12 +100,12 @@ static int combo_redraw(struct widget *combo)
   return ret;
 }
 
-/****************************************************************************
+/************************************************************************//**
   User interacted with the combo menu window.
 ****************************************************************************/
 static int combo_menu_callback(struct widget *window)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     struct combo_menu *menu =
         (struct combo_menu *)window->data.widget->private_data.ptr;
 
@@ -116,14 +115,14 @@ static int combo_menu_callback(struct widget *window)
   return -1;
 }
 
-/****************************************************************************
+/************************************************************************//**
   User interacted with a single item of the combo menu.
 ****************************************************************************/
 static int combo_menu_item_callback(struct widget *label)
 {
   struct widget *combo = label->data.widget;
 
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     copy_chars_to_utf8_str(combo->string_utf8, label->string_utf8->text);
     widget_redraw(combo);
     widget_mark_dirty(combo);
@@ -133,7 +132,7 @@ static int combo_menu_item_callback(struct widget *label)
   return -1;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Popup the combo box widget.
 ****************************************************************************/
 void combo_popup(struct widget *combo)
@@ -207,7 +206,7 @@ void combo_popup(struct widget *combo)
   flush_dirty();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Popdown the combo box widget.
 ****************************************************************************/
 void combo_popdown(struct widget *combo)
@@ -230,7 +229,7 @@ void combo_popdown(struct widget *combo)
   flush_dirty();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a combo box widget.
 ****************************************************************************/
 struct widget *combo_new(SDL_Surface *background, struct gui_layer *dest,

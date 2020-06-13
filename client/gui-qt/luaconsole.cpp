@@ -34,7 +34,7 @@
 
 QString qlua_filename;
 
-/*****************************************************************************
+/*************************************************************************//**
   Popup the lua console inside the main-window, and optionally raise it.
 *****************************************************************************/
 void luaconsole_dialog_popup(bool raise)
@@ -42,7 +42,7 @@ void luaconsole_dialog_popup(bool raise)
   /* lua output is in chat */
 }
 
-/*****************************************************************************
+/*************************************************************************//**
   Return true if the lua console is open.
 *****************************************************************************/
 bool luaconsole_dialog_is_open(void)
@@ -50,14 +50,14 @@ bool luaconsole_dialog_is_open(void)
   return true;
 }
 
-/*****************************************************************************
+/*************************************************************************//**
   Update the lua console.
 *****************************************************************************/
 void real_luaconsole_dialog_update(void)
 {
 }
 
-/*****************************************************************************
+/*************************************************************************//**
   Appends the string to the chat output window.  The string should be
   inserted on its own line, although it will have no newline.
 *****************************************************************************/
@@ -67,28 +67,28 @@ void real_luaconsole_append(const char *astring,
   qtg_real_output_window_append(astring, tags, 0);
 }
 
-
-/***************************************************************************
+/*************************************************************************//**
   Load and execute lua script
-***************************************************************************/
+*****************************************************************************/
 void qload_lua_script()
 {
   QString str;
+
   str = QString(_("Lua scripts")) + QString(" (*.lua)");
   qlua_filename = QFileDialog::getOpenFileName(gui()->central_wdg,
                                               _("Load lua script"),
                                               QDir::homePath(), str);
-  if (qlua_filename.isEmpty() == false) {
+  if (!qlua_filename.isEmpty()) {
     script_client_do_file(qlua_filename.toLocal8Bit().constData());
   }
 }
 
-/***************************************************************************
+/*************************************************************************//**
   Reload last lua script
-***************************************************************************/
+*****************************************************************************/
 void qreload_lua_script()
 {
-  if (qlua_filename.isEmpty() == false) {
+  if (!qlua_filename.isEmpty()) {
     script_client_do_file(qlua_filename.toLocal8Bit().constData());
   }
 }

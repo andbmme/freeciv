@@ -1,4 +1,4 @@
-/********************************************************************** 
+/***********************************************************************
  Freeciv - Copyright (C) 1996 - A Kjeldberg, L Gregersen, P Unold
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -58,8 +58,8 @@
 extern QString split_text(QString text, bool cut);
 extern QString cut_helptext(QString text);
 extern QString get_tooltip_improvement(impr_type *building,
-                                       struct city *pcity);
-extern QString get_tooltip_unit(struct unit_type *unit);
+                                       struct city *pcity, bool ext);
+extern QString get_tooltip_unit(struct unit_type *unit, bool ext);
 extern QApplication *qapp;
 
 units_reports* units_reports::m_instance = 0;
@@ -91,7 +91,7 @@ struct reqtree {
   int diagram_width, diagram_height;
 };
 
-/****************************************************************************
+/************************************************************************//**
   Unit item constructor (single item for units report)
 ****************************************************************************/
 unittype_item::unittype_item(QWidget *parent,
@@ -131,6 +131,7 @@ unittype_item::unittype_item(QWidget *parent,
   upgrade_button.setVisible(false);
   connect(&upgrade_button, &QAbstractButton::pressed, this, &unittype_item::upgrade_units);
   hbox_top->addWidget(&upgrade_button, 0, Qt::AlignLeft);
+  label_info_unit.setTextFormat(Qt::PlainText);
   hbox_top->addWidget(&label_info_unit);
   vbox_main->addLayout(hbox_top);
   vbox->addWidget(&label_info_active);
@@ -176,7 +177,7 @@ unittype_item::unittype_item(QWidget *parent,
   delete fm;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Unit item destructor
 ****************************************************************************/
 unittype_item::~unittype_item()
@@ -184,29 +185,29 @@ unittype_item::~unittype_item()
 
 }
 
-/****************************************************************************
+/************************************************************************//**
   Sets unit type pixmap to label
 ****************************************************************************/
 void unittype_item::init_img()
 {
   struct sprite *sp;
 
-  sp = get_unittype_sprite(tileset, utype, direction8_invalid());
+  sp = get_unittype_sprite(get_tileset(), utype, direction8_invalid());
   label_pix.setPixmap(*sp->pm);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Popup question if to upgrade units
 ****************************************************************************/
 void unittype_item::upgrade_units()
 {
   char buf[1024];
   char buf2[2048];
-  hud_message_box ask(gui()->central_wdg);
+  hud_message_box *ask = new hud_message_box(gui()->central_wdg);
   int price;
-  int ret;
   QString s2;
-  struct unit_type *upgrade;
+  const struct unit_type *upgrade;
+  const Unit_type_id type = utype_number(utype);
 
   upgrade = can_upgrade_unittype(client_player(), utype);
   price = unit_upgrade_price(client_player(), utype, upgrade);
@@ -222,21 +223,17 @@ void unittype_item::upgrade_units()
               utype_name_translation(utype),
               utype_name_translation(upgrade), price, buf);
   s2 = QString(buf2);
-  ask.set_text_title(s2, _("Upgrade Obsolete Units"));
-  ask.setStandardButtons(QMessageBox::Cancel | QMessageBox::Ok);
-  ask.setDefaultButton(QMessageBox::Cancel);
-  ret = ask.exec();
-
-  switch (ret) {
-  case QMessageBox::Cancel:
-    return;
-  case QMessageBox::Ok:
-    dsend_packet_unit_type_upgrade(&client.conn, utype_number(utype));
-    return;
-  }
+  ask->set_text_title(s2, _("Upgrade Obsolete Units"));
+  ask->setStandardButtons(QMessageBox::Cancel | QMessageBox::Ok);
+  ask->setDefaultButton(QMessageBox::Cancel);
+  ask->setAttribute(Qt::WA_DeleteOnClose);
+  connect(ask, &hud_message_box::accepted, [=]() {
+    dsend_packet_unit_type_upgrade(&client.conn, type);
+  });
+  ask->show();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Mouse entered widget
 ****************************************************************************/
 void unittype_item::enterEvent(QEvent *event)
@@ -245,12 +242,12 @@ void unittype_item::enterEvent(QEvent *event)
   update();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Paint event for unittype item ( draws background from theme )
 ****************************************************************************/
 void unittype_item::paintEvent(QPaintEvent *event)
 {
-  QRect rx, ry, rfull;
+  QRect rfull;
   QPainter p;
 
   if (entered) {
@@ -262,7 +259,7 @@ void unittype_item::paintEvent(QPaintEvent *event)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Mouse left widget
 ****************************************************************************/
 void unittype_item::leaveEvent(QEvent *event)
@@ -271,7 +268,7 @@ void unittype_item::leaveEvent(QEvent *event)
   update();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Mouse wheel event - cycles via units for given unittype
 ****************************************************************************/
 void unittype_item::wheelEvent(QWheelEvent *event)
@@ -320,7 +317,7 @@ void unittype_item::wheelEvent(QWheelEvent *event)
   event->accept();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Class representing list of unit types ( unit_items )
 ****************************************************************************/
 units_reports::units_reports() : fcwidget()
@@ -334,7 +331,7 @@ units_reports::units_reports() : fcwidget()
   setVisible(false);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Destructor for unit_report
 ****************************************************************************/
 units_reports::~units_reports()
@@ -344,7 +341,7 @@ units_reports::~units_reports()
   delete cw;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Adds one unit to list
 ****************************************************************************/
 void units_reports::add_item(unittype_item *item)
@@ -352,7 +349,7 @@ void units_reports::add_item(unittype_item *item)
   unittype_list.append(item);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns instance of units_reports
 ****************************************************************************/
 units_reports *units_reports::instance()
@@ -362,7 +359,7 @@ units_reports *units_reports::instance()
   return m_instance;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Deletes units_reports instance
 ****************************************************************************/
 void units_reports::drop()
@@ -373,16 +370,16 @@ void units_reports::drop()
   }
 }
 
-/***************************************************************************
+/************************************************************************//**
   Called when close button was pressed
-***************************************************************************/
+****************************************************************************/
 void units_reports::update_menu()
 {
   was_destroyed = true;
   drop();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Initiazlizes layout ( layout needs to be changed after adding units )
 ****************************************************************************/
 void units_reports::init_layout()
@@ -403,7 +400,7 @@ void units_reports::init_layout()
   setLayout(scroll_layout);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Paint event
 ****************************************************************************/
 void units_reports::paintEvent(QPaintEvent *event)
@@ -411,7 +408,7 @@ void units_reports::paintEvent(QPaintEvent *event)
   cw->put_to_corner();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Updates units
 ****************************************************************************/
 void units_reports::update_units(bool show)
@@ -507,7 +504,7 @@ void units_reports::update_units(bool show)
   updateGeometry();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Cleans layout - run it before layout initialization
 ****************************************************************************/
 void units_reports::clear_layout()
@@ -533,7 +530,7 @@ void units_reports::clear_layout()
   setUpdatesEnabled(true);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Compare unit_items (used for techs) by name
 ****************************************************************************/
 bool comp_less_than(const qlist_item &q1, const qlist_item &q2)
@@ -541,7 +538,7 @@ bool comp_less_than(const qlist_item &q1, const qlist_item &q2)
   return (q1.tech_str < q2.tech_str);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Constructor for research diagram
 ****************************************************************************/
 research_diagram::research_diagram(QWidget *parent): QWidget(parent)
@@ -552,7 +549,7 @@ research_diagram::research_diagram(QWidget *parent): QWidget(parent)
   setMouseTracking(true);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Destructor for research diagram
 ****************************************************************************/
 research_diagram::~research_diagram()
@@ -563,7 +560,7 @@ research_diagram::~research_diagram()
   tt_help.clear();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Constructor for req_tooltip_help
 ****************************************************************************/
 req_tooltip_help::req_tooltip_help()
@@ -573,8 +570,7 @@ req_tooltip_help::req_tooltip_help()
   timpr = nullptr;
 }
 
-
-/****************************************************************************
+/************************************************************************//**
   Create list of rectangles for showing tooltips
 ****************************************************************************/
 void research_diagram::create_tooltip_help()
@@ -674,7 +670,7 @@ void research_diagram::create_tooltip_help()
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Recreates whole diagram and schedules update
 ****************************************************************************/
 void research_diagram::update_reqtree()
@@ -685,7 +681,7 @@ void research_diagram::update_reqtree()
   update();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Initializes research diagram
 ****************************************************************************/
 void research_diagram::reset()
@@ -705,7 +701,7 @@ void research_diagram::reset()
 }
 
 
-/****************************************************************************
+/************************************************************************//**
   Mouse handler for research_diagram
 ****************************************************************************/
 void research_diagram::mousePressEvent(QMouseEvent *event)
@@ -751,7 +747,7 @@ void research_diagram::mousePressEvent(QMouseEvent *event)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Mouse move handler for research_diagram - for showing tooltips
 ****************************************************************************/
 void research_diagram::mouseMoveEvent(QMouseEvent *event)
@@ -773,7 +769,8 @@ void research_diagram::mouseMoveEvent(QMouseEvent *event)
         tt_text = QString(buffer);
         def_str = "<p style='white-space:pre'><b>"
                   + QString(advance_name_translation(
-                            advance_by_number(rttp->tech_id))) + "</b>\n";
+                            advance_by_number(rttp->tech_id))).toHtmlEscaped()
+                  + "</b>\n";
       } else if (rttp->timpr != nullptr) {
         def_str = get_tooltip_improvement(rttp->timpr, nullptr);
         tt_text = helptext_building(buffer, sizeof(buffer),
@@ -790,16 +787,17 @@ void research_diagram::mouseMoveEvent(QMouseEvent *event)
         tt_text = QString(buffer);
         tt_text = cut_helptext(tt_text);
         def_str = "<p style='white-space:pre'><b>"
-                  + QString(government_name_translation(rttp->tgov)) + "</b>\n";
+            + QString(government_name_translation(rttp->tgov)).toHtmlEscaped()
+            + "</b>\n";
       } else {
         return;
       }
       tt_text = split_text(tt_text, true);
-      tt_text = def_str + tt_text;
+      tt_text = def_str + tt_text.toHtmlEscaped();
       tooltip_text = tt_text.trimmed();
       tooltip_rect = rttp->rect;
       tooltip_pos = event->globalPos();
-      if (QToolTip::isVisible() == false && timer_active == false) {
+      if (!QToolTip::isVisible() && !timer_active) {
         timer_active = true;
         QTimer::singleShot(500, this, SLOT(show_tooltip()));
       }
@@ -807,7 +805,7 @@ void research_diagram::mouseMoveEvent(QMouseEvent *event)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Slot for timer used to show tooltip
 ****************************************************************************/
 void research_diagram::show_tooltip()
@@ -822,7 +820,7 @@ void research_diagram::show_tooltip()
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Paint event for research_diagram
 ****************************************************************************/
 void research_diagram::paintEvent(QPaintEvent *event)
@@ -834,7 +832,7 @@ void research_diagram::paintEvent(QPaintEvent *event)
   painter.end();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns size of research_diagram
 ****************************************************************************/
 QSize research_diagram::size()
@@ -846,7 +844,7 @@ QSize research_diagram::size()
   return s;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Consctructor for science_report
 ****************************************************************************/
 science_report::science_report(): QWidget()
@@ -897,17 +895,24 @@ science_report::science_report(): QWidget()
 
 }
 
-/****************************************************************************
+/************************************************************************//**
   Destructor for science report
   Removes "SCI" string marking it as closed
   And frees given index on list marking it as ready for new widget
 ****************************************************************************/
 science_report::~science_report()
 {
+  if (curr_list) {
+    delete curr_list;
+  }
+
+  if (goal_list) {
+    delete goal_list;
+  }
   gui()->remove_repo_dlg("SCI");
 }
 
-/****************************************************************************
+/************************************************************************//**
   Updates science_report and marks it as opened
   It has to be called soon after constructor.
   It could be in constructor but compiler will yell about not used variable
@@ -920,7 +925,7 @@ void science_report::init(bool raise)
   update_report();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Schedules paint event in some qt queue
 ****************************************************************************/
 void science_report::redraw()
@@ -928,7 +933,7 @@ void science_report::redraw()
   update();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Recalculates research diagram again and updates science report
 ****************************************************************************/
 void science_report::reset_tree()
@@ -940,7 +945,7 @@ void science_report::reset_tree()
   update();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Updates all important widgets on science_report
 ****************************************************************************/
 void science_report::update_report()
@@ -954,6 +959,7 @@ void science_report::update_report()
   double not_used;
   QString str;
   qlist_item item;
+  struct sprite *sp;
 
   fc_assert_ret(NULL != research);
 
@@ -1027,13 +1033,25 @@ void science_report::update_report()
   researching_combo->clear();
   goal_combo->clear();
   for (int i = 0; i < curr_list->count(); i++) {
+    QIcon ic;
+
+    sp = get_tech_sprite(tileset, curr_list->at(i).id);
+    if (sp) {
+      ic = QIcon(*sp->pm);
+    }
     qvar = curr_list->at(i).id;
-    researching_combo->insertItem(i, curr_list->at(i).tech_str, qvar);
+    researching_combo->insertItem(i, ic, curr_list->at(i).tech_str, qvar);
   }
 
   for (int i = 0; i < goal_list->count(); i++) {
+    QIcon ic;
+
+    sp = get_tech_sprite(tileset, goal_list->at(i).id);
+    if (sp) {
+      ic = QIcon(*sp->pm);
+    }
     qvar = goal_list->at(i).id;
-    goal_combo->insertItem(i, goal_list->at(i).tech_str, qvar);
+    goal_combo->insertItem(i, ic, goal_list->at(i).tech_str, qvar);
   }
 
   /** set current tech and goal */
@@ -1081,7 +1099,7 @@ void science_report::update_report()
   update_reqtree();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Calls update for research_diagram
 ****************************************************************************/
 void science_report::update_reqtree()
@@ -1089,7 +1107,7 @@ void science_report::update_reqtree()
   res_diag->update_reqtree();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Slot used when combo box with current tech changes
 ****************************************************************************/
 void science_report::current_tech_changed(int changed_index)
@@ -1105,7 +1123,7 @@ void science_report::current_tech_changed(int changed_index)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Slot used when combo box with goal have been changed
 ****************************************************************************/
 void science_report::goal_tech_changed(int changed_index)
@@ -1121,10 +1139,10 @@ void science_report::goal_tech_changed(int changed_index)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Update the science report.
-**************************************************************************/
-void real_science_report_dialog_update(void)
+****************************************************************************/
+void real_science_report_dialog_update(void *unused)
 {
   int i;
   int percent;
@@ -1150,7 +1168,7 @@ void real_science_report_dialog_update(void)
    str = " ";
  }
 
-  if (blk == true) {
+  if (blk) {
     gui()->sw_science->keep_blinking = true;
     gui()->sw_science->set_custom_labels(str);
     gui()->sw_science->sblink();
@@ -1170,10 +1188,9 @@ void real_science_report_dialog_update(void)
   }
 }
 
-
-/**************************************************************************
-  Constructor for eceonmy report
-**************************************************************************/
+/************************************************************************//**
+  Constructor for economy report
+****************************************************************************/
 eco_report::eco_report(): QWidget()
 {
   QHeaderView *header;
@@ -1222,17 +1239,17 @@ eco_report::eco_report(): QWidget()
   setLayout(eco_layout);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Destructor for economy report
-**************************************************************************/
+****************************************************************************/
 eco_report::~eco_report()
 {
   gui()->remove_repo_dlg("ECO");
 }
 
-/**************************************************************************
+/************************************************************************//**
   Initializes place in tab for economy report
-**************************************************************************/
+****************************************************************************/
 void eco_report::init()
 {
   curr_row = -1;
@@ -1241,9 +1258,9 @@ void eco_report::init()
   gui()->game_tab_widget->setCurrentIndex(index);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Refresh all widgets for economy report
-**************************************************************************/
+****************************************************************************/
 void eco_report::update_report()
 {
   struct improvement_entry building_entries[B_LAST];
@@ -1269,10 +1286,10 @@ void eco_report::update_report()
 
     pix = NULL;
     sprite = get_building_sprite(tileset, pimprove);
-    if (sprite != NULL){
+    if (sprite != NULL) {
       pix = sprite->pm;
     }
-    if (pix != NULL){
+    if (pix != NULL) {
       pix_scaled = pix->scaledToHeight(h);
     } else {
       pix_scaled.fill();
@@ -1317,7 +1334,7 @@ void eco_report::update_report()
 
     pix = NULL;
     sprite = get_unittype_sprite(tileset, putype, direction8_invalid());
-    if (sprite != NULL){
+    if (sprite != NULL) {
       pix = sprite->pm;
     }
     id = cid_encode_unit(putype);
@@ -1328,7 +1345,7 @@ void eco_report::update_report()
       item->setTextAlignment(Qt::AlignHCenter);
       switch (j) {
       case 0:
-        if (pix != NULL){
+        if (pix != NULL) {
           pix_scaled = pix->scaledToHeight(h);
           item->setData(Qt::DecorationRole, pix_scaled);
         }
@@ -1361,9 +1378,9 @@ void eco_report::update_report()
   eco_label->setText(buf);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Action for selection changed in economy report
-**************************************************************************/
+****************************************************************************/
 void eco_report::selection_changed(const QItemSelection & sl,
                                    const QItemSelection & ds)
 {
@@ -1371,7 +1388,7 @@ void eco_report::selection_changed(const QItemSelection & sl,
   int i;
   QVariant qvar;
   struct universal selected;
-  struct impr_type *pimprove;
+  const struct impr_type *pimprove;
   disband_button->setEnabled(false);
   sell_button->setEnabled(false);
   sell_redun_button->setEnabled(false);
@@ -1409,129 +1426,134 @@ void eco_report::selection_changed(const QItemSelection & sl,
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Disband pointed units (in economy report)
-**************************************************************************/
+****************************************************************************/
 void eco_report::disband_units()
 {
   struct universal selected;
-
   char buf[1024];
-  QString s;
-  hud_message_box ask(gui()->central_wdg);
-  int ret;
-  struct unit_type *putype;
+  hud_message_box *ask = new hud_message_box(gui()->central_wdg);
+  Unit_type_id utype;
 
   selected = cid_decode(uid);
-  putype = selected.value.utype;
+  utype = utype_number(selected.value.utype);
   fc_snprintf(buf, ARRAY_SIZE(buf),
-              _("Do you really wish to disband "
-                "every %s (%d total)?"),
-              utype_name_translation(putype), counter);
+              _("Do you really wish to disband every %s (%d total)?"),
+              utype_name_translation(utype_by_number(utype)), counter);
 
-  s = QString(buf);
-  ask.set_text_title(s, _("Disband Units"));
-  ask.setStandardButtons(QMessageBox::Cancel | QMessageBox::Ok);
-  ask.setDefaultButton(QMessageBox::Cancel);
-  ret = ask.exec();
-  switch (ret) {
-  case QMessageBox::Cancel:
-    return;
-  case QMessageBox::Ok:
-    disband_all_units(putype, false, buf, sizeof(buf));
-    break;
-  default:
-    return;
-  }
-  s = QString(buf);
-  ask.set_text_title(s, _("Disband Results"));
-  ask.setStandardButtons(QMessageBox::Ok);
-  ask.exec();
+  ask->set_text_title(buf, _("Disband Units"));
+  ask->setStandardButtons(QMessageBox::Cancel | QMessageBox::Ok);
+  ask->setDefaultButton(QMessageBox::Cancel);
+  ask->setAttribute(Qt::WA_DeleteOnClose);
+  connect(ask, &hud_message_box::accepted, [=]() {
+    struct unit_type *putype = utype_by_number(utype);
+    char buf[1024];
+    hud_message_box *result;
+
+    if (putype) {
+      disband_all_units(putype, false, buf, sizeof(buf));
+    }
+
+    result = new hud_message_box(gui()->central_wdg);
+    result->set_text_title(buf, _("Disband Results"));
+    result->setStandardButtons(QMessageBox::Ok);
+    result->setAttribute(Qt::WA_DeleteOnClose);
+    result->show();
+  });
 }
 
-/**************************************************************************
+/************************************************************************//**
   Sell all pointed builings
-**************************************************************************/
+****************************************************************************/
 void eco_report::sell_buildings()
 {
   struct universal selected;
   char buf[1024];
-  QString s;
-  hud_message_box ask(gui()->central_wdg);
-  int ret;
-  struct impr_type *pimprove;
+  hud_message_box *ask = new hud_message_box(gui()->central_wdg);
+  const struct impr_type *pimprove;
+  Impr_type_id impr_id;
 
   selected = cid_decode(uid);
   pimprove = selected.value.building;
+  impr_id = improvement_number(pimprove);
 
   fc_snprintf(buf, ARRAY_SIZE(buf),
               _("Do you really wish to sell "
                 "every %s (%d total)?"),
               improvement_name_translation(pimprove), counter);
 
-  s = QString(buf);
-  ask.set_text_title(s, _("Sell Improvements"));
-  ask.setStandardButtons(QMessageBox::Cancel | QMessageBox::Ok);
-  ask.setDefaultButton(QMessageBox::Cancel);
-  ret = ask.exec();
-  switch (ret) {
-  case QMessageBox::Cancel:
-    return;
-  case QMessageBox::Ok:
+  ask->set_text_title(buf, _("Sell Improvements"));
+  ask->setStandardButtons(QMessageBox::Cancel | QMessageBox::Ok);
+  ask->setDefaultButton(QMessageBox::Cancel);
+  ask->setAttribute(Qt::WA_DeleteOnClose);
+  connect(ask, &hud_message_box::accepted, [=]() {
+    char buf[1024];
+    hud_message_box *result;
+    struct impr_type *pimprove = improvement_by_number(impr_id);
+
+    if (!pimprove) {
+      return;
+    }
+
     sell_all_improvements(pimprove, false, buf, sizeof(buf));
-    break;
-  default:
-    return;
-  }
-  s = QString(buf);
-  ask.set_text_title(s, _("Sell-Off: Results"));
-  ask.setStandardButtons(QMessageBox::Ok);
-  ask.exec();
+
+    result = new hud_message_box(gui()->central_wdg);
+    result->set_text_title(buf, _("Sell-Off: Results"));
+    result->setStandardButtons(QMessageBox::Ok);
+    result->setAttribute(Qt::WA_DeleteOnClose);
+    result->show();
+  });
 }
 
-/**************************************************************************
+
+/************************************************************************//**
   Sells redundant buildings
-**************************************************************************/
+****************************************************************************/
 void eco_report::sell_redundant()
 {
   struct universal selected;
   char buf[1024];
   QString s;
-  hud_message_box ask(gui()->central_wdg);
-  int ret;
-  struct impr_type *pimprove;
+  hud_message_box *ask = new hud_message_box(gui()->central_wdg);
+  const struct impr_type *pimprove;
+  Impr_type_id impr_id;
 
   selected = cid_decode(uid);
   pimprove = selected.value.building;
+  impr_id = improvement_number(pimprove);
 
   fc_snprintf(buf, ARRAY_SIZE(buf),
               _("Do you really wish to sell "
                 "every redundant %s (%d total)?"),
               improvement_name_translation(pimprove), counter);
 
-  s = QString(buf);
-  ask.set_text_title(s, _("Sell Improvements"));
-  ask.setStandardButtons(QMessageBox::Cancel | QMessageBox::Ok);
-  ask.setDefaultButton(QMessageBox::Cancel);
-  ret = ask.exec();
-  switch (ret) {
-  case QMessageBox::Cancel:
-    return;
-  case QMessageBox::Ok:
+  ask->set_text_title(s, _("Sell Improvements"));
+  ask->setStandardButtons(QMessageBox::Cancel | QMessageBox::Ok);
+  ask->setDefaultButton(QMessageBox::Cancel);
+  ask->setAttribute(Qt::WA_DeleteOnClose);
+  connect(ask, &hud_message_box::accepted, [=]() {
+    char buf[1024];
+    hud_message_box *result;
+    struct impr_type *pimprove = improvement_by_number(impr_id);
+
+    if (!pimprove) {
+      return;
+    }
+
     sell_all_improvements(pimprove, true, buf, sizeof(buf));
-    break;
-  default:
-    return;
-  }
-  s = QString(buf);
-  ask.set_text_title(s, _("Sell-Off: Results"));
-  ask.setStandardButtons(QMessageBox::Ok);
-  ask.exec();
+
+    result = new hud_message_box(gui()->central_wdg);
+    result->set_text_title(buf, _("Sell-Off: Results"));
+    result->setStandardButtons(QMessageBox::Ok);
+    result->setAttribute(Qt::WA_DeleteOnClose);
+    result->show();
+  });
 }
 
-/**************************************************************************
+/************************************************************************//**
   Constructor for endgame report
-**************************************************************************/
+****************************************************************************/
 endgame_report::endgame_report(const struct packet_endgame_report *packet): QWidget()
 {
   QGridLayout *end_layout = new QGridLayout;
@@ -1559,17 +1581,17 @@ endgame_report::endgame_report(const struct packet_endgame_report *packet): QWid
 
 }
 
-/**************************************************************************
+/************************************************************************//**
   Destructor for endgame report
-**************************************************************************/
+****************************************************************************/
 endgame_report::~endgame_report()
 {
   gui()->remove_repo_dlg("END");
 }
 
-/**************************************************************************
+/************************************************************************//**
   Initializes place in tab for endgame report
-**************************************************************************/
+****************************************************************************/
 void endgame_report::init()
 {
   gui()->gimme_place(this, "END");
@@ -1577,9 +1599,9 @@ void endgame_report::init()
   gui()->game_tab_widget->setCurrentIndex(index);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Refresh all widgets for economy report
-**************************************************************************/
+****************************************************************************/
 void endgame_report::update_report(const struct packet_endgame_player *packet)
 {
   QTableWidgetItem *item;
@@ -1596,8 +1618,8 @@ void endgame_report::update_report(const struct packet_endgame_player *packet)
         break;
       case 1:
         pix = get_nation_flag_sprite(tileset, nation_of_player(pplayer))->pm;
-        if (pix != NULL){
-        item->setData(Qt::DecorationRole, *pix);
+        if (pix != NULL) {
+          item->setData(Qt::DecorationRole, *pix);
         }
         break;
       case 2:
@@ -1615,18 +1637,17 @@ void endgame_report::update_report(const struct packet_endgame_player *packet)
   end_widget->resizeRowsToContents();
 }
 
-/**************************************************************************
+/************************************************************************//**
   Display the science report.  Optionally raise it.
   Typically triggered by F6.
-**************************************************************************/
+****************************************************************************/
 void science_report_dialog_popup(bool raise)
 {
-
   science_report *sci_rep;
   int i;
   QWidget *w;
 
-  if (client_is_global_observer()){
+  if (client_is_global_observer()) {
     return;
   }
   if (!gui()->is_repo_dlg_open("SCI")) {
@@ -1644,10 +1665,10 @@ void science_report_dialog_popup(bool raise)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Update the economy report.
-**************************************************************************/
-void real_economy_report_dialog_update(void)
+****************************************************************************/
+void real_economy_report_dialog_update(void *unused)
 {
   int i;
   eco_report *eco_rep;
@@ -1664,10 +1685,10 @@ void real_economy_report_dialog_update(void)
   gui()->update_sidebar_tooltips();
 }
 
-/**************************************************************************
+/************************************************************************//**
   Display the economy report.  Optionally raise it.
   Typically triggered by F5.
-**************************************************************************/
+****************************************************************************/
 void economy_report_dialog_popup(bool raise)
 {
   int i;
@@ -1681,7 +1702,7 @@ void economy_report_dialog_popup(bool raise)
     i = gui()->gimme_index_of("ECO");
     fc_assert(i != -1);
     w = gui()->game_tab_widget->widget(i);
-    if (w->isVisible() == true) {
+    if (w->isVisible()) {
       gui()->game_tab_widget->setCurrentIndex(0);
       return;
     }
@@ -1691,27 +1712,27 @@ void economy_report_dialog_popup(bool raise)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Update the units report.
-**************************************************************************/
-void real_units_report_dialog_update(void)
+****************************************************************************/
+void real_units_report_dialog_update(void *unused)
 {
   if (units_reports::instance()->isVisible()) {
     units_reports::instance()->update_units();
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Display the units report.  Optionally raise it.
   Typically triggered by F2.
-**************************************************************************/
+****************************************************************************/
 void units_report_dialog_popup(bool raise)
 {
   gui()->game_tab_widget->setCurrentIndex(0);
   units_reports::instance()->update_units(true);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Show a dialog with player statistics at endgame.
 ****************************************************************************/
 void endgame_report_dialog_start(const struct packet_endgame_report *packet)
@@ -1721,7 +1742,7 @@ void endgame_report_dialog_start(const struct packet_endgame_report *packet)
   end_rep->init();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Removes endgame report
 ****************************************************************************/
 void popdown_endgame_report()
@@ -1734,7 +1755,7 @@ void popdown_endgame_report()
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Popups endgame report to front if exists
 ****************************************************************************/
 void popup_endgame_report()
@@ -1746,7 +1767,7 @@ void popup_endgame_report()
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Received endgame report information about single player.
 ****************************************************************************/
 void endgame_report_dialog_player(const struct packet_endgame_player *packet)
@@ -1764,7 +1785,7 @@ void endgame_report_dialog_player(const struct packet_endgame_player *packet)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Resize and redraw the requirement tree.
 ****************************************************************************/
 void science_report_dialog_redraw(void)
@@ -1783,7 +1804,7 @@ void science_report_dialog_redraw(void)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Closes economy report
 ****************************************************************************/
 void popdown_economy_report()
@@ -1801,7 +1822,7 @@ void popdown_economy_report()
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Closes science report
 ****************************************************************************/
 void popdown_science_report()
@@ -1819,7 +1840,7 @@ void popdown_science_report()
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Closes units report
 ****************************************************************************/
 void popdown_units_report()
@@ -1827,7 +1848,7 @@ void popdown_units_report()
   units_reports::instance()->drop();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Toggles units report, bool used for compatibility with sidebar callback
 ****************************************************************************/
 void toggle_units_report(bool x)

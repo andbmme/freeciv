@@ -31,11 +31,8 @@ extern "C" {
 
 class QLabel;
 class QPushButton;
-class QSignalMapper;
 class QScrollArea;
 struct fc_shortcut;
-
-void qt_start_turn();
 
 /** used for indicating menu about current option - for renaming
  * and enabling, disabling */
@@ -48,7 +45,9 @@ enum munit {
   DISBAND,
   CONVERT,
   MINE,
+  PLANT,
   IRRIGATION,
+  CULTIVATE,
   TRANSFORM,
   PILLAGE,
   BUILD,
@@ -71,10 +70,7 @@ enum munit {
   AUTOTRADEROUTE,
   ORDER_TRADEROUTE,
   ORDER_DIPLOMAT_DLG,
-  NUKE,
   UPGRADE,
-  MIGRANT,
-  GO_AND_BUILD_CITY,
   NOT_4_OBS,
   MULTIPLIERS,
   ENDGAME,
@@ -89,15 +85,6 @@ enum delay_order{
 };
 
 /**************************************************************************
-  Struct holding rally point for city
-**************************************************************************/
-struct qfc_rally
-{
-  struct city *pcity;
-  struct tile *ptile;
-};
-
-/**************************************************************************
   Class holding city list for rally points
 **************************************************************************/
 class qfc_rally_list
@@ -107,10 +94,6 @@ public:
     hover_tile = false;
     hover_city = false;
   };
-  void add(qfc_rally* rally);
-  bool clear(struct city *rcity);
-  QList<qfc_rally*> rally_list;
-  void run();
   bool hover_tile;
   bool hover_city;
   struct city *rally_city;
@@ -224,7 +207,6 @@ class gov_menu : public QMenu
   Q_OBJECT
   static QSet<gov_menu *> instances;
 
-  QSignalMapper *gov_mapper;
   QVector<QAction *> actions;
 
 public:
@@ -250,7 +232,6 @@ class go_act_menu : public QMenu
   Q_OBJECT
   static QSet<go_act_menu *> instances;
 
-  QSignalMapper *go_act_mapper;
   QMap<QAction *, int> items;
 
 public:
@@ -261,7 +242,7 @@ public:
   static void update_all();
 
 public slots:
-  void start_go_act(int action_id);
+  void start_go_act(int act_id, int sub_tgt_id);
 
   void reset();
   void create();
@@ -274,9 +255,11 @@ public slots:
 class mr_menu : public QMenuBar
 {
   Q_OBJECT
-  QMenu *menu;
   QMenu *airlift_menu;
+  QMenu *bases_menu;
+  QMenu *menu;
   QMenu *multiplayer_menu;
+  QMenu *roads_menu;
   QActionGroup *airlift_type;
   QActionGroup *action_vs_city;
   QActionGroup *action_vs_unit;
@@ -289,11 +272,14 @@ public:
   void setup_menus();
   void menus_sensitive();
   void update_airlift_menu();
+  void update_roads_menu();
+  void update_bases_menu();
   void set_tile_for_order(struct tile *ptile);
   void execute_shortcut(int sid);
   QString shortcut_exist(fc_shortcut *fcs);
   QString shortcut_2_menustring(int sid);
   QAction *minimap_status;
+  QAction *scale_fonts_status;
   QAction *lock_status;
   QAction *osd_status;
   QAction *btlog_status;
@@ -321,13 +307,15 @@ private slots:
   void slot_help(const QString &topic);
 
   /*used by work menu*/
+  void slot_build_path(int id);
+  void slot_build_base(int id);
   void slot_build_city();
-  void slot_go_build_city();
-  void slot_go_join_city();
   void slot_auto_settler();
   void slot_build_road();
   void slot_build_irrigation();
+  void slot_cultivate();
   void slot_build_mine();
+  void slot_plant();
   void slot_conn_road();
   void slot_conn_rail();
   void slot_conn_irrigation();
@@ -357,7 +345,6 @@ private slots:
   void slot_unit_airbase();
   void slot_pillage();
   void slot_action();
-  void slot_nuke();
 
   /*used by view menu*/
   void slot_center_view();
@@ -378,6 +365,7 @@ private slots:
   void slot_city_traderoutes();
   void slot_city_names();
   void zoom_in();
+  void zoom_scale_fonts();
   void zoom_reset();
   void zoom_out();
 
@@ -425,7 +413,6 @@ private slots:
 
 private:
   struct tile* find_last_unit_pos(struct unit* punit, int pos);
-  QSignalMapper *signal_help_mapper;
 };
 
 #endif /* FC__MENU_H */

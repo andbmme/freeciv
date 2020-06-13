@@ -75,7 +75,7 @@ if (S_S_RUNNING == server_state()) {    \
 }                                       \
 exit(EXIT_SUCCESS);
 
-/**************************************************************************
+/**********************************************************************//**
   This function is called when a SIGINT (ctrl-c) is received.  It will exit
   only if two SIGINTs are received within a second.
 **************************************************************************/
@@ -128,7 +128,7 @@ static void signal_handler(int sig)
 }
 #endif /* USE_INTERRUPT_HANDLERS */
 
-/**************************************************************************
+/**********************************************************************//**
  Entry point for Freeciv server.  Basically, does two things:
   1. Parses command-line arguments (possibly dialog, on mac).
   2. Calls the main server-loop routine.
@@ -368,8 +368,7 @@ int main(int argc, char *argv[])
     cmdhelp_add(help, "d",
                 /* TRANS: "debug" is exactly what user must type, do not translate. */
                 _("debug LEVEL"),
-                _("Set debug log level (%d to %d, or %d:file1,min,max:...)"),
-                LOG_FATAL, LOG_DEBUG, LOG_DEBUG);
+                _("Set debug log level (one of f,e,w,n,v,d, or d:file1,min,max:...)"));
 #else  /* FREECIV_DEBUG */
     cmdhelp_add(help, "d",
                 /* TRANS: "debug" is exactly what user must type, do not translate. */
@@ -488,9 +487,9 @@ int main(int argc, char *argv[])
 }
 
 #ifdef GENERATING_MAC
-/*************************************************************************
-  generate an option dialog if no options have been passed in
-*************************************************************************/
+/**********************************************************************//**
+  Generate an option dialog if no options have been passed in
+**************************************************************************/
 static void Mac_options(int argc)
 {
 #define HARDCODED_OPT

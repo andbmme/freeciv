@@ -1,4 +1,4 @@
-/********************************************************************** 
+/***********************************************************************
  Freeciv - Copyright (C) 1996 - A Kjeldberg, L Gregersen, P Unold
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@
 
 #include "tab_nation.h"
 
-/**************************************************************************
+/**********************************************************************//**
   Setup tab_nation object
 **************************************************************************/
 tab_nation::tab_nation(ruledit_gui *ui_in) : QWidget()
@@ -61,7 +61,7 @@ tab_nation::tab_nation(ruledit_gui *ui_in) : QWidget()
   setLayout(main_layout);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh the information.
 **************************************************************************/
 void tab_nation::refresh()
@@ -76,7 +76,7 @@ void tab_nation::refresh()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Flush information from widgets to stores where it can be saved from.
 **************************************************************************/
 void tab_nation::flush_widgets()
@@ -84,13 +84,16 @@ void tab_nation::flush_widgets()
   FC_FREE(ui->data.nationlist);
 
   if (via_include->isChecked()) {
-    ui->data.nationlist = fc_strdup(nationlist->text().toUtf8().data());
+    QByteArray nln_bytes;
+
+    nln_bytes = nationlist->text().toUtf8();
+    ui->data.nationlist = fc_strdup(nln_bytes.data());
   } else {
     ui->data.nationlist = NULL;
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Toggled nationlist include setting
 **************************************************************************/
 void tab_nation::nationlist_toggle(bool checked)
@@ -102,8 +105,11 @@ void tab_nation::nationlist_toggle(bool checked)
       ui->data.nationlist = fc_strdup("default/nationlist.ruleset");
     }
   } else {
+    QByteArray nln_bytes;
+
     FC_FREE(ui->data.nationlist_saved);
-    ui->data.nationlist_saved = fc_strdup(nationlist->text().toUtf8().data());
+    nln_bytes = nationlist->text().toUtf8();
+    ui->data.nationlist_saved = fc_strdup(nln_bytes.data());
     ui->data.nationlist = NULL;
   }
 

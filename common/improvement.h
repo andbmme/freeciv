@@ -39,7 +39,7 @@ struct strvec;          /* Actually defined in "utility/string_vector.h". */
  *
  * Used in the network protocol.
  */
-#define B_LAST MAX_NUM_ITEMS
+#define B_LAST MAX_NUM_BUILDINGS
 
 #define B_NEVER (NULL)
 
@@ -68,7 +68,7 @@ BV_DEFINE(bv_imprs, B_LAST);
 struct impr_type {
   Impr_type_id item_number;
   struct name_translation name;
-  bool disabled;                        /* Does not really exist - hole in improvements array */
+  bool ruledit_disabled;                /* Does not really exist - hole in improvements array */
   char graphic_str[MAX_LEN_NAME];	/* city icon of improv. */
   char graphic_alt[MAX_LEN_NAME];	/* city icon of improv. */
   struct requirement_vector reqs;
@@ -98,8 +98,8 @@ Impr_type_id improvement_number(const struct impr_type *pimprove);
 
 struct impr_type *improvement_by_number(const Impr_type_id id);
 
-struct impr_type *valid_improvement(struct impr_type *pimprove);
-struct impr_type *valid_improvement_by_number(const Impr_type_id id);
+const struct impr_type *valid_improvement(const struct impr_type *pimprove);
+const struct impr_type *valid_improvement_by_number(const Impr_type_id id);
 
 struct impr_type *improvement_by_rule_name(const char *name);
 struct impr_type *improvement_by_translated_name(const char *name);
@@ -112,8 +112,14 @@ bool improvement_has_flag(const struct impr_type *pimprove,
                           enum impr_flag_id flag);
 
 /* Ancillary routines */
-int impr_build_shield_cost(const struct impr_type *pimprove);
-int impr_buy_gold_cost(const struct impr_type *pimprove, int shields_in_stock);
+int impr_build_shield_cost(const struct city *pcity,
+                           const struct impr_type *pimprove);
+int impr_base_build_shield_cost(const struct impr_type *pimprove);
+int impr_estimate_build_shield_cost(const struct player *pplayer,
+                                    const struct tile *ptile,
+                                    const struct impr_type *pimprove);
+int impr_buy_gold_cost(const struct city *pcity, const struct impr_type *pimprove,
+                       int shields_in_stock);
 int impr_sell_gold(const struct impr_type *pimprove);
 
 bool is_improvement_visible(const struct impr_type *pimprove);
@@ -126,14 +132,14 @@ bool is_special_improvement(const struct impr_type *pimprove);
 
 bool can_improvement_go_obsolete(const struct impr_type *pimprove);
 
-bool can_sell_building(struct impr_type *pimprove);
+bool can_sell_building(const struct impr_type *pimprove);
 bool can_city_sell_building(const struct city *pcity,
-			    struct impr_type *pimprove);
+                            const struct impr_type *pimprove);
 enum test_result test_player_sell_building_now(struct player *pplayer,
                                                struct city *pcity,
-                                               struct impr_type *pimprove);
+                                               const struct impr_type *pimprove);
 
-struct impr_type *improvement_replacement(const struct impr_type *pimprove);
+const struct impr_type *improvement_replacement(const struct impr_type *pimprove);
 
 /* Macros for struct packet_game_info::great_wonder_owners[]. */
 #define WONDER_DESTROYED (MAX_NUM_PLAYER_SLOTS + 1)  /* Used as player id. */
@@ -172,16 +178,16 @@ bool improvement_obsolete(const struct player *pplayer,
 			  const struct impr_type *pimprove,
                           const struct city *pcity);
 bool is_improvement_productive(const struct city *pcity,
-                               struct impr_type *pimprove);
+                               const struct impr_type *pimprove);
 bool is_improvement_redundant(const struct city *pcity,
-                              struct impr_type *pimprove);
+                              const struct impr_type *pimprove);
 
 bool can_player_build_improvement_direct(const struct player *p,
-					 struct impr_type *pimprove);
+                                         const struct impr_type *pimprove);
 bool can_player_build_improvement_later(const struct player *p,
-					struct impr_type *pimprove);
+                                        const struct impr_type *pimprove);
 bool can_player_build_improvement_now(const struct player *p,
-				      struct impr_type *pimprove);
+                                      struct impr_type *pimprove);
 
 /* Initialization and iteration */
 void improvements_init(void);
@@ -203,11 +209,11 @@ const struct impr_type *improvement_array_last(void);
   }									\
 }
 
-#define improvement_active_iterate(_p)                                  \
+#define improvement_re_active_iterate(_p)                               \
   improvement_iterate(_p) {                                             \
-    if (!_p->disabled) {
+    if (!_p->ruledit_disabled) {
 
-#define improvement_active_iterate_end                                  \
+#define improvement_re_active_iterate_end                               \
     }                                                                   \
   } improvement_iterate_end;
 

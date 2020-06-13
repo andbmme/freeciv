@@ -76,12 +76,12 @@
 
 #include "tilespec.h"
 
-#define TILESPEC_CAPSTR "+Freeciv-tilespec-Devel-2016-Jun-07 duplicates_ok"
+#define TILESPEC_CAPSTR "+Freeciv-tilespec-Devel-2019-Jul-03 duplicates_ok"
 /*
  * Tilespec capabilities acceptable to this program:
  *
- * +Freeciv-2.4-tilespec
- *    - basic format for Freeciv versions 2.4.x; required
+ * +Freeciv-3.1-tilespec
+ *    - basic format for Freeciv versions 3.1.x; required
  *
  * +Freeciv-tilespec-Devel-YYYY.MMM.DD
  *    - tilespec of the development version at the given data
@@ -92,12 +92,12 @@
  *      "duplicates_ok")
  */
 
-#define SPEC_CAPSTR "+Freeciv-spec-Devel-2015-Mar-25"
+#define SPEC_CAPSTR "+Freeciv-spec-Devel-2019-Jul-03"
 /*
  * Individual spec file capabilities acceptable to this program:
  *
- * +Freeciv-2.3-spec
- *    - basic format for Freeciv versions 2.3.x; required
+ * +Freeciv-3.1-spec
+ *    - basic format for Freeciv versions 3.1.x; required
  */
 
 #define TILESPEC_SUFFIX ".tilespec"
@@ -482,8 +482,6 @@ struct tileset {
 
   enum direction8 unit_default_orientation;
 
-  int city_names_font_size, city_productions_font_size;
-
   enum fog_style fogstyle;
   enum darkness_style darkness_style;
 
@@ -539,6 +537,7 @@ struct tileset {
 };
 
 struct tileset *tileset;
+struct tileset *unscaled_tileset;
 
 int focus_unit_state = 0;
 
@@ -560,9 +559,11 @@ static bool load_river_sprites(struct tileset *t,
                                struct river_sprites *store, const char *tag_pfx);
 
 static void tileset_setup_base(struct tileset *t,
-                               const struct extra_type *pextra);
+                               const struct extra_type *pextra,
+                               const char *tag);
 static void tileset_setup_road(struct tileset *t,
-                               struct extra_type *pextra);
+                               struct extra_type *pextra,
+                               const char *tag);
 
 static bool is_extra_drawing_enabled(struct extra_type *pextra);
 
@@ -575,7 +576,7 @@ static int fill_basic_base_sprite_array(const struct tileset *t,
 
 static void tileset_player_free(struct tileset *t, int plrid);
 
-/****************************************************************************
+/************************************************************************//**
   Called when ever there's problem in ruleset/tileset compatibility
 ****************************************************************************/
 void tileset_error(enum log_level level, const char *format, ...)
@@ -598,7 +599,7 @@ void tileset_error(enum log_level level, const char *format, ...)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a new drawing data.
 ****************************************************************************/
 static struct drawing_data *drawing_data_new(void)
@@ -610,7 +611,7 @@ static struct drawing_data *drawing_data_new(void)
   return draw;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free a drawing data.
 ****************************************************************************/
 static void drawing_data_destroy(struct drawing_data *draw)
@@ -642,7 +643,19 @@ static void drawing_data_destroy(struct drawing_data *draw)
   free(draw);
 }
 
-/****************************************************************************
+/************************************************************************//**
+  Return unscaled tileset if it exists, or default otherwise
+****************************************************************************/
+struct tileset* get_tileset(void)
+{
+  if (unscaled_tileset != NULL) {
+    return unscaled_tileset;
+  } else {
+    return tileset;
+  }
+}
+
+/************************************************************************//**
   Return the name of the given tileset.
 ****************************************************************************/
 const char *tileset_basename(const struct tileset *t)
@@ -650,7 +663,7 @@ const char *tileset_basename(const struct tileset *t)
   return t->name;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return whether the current tileset is isometric.
 ****************************************************************************/
 bool tileset_is_isometric(const struct tileset *t)
@@ -658,7 +671,7 @@ bool tileset_is_isometric(const struct tileset *t)
   return t->type == TS_ISOMETRIC;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the hex_width of the current tileset. For iso-hex tilesets this
   value will be > 0 and is_isometric will be set.
 ****************************************************************************/
@@ -667,7 +680,7 @@ int tileset_hex_width(const struct tileset *t)
   return t->hex_width;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the hex_height of the current tileset. For hex tilesets this
   value will be > 0 and is_isometric will be set.
 ****************************************************************************/
@@ -676,7 +689,7 @@ int tileset_hex_height(const struct tileset *t)
   return t->hex_height;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the tile width of the current tileset.  This is the tesselation
   width of the tiled plane.  This means it's the width of the bounding box
   of the basic map tile.
@@ -699,7 +712,7 @@ int tileset_tile_width(const struct tileset *t)
   return t->normal_tile_width;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the tile height of the current tileset.  This is the tesselation
   height of the tiled plane.  This means it's the height of the bounding box
   of the basic map tile.
@@ -711,7 +724,7 @@ int tileset_tile_height(const struct tileset *t)
   return t->normal_tile_height;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the full tile width of the current tileset.  This is the maximum
   width that any mapview sprite will have.
 
@@ -722,7 +735,7 @@ int tileset_full_tile_width(const struct tileset *t)
   return t->full_tile_width;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the full tile height of the current tileset.  This is the maximum
   height that any mapview sprite will have.  This may be greater than the
   tile width in which case the extra area is above the "normal" tile.
@@ -735,7 +748,7 @@ int tileset_full_tile_height(const struct tileset *t)
   return t->full_tile_height;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the unit tile width of the current tileset.
 ****************************************************************************/
 int tileset_unit_width(const struct tileset *t)
@@ -743,7 +756,7 @@ int tileset_unit_width(const struct tileset *t)
   return t->unit_tile_width;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the unit tile height of the current tileset.
 ****************************************************************************/
 int tileset_unit_height(const struct tileset *t)
@@ -751,7 +764,7 @@ int tileset_unit_height(const struct tileset *t)
   return t->unit_tile_height;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Calculate the height of a unit upkeep icons.
 ****************************************************************************/
 static int calculate_max_upkeep_height(const struct tileset *t)
@@ -788,7 +801,7 @@ static int calculate_max_upkeep_height(const struct tileset *t)
   return max;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get the height of a unit upkeep icons.
 ****************************************************************************/
 static int tileset_upkeep_height(const struct tileset *t)
@@ -797,7 +810,7 @@ static int tileset_upkeep_height(const struct tileset *t)
   return t->max_upkeep_height;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Suitable canvas height for a unit icon that includes upkeep sprites.
 ****************************************************************************/
 int tileset_unit_with_upkeep_height(const struct tileset *t)
@@ -808,7 +821,7 @@ int tileset_unit_with_upkeep_height(const struct tileset *t)
   return MAX(uk_bottom, u_bottom);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Suitable canvas height for a unit icon that includes upkeep sprites,
   using small space layout.
 ****************************************************************************/
@@ -820,7 +833,7 @@ int tileset_unit_with_small_upkeep_height(const struct tileset *t)
   return MAX(uk_bottom, u_bottom);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Offset to layout extra unit sprites, such as upkeep.
 ****************************************************************************/
 int tileset_unit_layout_offset_y(const struct tileset *t)
@@ -828,7 +841,7 @@ int tileset_unit_layout_offset_y(const struct tileset *t)
   return t->unit_upkeep_offset_y;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Offset to layout extra unit sprites, such as upkeep, requesting small
   space layout.
 ****************************************************************************/
@@ -837,7 +850,7 @@ int tileset_unit_layout_small_offset_y(const struct tileset *t)
   return t->unit_upkeep_small_offset_y;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the small sprite width of the current tileset.  The small sprites
   are used for various theme graphics (e.g., citymap citizens/specialists
   as well as panel indicator icons).
@@ -847,7 +860,7 @@ int tileset_small_sprite_width(const struct tileset *t)
   return t->small_sprite_width;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the offset from the origin of the city tile at which to place the
   city bar text.
 ****************************************************************************/
@@ -856,7 +869,7 @@ int tileset_citybar_offset_y(const struct tileset *t)
   return t->citybar_offset_y;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the offset from the origin of the tile at which to place the
   label text.
 ****************************************************************************/
@@ -865,7 +878,7 @@ int tileset_tilelabel_offset_y(const struct tileset *t)
   return t->tilelabel_offset_y;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns tileset scale
 ****************************************************************************/
 float tileset_scale(const struct tileset *t)
@@ -873,7 +886,7 @@ float tileset_scale(const struct tileset *t)
   return tileset->scale;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the small sprite height of the current tileset.  The small sprites
   are used for various theme graphics (e.g., citymap citizens/specialists
   as well as panel indicator icons).
@@ -883,7 +896,7 @@ int tileset_small_sprite_height(const struct tileset *t)
   return t->small_sprite_height;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the path within the data directories where the main intro graphics
   file can be found.  (It is left up to the GUI code to load and unload this
   file.)
@@ -893,7 +906,7 @@ const char *tileset_main_intro_filename(const struct tileset *t)
   return t->main_intro_filename;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the number of possible colors for city overlays.
 ****************************************************************************/
 int tileset_num_city_colors(const struct tileset *t)
@@ -901,7 +914,7 @@ int tileset_num_city_colors(const struct tileset *t)
   return t->sprites.city.worked_tile_overlay.size;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return TRUE if the client will use the code to generate the fog.
 ****************************************************************************/
 bool tileset_use_hard_coded_fog(const struct tileset *t)
@@ -909,9 +922,9 @@ bool tileset_use_hard_coded_fog(const struct tileset *t)
   return FOG_AUTO == t->fogstyle;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Initialize.
-**************************************************************************/
+****************************************************************************/
 static struct tileset *tileset_new(void)
 {
   struct tileset *t = fc_calloc(1, sizeof(*t));
@@ -921,10 +934,10 @@ static struct tileset *tileset_new(void)
   return t;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return the tileset name of the direction.  This is similar to
   dir_get_name but you shouldn't change this or all tilesets will break.
-**************************************************************************/
+****************************************************************************/
 static const char *dir_get_tileset_name(enum direction8 dir)
 {
   switch (dir) {
@@ -949,7 +962,7 @@ static const char *dir_get_tileset_name(enum direction8 dir)
   return "";
 }
 
-/****************************************************************************
+/************************************************************************//**
   Parse a direction name as a direction8.
 ****************************************************************************/
 static enum direction8 dir_by_tileset_name(const char *str)
@@ -967,7 +980,7 @@ static enum direction8 dir_by_tileset_name(const char *str)
   return direction8_invalid();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return TRUE iff the dir is valid in this tileset.
 ****************************************************************************/
 static bool is_valid_tileset_dir(const struct tileset *t,
@@ -982,7 +995,7 @@ static bool is_valid_tileset_dir(const struct tileset *t,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return TRUE iff the dir is cardinal in this tileset.
 
   "Cardinal", in this sense, means that a tile will share a border with
@@ -999,10 +1012,10 @@ static bool is_cardinal_tileset_dir(const struct tileset *t,
   }
 }
 
-/**********************************************************************
+/************************************************************************//**
   Convert properties of the actual topology to an index of different
   tileset topology types.
-***********************************************************************/
+****************************************************************************/
 static int ts_topology_index(int actual_topology)
 {
   int idx;
@@ -1011,23 +1024,23 @@ static int ts_topology_index(int actual_topology)
       && (actual_topology & TF_ISO)) {
     idx = TS_TOPO_ISOHEX;
   } else if (actual_topology & TF_ISO) {
-    idx = TS_TOPO_ISO;
+    idx = TS_TOPO_SQUARE;
   } else if (actual_topology & TF_HEX) {
     idx = TS_TOPO_HEX;
   } else {
-    idx = TS_TOPO_OVERHEAD;
+    idx = TS_TOPO_SQUARE;
   }
 
   return idx;
 }
 
-/**********************************************************************
+/************************************************************************//**
   Returns a static list of tilesets available on the system by
   searching all data directories for files matching TILESPEC_SUFFIX.
-***********************************************************************/
+****************************************************************************/
 const struct strvec *get_tileset_list(const struct option *poption)
 {
-  static struct strvec *tilesets[4] = { NULL, NULL, NULL, NULL };
+  static struct strvec *tilesets[3] = { NULL, NULL, NULL };
   int topo = option_get_cb_data(poption);
   int idx;
 
@@ -1055,13 +1068,13 @@ const struct strvec *get_tileset_list(const struct option *poption)
   return tilesets[idx];
 }
 
-/**********************************************************************
+/************************************************************************//**
   Gets full filename for tilespec file, based on input name.
   Returned data is allocated, and freed by user as required.
   Input name may be null, in which case uses default.
   Falls back to default if can't find specified name;
   dies if can't find default.
-***********************************************************************/
+****************************************************************************/
 static char *tilespec_fullname(const char *tileset_name)
 {
   if (tileset_name) {
@@ -1081,15 +1094,15 @@ static char *tilespec_fullname(const char *tileset_name)
   return NULL;
 }
 
-/**********************************************************************
+/************************************************************************//**
   Checks options in filename match what we require and support.
   Die if not.
   'which' should be "tilespec" or "spec".
-***********************************************************************/
+****************************************************************************/
 static bool check_tilespec_capabilities(struct section_file *file,
-					const char *which,
-					const char *us_capstr,
-					const char *filename,
+                                        const char *which,
+                                        const char *us_capstr,
+                                        const char *filename,
                                         bool verbose)
 {
   enum log_level level = verbose ? LOG_ERROR : LOG_DEBUG;
@@ -1119,11 +1132,11 @@ static bool check_tilespec_capabilities(struct section_file *file,
   return TRUE;
 }
 
-/**********************************************************************
+/************************************************************************//**
   Frees the tilespec toplevel data, in preparation for re-reading it.
 
   See tilespec_read_toplevel().
-***********************************************************************/
+****************************************************************************/
 static void tileset_free_toplevel(struct tileset *t)
 {
   int i, j;
@@ -1193,9 +1206,9 @@ static void tileset_free_toplevel(struct tileset *t)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Clean up.
-**************************************************************************/
+****************************************************************************/
 void tileset_free(struct tileset *t)
 {
   int i;
@@ -1210,20 +1223,25 @@ void tileset_free(struct tileset *t)
   free(t);
 }
 
-/**********************************************************************
+/************************************************************************//**
   Read a new tilespec in when first starting the game.
 
   Call this function with the (guessed) name of the tileset, when
   starting the client.
-***********************************************************************/
-void tilespec_try_read(const char *tileset_name, bool verbose, int topo_id,
+
+  Returns TRUE iff tileset with suggested tileset_name was loaded.
+****************************************************************************/
+bool tilespec_try_read(const char *tileset_name, bool verbose, int topo_id,
                        bool global_default)
 {
+  bool original;
+
   if (tileset_name == NULL
       || !(tileset = tileset_read_toplevel(tileset_name, verbose,
                                            topo_id, 1.0f))) {
     struct strvec *list = fileinfolist(get_data_dirs(), TILESPEC_SUFFIX);
 
+    original = FALSE;
     strvec_iterate(list, file) {
       struct tileset *t = tileset_read_toplevel(file, FALSE, topo_id, 1.0f);
 
@@ -1247,15 +1265,19 @@ void tilespec_try_read(const char *tileset_name, bool verbose, int topo_id,
     }
 
     log_verbose("Trying tileset \"%s\".", tileset->name);
+  } else {
+    original = TRUE;
   }
   option_set_default_ts(tileset);
 
   if (global_default) {
     sz_strlcpy(gui_options.default_tileset_name, tileset_basename(tileset));
   }
+
+  return original;
 }
 
-/**********************************************************************
+/************************************************************************//**
   Read a new tilespec in from scratch.
 
   Unlike the initial reading code, which reads pieces one at a time,
@@ -1265,8 +1287,10 @@ void tilespec_try_read(const char *tileset_name, bool verbose, int topo_id,
   reread.
 
   It will also call the necessary functions to redraw the graphics.
-***********************************************************************/
-void tilespec_reread(const char *new_tileset_name,
+
+  Returns TRUE iff new tileset has been succesfully loaded.
+****************************************************************************/
+bool tilespec_reread(const char *new_tileset_name,
                      bool game_fully_initialized, float scale)
 {
   int id;
@@ -1274,6 +1298,7 @@ void tilespec_reread(const char *new_tileset_name,
   enum client_states state = client_state();
   const char *name = new_tileset_name ? new_tileset_name : tileset->name;
   char tileset_name[strlen(name) + 1], old_name[strlen(tileset->name) + 1];
+  bool new_tileset_in_use;
 
   /* Make local copies since these values may be freed down below */
   sz_strlcpy(tileset_name, name);
@@ -1289,15 +1314,30 @@ void tilespec_reread(const char *new_tileset_name,
 
   /* Step 1:  Cleanup.
    *
-   * We free all old data in preparation for re-reading it.
+   * Free old tileset or keep it in memeory if we are loading the same
+   * tileset with scaling and old one was not scaled.
    */
-  tileset_free(tileset);
+
+  if (strcmp(tileset_name, old_name) == 0 && tileset->scale == 1.0f
+      && scale != 1.0f) {
+    if (unscaled_tileset) {
+      tileset_free(unscaled_tileset);
+    }
+    unscaled_tileset = tileset;
+  } else {
+    tileset_free(tileset);
+  }
 
   /* Step 2:  Read.
    *
    * We read in the new tileset.  This should be pretty straightforward.
    */
-  if (!(tileset = tileset_read_toplevel(tileset_name, FALSE, -1, scale))) {
+  tileset = tileset_read_toplevel(tileset_name, FALSE, -1, scale);
+  if (tileset != NULL) {
+    new_tileset_in_use = TRUE;
+  } else {
+    new_tileset_in_use = FALSE;
+
     if (!(tileset = tileset_read_toplevel(old_name, FALSE, -1, scale))) {
       /* Always fails. */
       fc_assert_exit_msg(NULL != tileset,
@@ -1310,7 +1350,9 @@ void tilespec_reread(const char *new_tileset_name,
   }
 
   if (game_fully_initialized) {
-    tileset_background_init(tileset);
+    if (game.client.ruleset_ready) {
+      tileset_background_init(tileset);
+    } /* else we'll get round to it on PACKET_RULESET_GAME */
     players_iterate(pplayer) {
       tileset_player_init(tileset, pplayer);
     } players_iterate_end;
@@ -1334,7 +1376,7 @@ void tilespec_reread(const char *new_tileset_name,
    */
   if (!game.client.ruleset_ready) {
     /* The ruleset data is not sent until this point. */
-    return;
+    return new_tileset_in_use;
   }
 
   if (tileset_map_topo_compatible(wld.map.topology_id, tileset)
@@ -1373,7 +1415,7 @@ void tilespec_reread(const char *new_tileset_name,
 
   if (state < C_S_RUNNING) {
     /* Below redraws do not apply before this. */
-    return;
+    return new_tileset_in_use;
   }
 
   /* Step 4:  Draw.
@@ -1388,12 +1430,14 @@ void tilespec_reread(const char *new_tileset_name,
    * drawing we might not get one.  Of course this is slower. */
   update_map_canvas_visible();
   can_slide = TRUE;
+
+  return new_tileset_in_use;
 }
 
-/**************************************************************************
+/************************************************************************//**
   This is merely a wrapper for tilespec_reread (above) for use in
   options.c and the client local options dialog.
-**************************************************************************/
+****************************************************************************/
 void tilespec_reread_callback(struct option *poption)
 {
   const char *tileset_name;
@@ -1418,9 +1462,12 @@ void tilespec_reread_callback(struct option *poption)
   menus_init();
 }
 
-/**************************************************************************
-  
-**************************************************************************/
+/************************************************************************//**
+  Read a new tilespec in from scratch. Keep UI frozen while tileset is
+  partially loaded; in inconsistent state.
+
+  See tilespec_reread() for details.
+****************************************************************************/
 void tilespec_reread_frozen_refresh(const char *tname)
 {
   tileset_update = TRUE;
@@ -1429,10 +1476,10 @@ void tilespec_reread_frozen_refresh(const char *tname)
   menus_init();
 }
 
-/**************************************************************************
+/************************************************************************//**
   Loads the given graphics file (found in the data path) into a newly
   allocated sprite.
-**************************************************************************/
+****************************************************************************/
 static struct sprite *load_gfx_file(const char *gfx_filename)
 {
   const char **gfx_fileexts = gfx_fileextensions(), *gfx_fileext;
@@ -1458,9 +1505,9 @@ static struct sprite *load_gfx_file(const char *gfx_filename)
   return NULL;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Ensure that the big sprite of the given spec file is loaded.
-**************************************************************************/
+****************************************************************************/
 static void ensure_big_sprite(struct specfile *sf)
 {
   struct section_file *file;
@@ -1494,13 +1541,13 @@ static void ensure_big_sprite(struct specfile *sf)
   secfile_destroy(file);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Scan all sprites declared in the given specfile.  This means that the
   positions of the sprites in the big_sprite are saved in the
   small_sprite structs.
-**************************************************************************/
+****************************************************************************/
 static void scan_specfile(struct tileset *t, struct specfile *sf,
-			  bool duplicates_ok)
+                          bool duplicates_ok)
 {
   struct section_file *file;
   struct section_list *sections;
@@ -1656,10 +1703,10 @@ static void scan_specfile(struct tileset *t, struct specfile *sf,
   secfile_destroy(file);
 }
 
-/**********************************************************************
+/************************************************************************//**
   Returns the correct name of the gfx file (with path and extension)
   Must be free'd when no longer used
-***********************************************************************/
+****************************************************************************/
 static char *tilespec_gfx_filename(const char *gfx_filename)
 {
   const char  *gfx_current_fileext;
@@ -1686,9 +1733,9 @@ static char *tilespec_gfx_filename(const char *gfx_filename)
   return NULL;
 }
 
-/**********************************************************************
+/************************************************************************//**
   Determine the sprite_type string.
-***********************************************************************/
+****************************************************************************/
 static int check_sprite_type(const char *sprite_type, const char *tile_section)
 {
   if (fc_strcasecmp(sprite_type, "corner") == 0) {
@@ -1704,12 +1751,12 @@ static int check_sprite_type(const char *sprite_type, const char *tile_section)
   return CELL_WHOLE;
 }
 
-/**********************************************************************
+/************************************************************************//**
   Finds and reads the toplevel tilespec file based on given name.
   Sets global variables, including tile sizes and full names for
   intro files.
   topology_id of -1 means any topology is acceptable.
-***********************************************************************/
+****************************************************************************/
 static struct tileset *tileset_read_toplevel(const char *tileset_name,
                                              bool verbose, int topology_id,
                                              float scale)
@@ -1860,14 +1907,18 @@ static struct tileset *tileset_read_toplevel(const char *tileset_name,
     t->type = TS_ISOMETRIC;
   }
 
-  if (topology_id >= 0 && topo != (topology_id & (TF_ISO | TF_HEX))) {
-    /* Not of requested topology */
-    goto ON_ERROR;
+  if (topology_id >= 0) {
+    if (((topology_id & TF_HEX) && topology_id != (topo & (TF_ISO | TF_HEX)))
+        || (!(topology_id & TF_HEX) && (topo & TF_HEX))) {
+      /* Not of requested topology */
+      goto ON_ERROR;
+    }
   }
 
   t->ts_topo_idx = ts_topology_index(topo);
 
   if (!is_view_supported(t->type)) {
+    /* TRANS: "Overhead" or "Isometric" */
     log_normal(_("Client does not support %s tilesets."),
                _(ts_type_name(t->type)));
     log_normal(_("Using default tileset instead."));
@@ -2016,11 +2067,7 @@ static struct tileset *tileset_read_toplevel(const char *tileset_name,
       || !secfile_lookup_int(file, &t->occupied_offset_x,
                              "tilespec.occupied_offset_x")
       || !secfile_lookup_int(file, &t->occupied_offset_y,
-                             "tilespec.occupied_offset_y")
-      || !secfile_lookup_int(file, &t->city_names_font_size,
-                             "tilespec.city_names_font_size")
-      || !secfile_lookup_int(file, &t->city_productions_font_size,
-                             "tilespec.city_productions_font_size")) {
+                             "tilespec.occupied_offset_y")) {
     log_error("Tileset \"%s\" invalid: %s", t->name, secfile_error());
     goto ON_ERROR;
   }
@@ -2033,8 +2080,6 @@ static struct tileset *tileset_read_toplevel(const char *tileset_name,
   t->city_size_offset_y = t->scale * t->city_size_offset_y;
   t->select_offset_x = t->scale * t->select_offset_x;
   t->select_offset_y = t->scale * t->select_offset_y;
-  t->activity_offset_x = t->scale * t->activity_offset_x;
-  t->activity_offset_y = t->scale * t->activity_offset_y;
   t->unit_flag_offset_x = t->scale * t->unit_flag_offset_x;
   t->unit_flag_offset_y = t->scale * t->unit_flag_offset_y;
   t->city_flag_offset_x = t->scale * t->city_flag_offset_x;
@@ -2057,9 +2102,6 @@ static struct tileset *tileset_read_toplevel(const char *tileset_name,
       && t->unit_upkeep_small_offset_y != t->unit_upkeep_offset_y) {
     t->unit_upkeep_small_offset_y = t->scale * t->unit_upkeep_small_offset_y;
   }
-
-  set_city_names_font_sizes(t->city_names_font_size,
-                            t->city_productions_font_size);
 
   c = secfile_lookup_str_default(file, NULL,
                                  "tilespec.unit_default_orientation");
@@ -2430,9 +2472,9 @@ ON_ERROR:
   return NULL;
 }
 
-/**********************************************************************
+/************************************************************************//**
   Returns a text name for the citizen, as used in the tileset.
-***********************************************************************/
+****************************************************************************/
 static const char *citizen_rule_name(enum citizen_category citizen)
 {
   /* These strings are used in reading the tileset.  Do not
@@ -2453,7 +2495,7 @@ static const char *citizen_rule_name(enum citizen_category citizen)
   return NULL;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return a directional string for the cardinal directions.  Normally the
   binary value 1000 will be converted into "n1e0s0w0".  This is in a
   clockwise ordering.
@@ -2474,7 +2516,7 @@ static const char *cardinal_index_str(const struct tileset *t, int idx)
   return c;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Do the same thing as cardinal_str, except including all valid directions.
   The returned string is a pointer to static memory.
 ****************************************************************************/
@@ -2494,13 +2536,13 @@ static char *valid_index_str(const struct tileset *t, int idx)
   return c;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Loads the sprite. If the sprite is already loaded a reference
   counter is increased. Can return NULL if the sprite couldn't be
   loaded.
   Scale means if sprite should be scaled, smooth if scaling might use
   other scaling algorithm than nearest neighbor.
-**************************************************************************/
+****************************************************************************/
 static struct sprite *load_sprite(struct tileset *t, const char *tag_name,
                                   bool scale, bool smooth)
 {
@@ -2561,24 +2603,29 @@ static struct sprite *load_sprite(struct tileset *t, const char *tag_name,
   return ss->sprite;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Create a sprite with the given color and tag.
-**************************************************************************/
+****************************************************************************/
 static struct sprite *create_plr_sprite(struct color *pcolor)
 {
   struct sprite *sprite;
 
   fc_assert_ret_val(pcolor != NULL, NULL);
 
-  sprite = create_sprite(128, 64, pcolor);
+  if (tileset->scale == 1.0f) {
+    sprite = create_sprite(128, 64, pcolor);
+  } else {
+    sprite = create_sprite(tileset->full_tile_width,
+                           tileset->full_tile_height, pcolor);
+  }
 
   return sprite;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Unloads the sprite. Decrease the reference counter. If the last
   reference is removed the sprite is freed.
-**************************************************************************/
+****************************************************************************/
 static void unload_sprite(struct tileset *t, const char *tag_name)
 {
   struct small_sprite *ss;
@@ -2599,10 +2646,10 @@ static void unload_sprite(struct tileset *t, const char *tag_name)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return TRUE iff the specified sprite exists in the tileset (whether
   or not it is currently loaded).
-**************************************************************************/
+****************************************************************************/
 static bool sprite_exists(const struct tileset *t, const char *tag_name)
 {
   /* Lookup information about where the sprite is found. */
@@ -2658,7 +2705,7 @@ static bool sprite_exists(const struct tileset *t, const char *tag_name)
 						   "sprite", #field, TRUE);	    \
   } while (FALSE)
 
-/****************************************************************************
+/************************************************************************//**
   Setup the graphics for specialist types.
 ****************************************************************************/
 void tileset_setup_specialist_type(struct tileset *t, Specialist_type_id id)
@@ -2666,12 +2713,13 @@ void tileset_setup_specialist_type(struct tileset *t, Specialist_type_id id)
   /* Load the specialist sprite graphics. */
   char buffer[512];
   int j;
-  const char *name = specialist_rule_name(specialist_by_number(id));
-  const char *graphic_alt = specialist_by_number(id)->graphic_alt;
+  struct specialist *spe = specialist_by_number(id);
+  const char *tag = spe->graphic_str;
+  const char *graphic_alt = spe->graphic_alt;
 
   for (j = 0; j < MAX_NUM_CITIZEN_SPRITES; j++) {
-    /* Try rule name + index number */
-    fc_snprintf(buffer, sizeof(buffer), "specialist.%s_%d", name, j);
+    /* Try tag name + index number */
+    fc_snprintf(buffer, sizeof(buffer), "%s_%d", tag, j);
     t->sprites.specialist[id].sprite[j] = load_sprite(t, buffer, FALSE,
                                                       FALSE);
 
@@ -2681,8 +2729,33 @@ void tileset_setup_specialist_type(struct tileset *t, Specialist_type_id id)
     }
   }
 
-  /* Nothing? Try the alt tag */
   if (j == 0) {
+    /* Try non-indexed */
+    t->sprites.specialist[id].sprite[j] = load_sprite(t, tag, FALSE,
+                                                      FALSE);
+
+    if (t->sprites.specialist[id].sprite[j]) {
+      j = 1;
+    }
+  }
+
+  if (j == 0) {
+    /* Try the alt tag */
+    for (j = 0; j < MAX_NUM_CITIZEN_SPRITES; j++) {
+      /* Try alt tag name + index number */
+      fc_snprintf(buffer, sizeof(buffer), "%s_%d", graphic_alt, j);
+      t->sprites.specialist[id].sprite[j] = load_sprite(t, buffer, FALSE,
+                                                        FALSE);
+
+      /* Break if no more index specific sprites are defined */
+      if (!t->sprites.specialist[id].sprite[j]) {
+        break;
+      }
+    }
+  }
+
+  if (j == 0) {
+    /* Try alt tag non-indexed */
     t->sprites.specialist[id].sprite[j] = load_sprite(t, graphic_alt, FALSE,
                                                       FALSE);
 
@@ -2695,11 +2768,11 @@ void tileset_setup_specialist_type(struct tileset *t, Specialist_type_id id)
 
   /* Still nothing? Give up. */
   if (j == 0) {
-    tileset_error(LOG_FATAL, _("No graphics for specialist \"%s\"."), name);
+    tileset_error(LOG_FATAL, _("No graphics for specialist \"%s\"."), tag);
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Setup the graphics for (non-specialist) citizen types.
 ****************************************************************************/
 static void tileset_setup_citizen_types(struct tileset *t)
@@ -2725,14 +2798,14 @@ static void tileset_setup_citizen_types(struct tileset *t)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the sprite in the city_sprite listing that corresponds to this
   city - based on city style and size.
 
   See also load_city_sprite, free_city_sprite.
 ****************************************************************************/
 static struct sprite *get_city_sprite(const struct city_sprite *city_sprite,
-				      const struct city *pcity)
+                                      const struct city *pcity)
 {
   /* get style and match the best tile based on city size */
   int style = style_of_city(pcity);
@@ -2764,7 +2837,7 @@ static struct sprite *get_city_sprite(const struct city_sprite *city_sprite,
   return thresholds[img_index].sprite;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Allocates one threshold set for city sprite
 ****************************************************************************/
 static int load_city_thresholds_sprites(struct tileset *t, const char *tag,
@@ -2801,7 +2874,7 @@ static int load_city_thresholds_sprites(struct tileset *t, const char *tag,
   return num_thresholds;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Allocates and loads a new city sprite from the given sprite tags.
 
   tag may be NULL.
@@ -2809,7 +2882,7 @@ static int load_city_thresholds_sprites(struct tileset *t, const char *tag,
   See also get_city_sprite, free_city_sprite.
 ****************************************************************************/
 static struct city_sprite *load_city_sprite(struct tileset *t,
-					    const char *tag)
+                                            const char *tag)
 {
   struct city_sprite *city_sprite = fc_malloc(sizeof(*city_sprite));
   int style;
@@ -2831,7 +2904,7 @@ static struct city_sprite *load_city_sprite(struct tileset *t,
   return city_sprite;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Frees a city sprite.
 
   See also get_city_sprite, load_city_sprite.
@@ -2852,10 +2925,10 @@ static void free_city_sprite(struct city_sprite *city_sprite)
   free(city_sprite);
 }
 
-/**********************************************************************
+/************************************************************************//**
   Initialize 'sprites' structure based on hardwired tags which
   freeciv always requires. 
-***********************************************************************/
+****************************************************************************/
 static void tileset_lookup_sprite_tags(struct tileset *t)
 {
   char buffer[512], buffer2[512];
@@ -3261,9 +3334,9 @@ static void tileset_lookup_sprite_tags(struct tileset *t)
   sprite_vector_init(&t->sprites.nation_shield);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Load sprites of one river type.
-**************************************************************************/
+****************************************************************************/
 static bool load_river_sprites(struct tileset *t,
                                struct river_sprites *store, const char *tag_pfx)
 {
@@ -3292,12 +3365,12 @@ static bool load_river_sprites(struct tileset *t,
   return TRUE;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Frees any internal buffers which are created by load_sprite. Should
   be called after the last (for a given period of time) load_sprite
   call.  This saves a fair amount of memory, but it will take extra time
   the next time we start loading sprites again.
-**************************************************************************/
+****************************************************************************/
 void finish_loading_sprites(struct tileset *t)
 {
   specfile_list_iterate(t->specfiles, sf) {
@@ -3308,22 +3381,22 @@ void finish_loading_sprites(struct tileset *t)
   } specfile_list_iterate_end;
 }
 
-/**********************************************************************
+/************************************************************************//**
   Load the tiles; requires tilespec_read_toplevel() called previously.
   Leads to tile_sprites being allocated and filled with pointers
   to sprites.   Also sets up and populates sprite_hash, and calls func
   to initialize 'sprites' structure.
-***********************************************************************/
+****************************************************************************/
 void tileset_load_tiles(struct tileset *t)
 {
   tileset_lookup_sprite_tags(t);
   finish_loading_sprites(t);
 }
 
-/**********************************************************************
+/************************************************************************//**
   Lookup sprite to match tag, or else to match alt if don't find,
   or else return NULL, and emit log message.
-***********************************************************************/
+****************************************************************************/
 struct sprite *tiles_lookup_sprite_tag_alt(struct tileset *t,
                                            enum log_level level,
                                            const char *tag, const char *alt,
@@ -3355,10 +3428,10 @@ struct sprite *tiles_lookup_sprite_tag_alt(struct tileset *t,
   return NULL;
 }
 
-/**********************************************************************
+/************************************************************************//**
   Helper function to load sprite for one unit orientation.
   Returns FALSE if a needed sprite was not found.
-***********************************************************************/
+****************************************************************************/
 static bool tileset_setup_unit_direction(struct tileset *t,
                                          int uidx,
                                          const char *base_str,
@@ -3402,10 +3475,10 @@ static bool tileset_setup_unit_direction(struct tileset *t,
   return FALSE;
 }
 
-/**********************************************************************
+/************************************************************************//**
   Try to setup all unit type sprites from single tag
-***********************************************************************/
-bool static tileset_setup_unit_type_from_tag(struct tileset *t,
+****************************************************************************/
+static bool tileset_setup_unit_type_from_tag(struct tileset *t,
                                              int uidx, const char *tag)
 {
   bool has_icon, facing_sprites = TRUE;
@@ -3437,10 +3510,10 @@ bool static tileset_setup_unit_type_from_tag(struct tileset *t,
 #undef LOAD_FACING_SPRITE
 }
 
-/**********************************************************************
+/************************************************************************//**
   Set unit_type sprite value; should only happen after
   tilespec_load_tiles().
-***********************************************************************/
+****************************************************************************/
 void tileset_setup_unit_type(struct tileset *t, struct unit_type *ut)
 {
   int uidx = utype_index(ut);
@@ -3466,12 +3539,12 @@ void tileset_setup_unit_type(struct tileset *t, struct unit_type *ut)
   }
 }
 
-/**********************************************************************
+/************************************************************************//**
   Set improvement_type sprite value; should only happen after
   tilespec_load_tiles().
-***********************************************************************/
+****************************************************************************/
 void tileset_setup_impr_type(struct tileset *t,
-			     struct impr_type *pimprove)
+                             struct impr_type *pimprove)
 {
   t->sprites.building[improvement_index(pimprove)] =
     tiles_lookup_sprite_tag_alt(t, LOG_VERBOSE, pimprove->graphic_str,
@@ -3481,12 +3554,12 @@ void tileset_setup_impr_type(struct tileset *t,
   /* should maybe do something if NULL, eg generic default? */
 }
 
-/**********************************************************************
+/************************************************************************//**
   Set tech_type sprite value; should only happen after
   tilespec_load_tiles().
-***********************************************************************/
+****************************************************************************/
 void tileset_setup_tech_type(struct tileset *t,
-			     struct advance *padvance)
+                             struct advance *padvance)
 {
   if (valid_advance(padvance)) {
     t->sprites.tech[advance_index(padvance)] =
@@ -3500,7 +3573,7 @@ void tileset_setup_tech_type(struct tileset *t,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set extra sprite values; should only happen after
   tilespec_load_tiles().
 ****************************************************************************/
@@ -3514,14 +3587,21 @@ void tileset_setup_extra(struct tileset *t,
     /* Extra without graphics */
     t->sprites.extras[id].extrastyle = extrastyle_id_invalid();
   } else {
+    const char *tag;
 
-    if (!estyle_hash_lookup(t->estyle_hash, pextra->graphic_str,
-                            &extrastyle)
-        && !estyle_hash_lookup(t->estyle_hash, pextra->graphic_alt,
-                               &extrastyle)) {
-      tileset_error(LOG_FATAL, _("No extrastyle for \"%s\" or \"%s\"."),
-                    pextra->graphic_str,
-                    pextra->graphic_alt);
+    tag = pextra->graphic_str;
+    if (!estyle_hash_lookup(t->estyle_hash, tag, &extrastyle)) {
+      tag = pextra->graphic_alt;
+      if (!estyle_hash_lookup(t->estyle_hash, tag, &extrastyle)) {
+        tileset_error(LOG_FATAL, _("No extra style for \"%s\" or \"%s\"."),
+                      pextra->graphic_str,
+                      pextra->graphic_alt);
+      } else {
+        log_verbose("Using alternate graphic \"%s\" "
+                    "(instead of \"%s\") for extra \"%s\".",
+                    pextra->graphic_alt, pextra->graphic_str,
+                    extra_rule_name(pextra));
+      }
     }
 
     t->sprites.extras[id].extrastyle = extrastyle;
@@ -3534,19 +3614,19 @@ void tileset_setup_extra(struct tileset *t,
 
     switch (extrastyle) {
     case ESTYLE_3LAYER:
-      tileset_setup_base(t, pextra);
+      tileset_setup_base(t, pextra, tag);
       break;
 
     case ESTYLE_ROAD_ALL_SEPARATE:
     case ESTYLE_ROAD_PARITY_COMBINED:
     case ESTYLE_ROAD_ALL_COMBINED:
     case ESTYLE_RIVER:
-      tileset_setup_road(t, pextra);
+      tileset_setup_road(t, pextra, tag);
       break;
 
     case ESTYLE_SINGLE1:
     case ESTYLE_SINGLE2:
-      SET_SPRITE_ALT(extras[id].u.single, pextra->graphic_str, pextra->graphic_alt);
+      SET_SPRITE(extras[id].u.single, tag);
       break;
 
     case ESTYLE_CARDINALS:
@@ -3559,29 +3639,19 @@ void tileset_setup_extra(struct tileset *t,
          * graphics. */
         for (i = 0; i < t->num_index_cardinal; i++) {
           fc_snprintf(buffer, sizeof(buffer), "%s_%s",
-                      pextra->graphic_str, cardinal_index_str(t, i));
+                      tag, cardinal_index_str(t, i));
           t->sprites.extras[id].u.cardinals[i] = load_sprite(t, buffer,
                                                              TRUE, TRUE);
           if (!t->sprites.extras[id].u.cardinals[i]) {
             t->sprites.extras[id].u.cardinals[i] = load_sprite(t,
-                                                  pextra->graphic_str, TRUE,
+                                                  tag, TRUE,
                                                   TRUE);
           }
           if (!t->sprites.extras[id].u.cardinals[i]) {
-            fc_snprintf(buffer, sizeof(buffer), "%s_%s",
-                        pextra->graphic_alt, cardinal_index_str(t, i));
-            t->sprites.extras[id].u.cardinals[i] = load_sprite(t, buffer,
-                                                               TRUE, TRUE);
-          }
-          if (!t->sprites.extras[id].u.cardinals[i]) {
-            t->sprites.extras[id].u.cardinals[i] = load_sprite(t,
-                                                  pextra->graphic_alt, TRUE,
-                                                  TRUE);
-          }
-          if (!t->sprites.extras[id].u.cardinals[i]) {
-            tileset_error(LOG_FATAL, _("Sprite for tags '%s' and alternate '%s' are "
-                                       "both missing."),
-                          pextra->graphic_str, pextra->graphic_alt);
+            tileset_error(LOG_FATAL,
+                          _("No cardinal-style graphics \"%s*\" for "
+                            "extra \"%s\""),
+                          tag, extra_rule_name(pextra));
           }
         }
       }
@@ -3627,15 +3697,15 @@ void tileset_setup_extra(struct tileset *t,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set road sprite values; should only happen after
   tilespec_load_tiles().
 ****************************************************************************/
 static void tileset_setup_road(struct tileset *t,
-                               struct extra_type *pextra)
+                               struct extra_type *pextra,
+                               const char *tag)
 {
   char full_tag_name[MAX_LEN_NAME + strlen("_isolated")];
-  char full_alt_name[MAX_LEN_NAME + strlen("_isolated")];
   const int id = extra_index(pextra);
   int i;
   enum extrastyle_id extrastyle = t->sprites.extras[id].extrastyle;
@@ -3645,32 +3715,28 @@ static void tileset_setup_road(struct tileset *t,
   if (extrastyle == ESTYLE_ROAD_ALL_SEPARATE
       || extrastyle == ESTYLE_ROAD_PARITY_COMBINED) {
     fc_snprintf(full_tag_name, sizeof(full_tag_name),
-                "%s_isolated", pextra->graphic_str);
-    fc_snprintf(full_alt_name, sizeof(full_alt_name),
-                "%s_isolated", pextra->graphic_alt);
+                "%s_isolated", tag);
 
-    SET_SPRITE_ALT(extras[id].u.road.isolated, full_tag_name, full_alt_name);
+    SET_SPRITE(extras[id].u.road.isolated, full_tag_name);
   }
 
   if (extrastyle == ESTYLE_ROAD_ALL_SEPARATE) {
-    /* ESTYLE_ROAD_ALL_SEPARATE has just 8 additional sprites for each road type:
-     * one going off in each direction. */
+    /* ESTYLE_ROAD_ALL_SEPARATE has just 8 additional sprites for each
+     * road type: one going off in each direction. */
     for (i = 0; i < t->num_valid_tileset_dirs; i++) {
       enum direction8 dir = t->valid_tileset_dirs[i];
       const char *dir_name = dir_get_tileset_name(dir);
 
       fc_snprintf(full_tag_name, sizeof(full_tag_name),
-                  "%s_%s", pextra->graphic_str, dir_name);
-      fc_snprintf(full_alt_name, sizeof(full_alt_name),
-                  "%s_%s", pextra->graphic_alt, dir_name);
+                  "%s_%s", tag, dir_name);
 
-      SET_SPRITE_ALT(extras[id].u.road.ru.dir[i], full_tag_name, full_alt_name);
+      SET_SPRITE(extras[id].u.road.ru.dir[i], full_tag_name);
     }
   } else if (extrastyle == ESTYLE_ROAD_PARITY_COMBINED) {
     int num_index = 1 << (t->num_valid_tileset_dirs / 2), j;
 
-    /* ESTYLE_ROAD_PARITY_COMBINED has 32 additional sprites for each road type:
-     * 16 each for cardinal and diagonal directions.  Each set
+    /* ESTYLE_ROAD_PARITY_COMBINED has 32 additional sprites for each road
+     * type: 16 each for cardinal and diagonal directions.  Each set
      * of 16 provides a NSEW-indexed sprite to provide connectors for
      * all rails in the cardinal/diagonal directions.  The 0 entry is
      * unused (the "isolated" sprite is used instead). */
@@ -3690,18 +3756,14 @@ static void tileset_setup_road(struct tileset *t,
       }
 
       fc_snprintf(full_tag_name, sizeof(full_tag_name),
-                  "%s_c_%s", pextra->graphic_str, c);
-      fc_snprintf(full_alt_name, sizeof(full_alt_name),
-                  "%s_c_%s", pextra->graphic_alt, c);
+                  "%s_c_%s", tag, c);
 
-      SET_SPRITE_ALT(extras[id].u.road.ru.combo.even[i], full_tag_name, full_alt_name);
+      SET_SPRITE(extras[id].u.road.ru.combo.even[i], full_tag_name);
 
       fc_snprintf(full_tag_name, sizeof(full_tag_name),
-                  "%s_d_%s", pextra->graphic_str, d);
-      fc_snprintf(full_alt_name, sizeof(full_alt_name),
-                  "%s_d_%s", pextra->graphic_alt, d);
+                  "%s_d_%s", tag, d);
 
-      SET_SPRITE_ALT(extras[id].u.road.ru.combo.odd[i], full_tag_name, full_alt_name);
+      SET_SPRITE(extras[id].u.road.ru.combo.odd[i], full_tag_name);
     }
   } else if (extrastyle == ESTYLE_ROAD_ALL_COMBINED) {
     /* ESTYLE_ROAD_ALL_COMBINED includes 256 sprites, one for every possibility.
@@ -3710,20 +3772,15 @@ static void tileset_setup_road(struct tileset *t,
       char *idx_str = valid_index_str(t, i);
 
       fc_snprintf(full_tag_name, sizeof(full_tag_name),
-                  "%s_%s", pextra->graphic_str, idx_str);
-      fc_snprintf(full_alt_name, sizeof(full_alt_name),
-                  "%s_%s", pextra->graphic_alt, idx_str);
+                  "%s_%s", tag, idx_str);
 
-      SET_SPRITE_ALT(extras[id].u.road.ru.total[i], full_tag_name, full_alt_name);
+      SET_SPRITE(extras[id].u.road.ru.total[i], full_tag_name);
     }
   } else if (extrastyle == ESTYLE_RIVER) {
-    if (!load_river_sprites(t, &t->sprites.extras[id].u.road.ru.rivers,
-                            pextra->graphic_str)) {
-      if (!load_river_sprites(t, &t->sprites.extras[id].u.road.ru.rivers,
-                              pextra->graphic_alt)) {
-        tileset_error(LOG_FATAL, _("Cannot load river \"%s\" or \"%s\""),
-                      pextra->graphic_str, pextra->graphic_alt);
-      }
+    if (!load_river_sprites(t, &t->sprites.extras[id].u.road.ru.rivers, tag)) {
+      tileset_error(LOG_FATAL,
+                    _("No river-style graphics \"%s*\" for extra \"%s\""),
+                    tag, extra_rule_name(pextra));
     }
   } else {
     fc_assert(FALSE);
@@ -3741,38 +3798,37 @@ static void tileset_setup_road(struct tileset *t,
 
         fc_snprintf(full_tag_name, sizeof(full_tag_name),
                     "%s_c_%s", pextra->graphic_str, dtn);
-        fc_snprintf(full_alt_name, sizeof(full_alt_name),
-                    "%s_c_%s", pextra->graphic_alt, dtn);
 
-        SET_SPRITE_ALT_OPT(extras[id].u.road.corner[dir], full_tag_name, full_alt_name);
+        SET_SPRITE_OPT(extras[id].u.road.corner[dir], full_tag_name);
       }
     }
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set base sprite values; should only happen after
   tilespec_load_tiles().
 ****************************************************************************/
 static void tileset_setup_base(struct tileset *t,
-                               const struct extra_type *pextra)
+                               const struct extra_type *pextra,
+                               const char *tag)
 {
   char full_tag_name[MAX_LEN_NAME + strlen("_fg")];
   const int id = extra_index(pextra);
 
   fc_assert_ret(id >= 0 && id < extra_count());
 
-  sz_strlcpy(full_tag_name, pextra->graphic_str);
+  sz_strlcpy(full_tag_name, tag);
   strcat(full_tag_name, "_bg");
   t->sprites.extras[id].u.bmf.background = load_sprite(t, full_tag_name,
                                                        TRUE, TRUE);
 
-  sz_strlcpy(full_tag_name, pextra->graphic_str);
+  sz_strlcpy(full_tag_name, tag);
   strcat(full_tag_name, "_mg");
   t->sprites.extras[id].u.bmf.middleground = load_sprite(t, full_tag_name,
                                                          TRUE, TRUE);
 
-  sz_strlcpy(full_tag_name, pextra->graphic_str);
+  sz_strlcpy(full_tag_name, tag);
   strcat(full_tag_name, "_fg");
   t->sprites.extras[id].u.bmf.foreground = load_sprite(t, full_tag_name,
                                                        TRUE, TRUE);
@@ -3780,52 +3836,24 @@ static void tileset_setup_base(struct tileset *t,
   if (t->sprites.extras[id].u.bmf.background == NULL
       && t->sprites.extras[id].u.bmf.middleground == NULL
       && t->sprites.extras[id].u.bmf.foreground == NULL) {
-    /* No primary graphics at all. Try alternative */
-    log_verbose("Using alternate graphic \"%s\" "
-                "(instead of \"%s\") for extra \"%s\".",
-                pextra->graphic_alt, pextra->graphic_str,
-                extra_rule_name(pextra));
-
-    sz_strlcpy(full_tag_name, pextra->graphic_alt);
-    strcat(full_tag_name, "_bg");
-    t->sprites.extras[id].u.bmf.background = load_sprite(t, full_tag_name,
-                                                         TRUE, TRUE);
-
-    sz_strlcpy(full_tag_name, pextra->graphic_alt);
-    strcat(full_tag_name, "_mg");
-    t->sprites.extras[id].u.bmf.middleground = load_sprite(t, full_tag_name,
-                                                           TRUE, TRUE);
-
-    sz_strlcpy(full_tag_name, pextra->graphic_alt);
-    strcat(full_tag_name, "_fg");
-    t->sprites.extras[id].u.bmf.foreground = load_sprite(t, full_tag_name,
-                                                         TRUE, TRUE);
-
-    if (t->sprites.extras[id].u.bmf.background == NULL
-        && t->sprites.extras[id].u.bmf.middleground == NULL
-        && t->sprites.extras[id].u.bmf.foreground == NULL) {
-      /* Cannot find alternative graphics either */
-      tileset_error(LOG_FATAL, _("No graphics for extra \"%s\" at all!"),
-                    extra_rule_name(pextra));
-    }
+    /* There was an extra style definition but no matching graphics */
+    tileset_error(LOG_FATAL,
+                  _("No graphics with tag \"%s_bg/mg/fg\" for extra \"%s\""),
+                  tag, extra_rule_name(pextra));
   }
 }
 
-/**********************************************************************
+/************************************************************************//**
   Set tile_type sprite values; should only happen after
   tilespec_load_tiles().
-***********************************************************************/
+****************************************************************************/
 void tileset_setup_tile_type(struct tileset *t,
-			     const struct terrain *pterrain)
+                             const struct terrain *pterrain)
 {
   struct drawing_data *draw;
   struct sprite *sprite;
   char buffer[MAX_LEN_NAME + 20];
   int i, l;
-  
-  if (0 == strlen(terrain_rule_name(pterrain))) {
-    return;
-  }
 
   if (!drawing_hash_lookup(t->tile_hash, pterrain->graphic_str, &draw)
       && !drawing_hash_lookup(t->tile_hash, pterrain->graphic_alt, &draw)) {
@@ -4078,12 +4106,12 @@ void tileset_setup_tile_type(struct tileset *t,
   t->sprites.drawing[terrain_index(pterrain)] = draw;
 }
 
-/**********************************************************************
+/************************************************************************//**
   Set government sprite value; should only happen after
   tilespec_load_tiles().
-***********************************************************************/
+****************************************************************************/
 void tileset_setup_government(struct tileset *t,
-			      struct government *gov)
+                              struct government *gov)
 {
   t->sprites.government[government_index(gov)] =
     tiles_lookup_sprite_tag_alt(t, LOG_FATAL, gov->graphic_str,
@@ -4093,12 +4121,12 @@ void tileset_setup_government(struct tileset *t,
   /* should probably do something if NULL, eg generic default? */
 }
 
-/**********************************************************************
+/************************************************************************//**
   Set nation flag sprite value; should only happen after
   tilespec_load_tiles().
-***********************************************************************/
+****************************************************************************/
 void tileset_setup_nation_flag(struct tileset *t, 
-			       struct nation_type *nation)
+                               struct nation_type *nation)
 {
   char *tags[] = {nation->flag_graphic_str,
 		  nation->flag_graphic_alt,
@@ -4127,20 +4155,20 @@ void tileset_setup_nation_flag(struct tileset *t,
   t->sprites.nation_shield.p[nation_index(nation)] = shield;
 }
 
-/**********************************************************************
+/************************************************************************//**
   Return the flag graphic to be used by the city.
-***********************************************************************/
+****************************************************************************/
 struct sprite *get_city_flag_sprite(const struct tileset *t,
-				    const struct city *pcity)
+                                    const struct city *pcity)
 {
   return get_nation_flag_sprite(t, nation_of_city(pcity));
 }
 
-/**********************************************************************
+/************************************************************************//**
   Return a sprite for the national flag for this unit.
-***********************************************************************/
+****************************************************************************/
 static struct sprite *get_unit_nation_flag_sprite(const struct tileset *t,
-						  const struct unit *punit)
+                                                  const struct unit *punit)
 {
   struct nation_type *pnation = nation_of_unit(punit);
 
@@ -4165,13 +4193,13 @@ static struct sprite *get_unit_nation_flag_sprite(const struct tileset *t,
 #define ADD_SPRITE_FULL(s)						    \
   ADD_SPRITE(s, TRUE, FULL_TILE_X_OFFSET, FULL_TILE_Y_OFFSET)
 
-/**************************************************************************
+/************************************************************************//**
   Assemble some data that is used in building the tile sprite arrays.
     (map_x, map_y) : the (normalized) map position
   The values we fill in:
     tterrain_near  : terrain types of all adjacent terrain
     tspecial_near  : specials of all adjacent terrain
-**************************************************************************/
+****************************************************************************/
 static void build_tile_data(const struct tile *ptile,
                             struct terrain *pterrain,
                             struct terrain **tterrain_near,
@@ -4201,9 +4229,9 @@ static void build_tile_data(const struct tile *ptile,
   }
 }
 
-/**********************************************************************
+/************************************************************************//**
   Fill in the sprite array for the unit type.
-***********************************************************************/
+****************************************************************************/
 static int fill_unit_type_sprite_array(const struct tileset *t,
                                        struct drawn_sprite *sprs,
                                        const struct unit_type *putype,
@@ -4219,9 +4247,9 @@ static int fill_unit_type_sprite_array(const struct tileset *t,
   return sprs - save_sprs;
 }
 
-/**********************************************************************
+/************************************************************************//**
   Fill in the sprite array for the unit.
-***********************************************************************/
+****************************************************************************/
 static int fill_unit_sprite_array(const struct tileset *t,
                                   struct drawn_sprite *sprs,
                                   const struct unit *punit,
@@ -4229,13 +4257,13 @@ static int fill_unit_sprite_array(const struct tileset *t,
 {
   struct drawn_sprite *save_sprs = sprs;
   int ihp;
-  struct unit_type *ptype = unit_type_get(punit);
+  const struct unit_type *ptype = unit_type_get(punit);
 
   if (backdrop) {
     if (!gui_options.solid_color_behind_units) {
       ADD_SPRITE(get_unit_nation_flag_sprite(t, punit), TRUE,
-		 FULL_TILE_X_OFFSET + t->unit_flag_offset_x,
-		 FULL_TILE_Y_OFFSET + t->unit_flag_offset_y);
+                 FULL_TILE_X_OFFSET + t->unit_flag_offset_x,
+                 FULL_TILE_Y_OFFSET + t->unit_flag_offset_y);
     } else {
       /* Taken care of in the LAYER_BACKGROUND. */
     }
@@ -4260,12 +4288,18 @@ static int fill_unit_sprite_array(const struct tileset *t,
         s = t->sprites.extras[extra_index(punit->activity_target)].activity;
       }
       break;
+    case ACTIVITY_PLANT:
+      s = t->sprites.unit.plant;
+      break;
     case ACTIVITY_IRRIGATE:
      if (punit->activity_target == NULL) {
         s = t->sprites.unit.irrigate;
       } else {
         s = t->sprites.extras[extra_index(punit->activity_target)].activity;
       }
+      break;
+    case ACTIVITY_CULTIVATE:
+      s = t->sprites.unit.irrigate;
       break;
     case ACTIVITY_POLLUTION:
     case ACTIVITY_FALLOUT:
@@ -4275,7 +4309,7 @@ static int fill_unit_sprite_array(const struct tileset *t,
       s = t->sprites.unit.pillage;
       break;
     case ACTIVITY_EXPLORE:
-      s = t->sprites.unit.auto_explore;
+      /* Drawn below as the server side agent. */
       break;
     case ACTIVITY_FORTIFIED:
       s = t->sprites.unit.fortified;
@@ -4309,11 +4343,32 @@ static int fill_unit_sprite_array(const struct tileset *t,
     }
   }
 
-  if (punit->ai_controlled && punit->activity != ACTIVITY_EXPLORE) {
-    if (is_military_unit(punit)) {
-      ADD_SPRITE_FULL(t->sprites.unit.auto_attack);
-    } else {
-      ADD_SPRITE_FULL(t->sprites.unit.auto_settler);
+  {
+    struct sprite *s = NULL;
+    int offset_x = 0;
+    int offset_y = 0;
+
+    switch (punit->ssa_controller) {
+    case SSA_NONE:
+      break;
+    case SSA_AUTOSETTLER:
+      s = t->sprites.unit.auto_settler;
+      break;
+    case SSA_AUTOEXPLORE:
+      s = t->sprites.unit.auto_explore;
+      /* Specified as an activity in the tileset. */
+      offset_x = t->activity_offset_x;
+      offset_y = t->activity_offset_y;
+      break;
+    default:
+      s = t->sprites.unit.auto_attack;
+      break;
+    }
+
+    if (s != NULL) {
+      ADD_SPRITE(s, TRUE,
+                 FULL_TILE_X_OFFSET + offset_x,
+                 FULL_TILE_Y_OFFSET + offset_y);
     }
   }
 
@@ -4370,14 +4425,14 @@ static int fill_unit_sprite_array(const struct tileset *t,
   return sprs - save_sprs;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Add any corner road sprites to the sprite array.
-**************************************************************************/
+****************************************************************************/
 static int fill_road_corner_sprites(const struct tileset *t,
                                     const struct extra_type *pextra,
-				    struct drawn_sprite *sprs,
-				    bool road, bool *road_near,
-				    bool hider, bool *hider_near)
+                                    struct drawn_sprite *sprs,
+                                    bool road, bool *road_near,
+                                    bool hider, bool *hider_near)
 {
   struct drawn_sprite *saved_sprs = sprs;
   int i;
@@ -4421,9 +4476,9 @@ static int fill_road_corner_sprites(const struct tileset *t,
   return sprs - saved_sprs;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Fill all road and rail sprites into the sprite array.
-**************************************************************************/
+****************************************************************************/
 static int fill_road_sprite_array(const struct tileset *t,
                                   const struct extra_type *pextra,
                                   struct drawn_sprite *sprs,
@@ -4627,7 +4682,7 @@ static int fill_road_sprite_array(const struct tileset *t,
   return sprs - saved_sprs;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return the index of the sprite to be used for irrigation or farmland in
   this tile.
 
@@ -4635,7 +4690,7 @@ static int fill_road_sprite_array(const struct tileset *t,
   choose a sprite (index) based upon which cardinally adjacent tiles have
   either farmland or irrigation (the two are considered interchangable for
   this).
-**************************************************************************/
+****************************************************************************/
 static int get_irrigation_index(const struct tileset *t,
                                 struct extra_type *pextra,
                                 bv_extras *textras_near)
@@ -4653,9 +4708,9 @@ static int get_irrigation_index(const struct tileset *t,
   return tileno;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Fill in the farmland/irrigation sprite for the tile.
-**************************************************************************/
+****************************************************************************/
 static int fill_irrigation_sprite_array(const struct tileset *t,
                                         struct drawn_sprite *sprs,
                                         bv_extras textras,
@@ -4694,14 +4749,14 @@ static int fill_irrigation_sprite_array(const struct tileset *t,
   return sprs - saved_sprs;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Fill in the city overlays for the tile.  This includes the citymap
   overlays on the mapview as well as the tile output sprites.
-**************************************************************************/
+****************************************************************************/
 static int fill_city_overlays_sprite_array(const struct tileset *t,
-					   struct drawn_sprite *sprs,
-					   const struct tile *ptile,
-					   const struct city *citymode)
+                                           struct drawn_sprite *sprs,
+                                           const struct tile *ptile,
+                                           const struct city *citymode)
 {
   const struct city *pcity;
   const struct city *pwork;
@@ -4749,9 +4804,9 @@ static int fill_city_overlays_sprite_array(const struct tileset *t,
       const int ox = t->type == TS_ISOMETRIC ? t->normal_tile_width / 3 : 0;
       const int oy = t->type == TS_ISOMETRIC ? -t->normal_tile_height / 3 : 0;
 
-      food = CLIP(0, food, NUM_TILES_DIGITS - 1);
-      shields = CLIP(0, shields, NUM_TILES_DIGITS - 1);
-      trade = CLIP(0, trade, NUM_TILES_DIGITS - 1);
+      food = CLIP(0, food / game.info.granularity, NUM_TILES_DIGITS - 1);
+      shields = CLIP(0, shields / game.info.granularity, NUM_TILES_DIGITS - 1);
+      trade = CLIP(0, trade / game.info.granularity, NUM_TILES_DIGITS - 1);
 
       ADD_SPRITE(t->sprites.city.tile_foodnum[food], TRUE, ox, oy);
       ADD_SPRITE(t->sprites.city.tile_shieldnum[shields], TRUE, ox, oy);
@@ -4767,15 +4822,15 @@ static int fill_city_overlays_sprite_array(const struct tileset *t,
   return sprs - saved_sprs;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Helper function for fill_terrain_sprite_layer.
   Fill in the sprite array for blended terrain.
 ****************************************************************************/
 static int fill_terrain_sprite_blending(const struct tileset *t,
-					struct drawn_sprite *sprs,
-					const struct tile *ptile,
-					const struct terrain *pterrain,
-					struct terrain **tterrain_near)
+                                        struct drawn_sprite *sprs,
+                                        const struct tile *ptile,
+                                        const struct terrain *pterrain,
+                                        struct terrain **tterrain_near)
 {
   struct drawn_sprite *saved_sprs = sprs;
   const int W = t->normal_tile_width, H = t->normal_tile_height;
@@ -4808,14 +4863,14 @@ static int fill_terrain_sprite_blending(const struct tileset *t,
   return sprs - saved_sprs;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Add sprites for fog (and some forms of darkness).
 ****************************************************************************/
 static int fill_fog_sprite_array(const struct tileset *t,
-				 struct drawn_sprite *sprs,
-				 const struct tile *ptile,
-				 const struct tile_edge *pedge,
-				 const struct tile_corner *pcorner)
+                                 struct drawn_sprite *sprs,
+                                 const struct tile *ptile,
+                                 const struct tile_edge *pedge,
+                                 const struct tile_corner *pcorner)
 {
   struct drawn_sprite *saved_sprs = sprs;
 
@@ -4862,16 +4917,16 @@ static int fill_fog_sprite_array(const struct tileset *t,
   return sprs - saved_sprs;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Helper function for fill_terrain_sprite_layer.
 ****************************************************************************/
 static int fill_terrain_sprite_array(struct tileset *t,
-				     struct drawn_sprite *sprs,
-				     int l, /* layer_num */
-				     const struct tile *ptile,
-				     const struct terrain *pterrain,
-				     struct terrain **tterrain_near,
-				     struct drawing_data *draw)
+                                     struct drawn_sprite *sprs,
+                                     int l, /* layer_num */
+                                     const struct tile *ptile,
+                                     const struct terrain *pterrain,
+                                     struct terrain **tterrain_near,
+                                     struct drawing_data *draw)
 {
   struct drawn_sprite *saved_sprs = sprs;
   struct drawing_layer *dlp = &draw->layer[l];
@@ -5012,7 +5067,7 @@ static int fill_terrain_sprite_array(struct tileset *t,
   return sprs - saved_sprs;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Helper function for fill_terrain_sprite_layer.
   Fill in the sprite array of darkness.
 ****************************************************************************/
@@ -5076,22 +5131,22 @@ static int fill_terrain_sprite_darkness(struct tileset *t,
   return sprs - saved_sprs;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Add sprites for the base tile to the sprite list.  This doesn't
   include specials or rivers.
 ****************************************************************************/
 static int fill_terrain_sprite_layer(struct tileset *t,
-				     struct drawn_sprite *sprs,
-				     int layer_num,
-				     const struct tile *ptile,
-				     const struct terrain *pterrain,
-				     struct terrain **tterrain_near)
+                                     struct drawn_sprite *sprs,
+                                     int layer_num,
+                                     const struct tile *ptile,
+                                     const struct terrain *pterrain,
+                                     struct terrain **tterrain_near)
 {
   struct sprite *sprite;
   struct drawn_sprite *saved_sprs = sprs;
   struct drawing_data *draw = t->sprites.drawing[terrain_index(pterrain)];
   const int l = (draw->is_reversed
-		 ? (draw->num_layers - layer_num - 1) : layer_num);
+                 ? (draw->num_layers - layer_num - 1) : layer_num);
 
   fc_assert(layer_num < TERRAIN_LAYER_COUNT);
 
@@ -5119,7 +5174,7 @@ static int fill_terrain_sprite_layer(struct tileset *t,
   return sprs - saved_sprs;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Indicate whether a unit is to be drawn with a surrounding city outline
   under current conditions.
   (This includes being in focus, but if the caller has already checked that,
@@ -5139,17 +5194,17 @@ bool unit_drawn_with_city_outline(const struct unit *punit, bool check_focus)
          && (!check_focus || unit_is_in_focus(punit));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Fill in the grid sprites for the given tile, city, and unit.
 ****************************************************************************/
 static int fill_grid_sprite_array(const struct tileset *t,
-				  struct drawn_sprite *sprs,
-				  const struct tile *ptile,
-				  const struct tile_edge *pedge,
-				  const struct tile_corner *pcorner,
-				  const struct unit *punit,
-				  const struct city *pcity,
-				  const struct city *citymode)
+                                  struct drawn_sprite *sprs,
+                                  const struct tile *ptile,
+                                  const struct tile_edge *pedge,
+                                  const struct tile_corner *pcorner,
+                                  const struct unit *punit,
+                                  const struct city *pcity,
+                                  const struct city *citymode)
 {
   struct drawn_sprite *saved_sprs = sprs;
 
@@ -5168,12 +5223,19 @@ static int fill_grid_sprite_array(const struct tileset *t,
       unit[i] = FALSE;
       if (tile && !citymode) {
         unit_list_iterate(pfocus_units, pfocus_unit) {
-          if (unit_drawn_with_city_outline(pfocus_unit, FALSE)
-              && city_tile_to_city_map(&dummy_x, &dummy_y,
-                                       game.info.init_city_radius_sq,
-                                       unit_tile(pfocus_unit), tile)) {
-            unit[i] = TRUE;
-            break;
+          if (unit_drawn_with_city_outline(pfocus_unit, FALSE)) {
+            struct tile *utile = unit_tile(pfocus_unit);
+            int radius = game.info.init_city_radius_sq
+              + get_target_bonus_effects(NULL, unit_owner(pfocus_unit), NULL,
+                                         NULL, NULL, utile, NULL, NULL,
+                                         NULL, NULL, NULL,
+                                         EFT_CITY_RADIUS_SQ);
+
+            if (city_tile_to_city_map(&dummy_x, &dummy_y, radius,
+                                      utile, tile)) {
+              unit[i] = TRUE;
+              break;
+            }
           }
         } unit_list_iterate_end;
       }
@@ -5277,14 +5339,14 @@ static int fill_grid_sprite_array(const struct tileset *t,
   return sprs - saved_sprs;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Fill in the given sprite array with any needed goto sprites.
 ****************************************************************************/
 static int fill_goto_sprite_array(const struct tileset *t,
-				  struct drawn_sprite *sprs,
-				  const struct tile *ptile,
-				  const struct tile_edge *pedge,
-				  const struct tile_corner *pcorner)
+                                  struct drawn_sprite *sprs,
+                                  const struct tile *ptile,
+                                  const struct tile_edge *pedge,
+                                  const struct tile_corner *pcorner)
 {
   struct drawn_sprite *saved_sprs = sprs;
   struct sprite *sprite;
@@ -5344,8 +5406,9 @@ static int fill_goto_sprite_array(const struct tileset *t,
   return sprs - saved_sprs;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Should the given extra be drawn
+  FIXME: Some extras can not be switched
 ****************************************************************************/
 static bool is_extra_drawing_enabled(struct extra_type *pextra)
 {
@@ -5376,7 +5439,7 @@ static bool is_extra_drawing_enabled(struct extra_type *pextra)
     }
     no_disable = FALSE;
   }
-  if (is_extra_caused_by(pextra, EC_HUT)) {
+  if (is_extra_removed_by(pextra, ERM_ENTER)) {
     if (gui_options.draw_huts) {
       return TRUE;
     }
@@ -5398,7 +5461,7 @@ static bool is_extra_drawing_enabled(struct extra_type *pextra)
   return no_disable;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Fill in the sprite array for the given tile, city, and unit.
 
   ptile, if specified, gives the tile.  If specified the terrain and specials
@@ -5845,18 +5908,19 @@ int fill_sprite_array(struct tileset *t,
     /* City size.  Drawing this under fog makes it hard to read. */
     if (pcity && gui_options.draw_cities && !gui_options.draw_full_citybar) {
       bool warn = FALSE;
+      unsigned int size = city_size_get(pcity);
 
-      ADD_SPRITE(t->sprites.city.size[city_size_get(pcity) % 10], FALSE,
+      ADD_SPRITE(t->sprites.city.size[size % 10], FALSE,
                  FULL_TILE_X_OFFSET + t->city_size_offset_x,
                  FULL_TILE_Y_OFFSET + t->city_size_offset_y);
-      if (10 <= city_size_get(pcity)) {
-        ADD_SPRITE(t->sprites.city.size_tens[(city_size_get(pcity) / 10) 
+      if (10 <= size) {
+        ADD_SPRITE(t->sprites.city.size_tens[(size / 10)
                    % 10], FALSE,
                    FULL_TILE_X_OFFSET + t->city_size_offset_x,
                    FULL_TILE_Y_OFFSET + t->city_size_offset_y);
-        if (100 <= city_size_get(pcity)) {
+        if (100 <= size) {
           struct sprite *sprite =
-              t->sprites.city.size_hundreds[(city_size_get(pcity) / 100) % 10];
+            t->sprites.city.size_hundreds[(size / 100) % 10];
 
           if (NULL != sprite) {
             ADD_SPRITE(sprite, FALSE,
@@ -5865,7 +5929,7 @@ int fill_sprite_array(struct tileset *t,
           } else {
             warn = TRUE;
           }
-          if (1000 <= city_size_get(pcity)) {
+          if (1000 <= size) {
             warn = TRUE;
           }
         }
@@ -5878,7 +5942,7 @@ int fill_sprite_array(struct tileset *t,
         if (0 != strcmp(last_reported, t->name)) {
           log_normal(_("Tileset \"%s\" doesn't support big cities size, "
                        "such as %d. Size not displayed as expected."),
-                     t->name, city_size_get(pcity));
+                     t->name, size);
           sz_strlcpy(last_reported, t->name);
         }
       }
@@ -5926,6 +5990,11 @@ int fill_sprite_array(struct tileset *t,
                          FULL_TILE_Y_OFFSET + t->activity_offset_y);
             }
             break;
+          case ACTIVITY_PLANT:
+            ADD_SPRITE(t->sprites.unit.plant,
+                       TRUE, FULL_TILE_X_OFFSET + t->activity_offset_x,
+                       FULL_TILE_Y_OFFSET + t->activity_offset_y);
+            break;
           case ACTIVITY_IRRIGATE:
             if (ptask->tgt == NULL) {
               ADD_SPRITE(t->sprites.unit.irrigate,
@@ -5937,6 +6006,11 @@ int fill_sprite_array(struct tileset *t,
                          FULL_TILE_Y_OFFSET + t->activity_offset_y);
             }
             break;
+          case ACTIVITY_CULTIVATE:
+            ADD_SPRITE(t->sprites.unit.irrigate,
+                       TRUE, FULL_TILE_X_OFFSET + t->activity_offset_x,
+                       FULL_TILE_Y_OFFSET + t->activity_offset_y);
+            break;
           case ACTIVITY_GEN_ROAD:
             ADD_SPRITE(t->sprites.extras[extra_index(ptask->tgt)].activity,
                        TRUE, FULL_TILE_X_OFFSET + t->activity_offset_x,
@@ -5946,6 +6020,12 @@ int fill_sprite_array(struct tileset *t,
             ADD_SPRITE(t->sprites.unit.transform,
                          TRUE, FULL_TILE_X_OFFSET + t->activity_offset_x,
                          FULL_TILE_Y_OFFSET + t->activity_offset_y);
+            break;
+          case ACTIVITY_POLLUTION:
+          case ACTIVITY_FALLOUT:
+            ADD_SPRITE(t->sprites.extras[extra_index(ptask->tgt)].rmact,
+                       TRUE, FULL_TILE_X_OFFSET + t->activity_offset_x,
+                       FULL_TILE_Y_OFFSET + t->activity_offset_y);
             break;
           default:
             break;
@@ -5969,6 +6049,18 @@ int fill_sprite_array(struct tileset *t,
     }
     break;
 
+  case LAYER_INFRAWORK:
+    if (ptile != NULL && ptile->placing != NULL) {
+      const int id = extra_index(ptile->placing);
+
+      if (t->sprites.extras[id].activity != NULL) {
+        ADD_SPRITE(t->sprites.extras[id].activity,
+                   TRUE, FULL_TILE_X_OFFSET + t->activity_offset_x,
+                   FULL_TILE_Y_OFFSET + t->activity_offset_y);
+      }
+    }
+    break;
+
   case LAYER_COUNT:
     fc_assert(FALSE);
     break;
@@ -5977,10 +6069,10 @@ int fill_sprite_array(struct tileset *t,
   return sprs - save_sprs;
 }
 
-/**********************************************************************
+/************************************************************************//**
   Set city tiles sprite values; should only happen after
   tilespec_load_tiles().
-***********************************************************************/
+****************************************************************************/
 void tileset_setup_city_tiles(struct tileset *t, int style)
 {
   if (style == game.control.styles_count - 1) {
@@ -6023,7 +6115,7 @@ void tileset_setup_city_tiles(struct tileset *t, int style)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the amount of time between calls to toggle_focus_unit_state.
   The main loop needs to call toggle_focus_unit_state about this often
   to do the active-unit animation.
@@ -6037,7 +6129,7 @@ double get_focus_unit_toggle_timeout(const struct tileset *t)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Reset the focus unit state.  This should be called when changing
   focus units.
 ****************************************************************************/
@@ -6046,7 +6138,7 @@ void reset_focus_unit_state(struct tileset *t)
   focus_unit_state = 0;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Setup tileset for showing combat where focus unit participates.
 ****************************************************************************/
 void focus_unit_in_combat(struct tileset *t)
@@ -6056,7 +6148,7 @@ void focus_unit_in_combat(struct tileset *t)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Toggle/increment the focus unit state.  This should be called once
   every get_focus_unit_toggle_timeout() seconds.
 ****************************************************************************/
@@ -6070,12 +6162,12 @@ void toggle_focus_unit_state(struct tileset *t)
   }
 }
 
-/**********************************************************************
+/************************************************************************//**
   Find unit that we can display from given tile.
-***********************************************************************/
+****************************************************************************/
 struct unit *get_drawable_unit(const struct tileset *t,
-			       struct tile *ptile,
-			       const struct city *citymode)
+                               struct tile *ptile,
+                               const struct city *citymode)
 {
   struct unit *punit = find_visible_unit(ptile);
 
@@ -6095,7 +6187,7 @@ struct unit *get_drawable_unit(const struct tileset *t,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   This patch unloads all sprites from the sprite hash (the hash itself
   is left intact).
 ****************************************************************************/
@@ -6110,9 +6202,9 @@ static void unload_all_sprites(struct tileset *t)
   }
 }
 
-/**********************************************************************
+/************************************************************************//**
   Free all sprites from tileset.
-***********************************************************************/
+****************************************************************************/
 void tileset_free_tiles(struct tileset *t)
 {
   int i;
@@ -6182,26 +6274,26 @@ void tileset_free_tiles(struct tileset *t)
   tileset_background_free(t);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return the sprite for drawing the given spaceship part.
-**************************************************************************/
+****************************************************************************/
 struct sprite *get_spaceship_sprite(const struct tileset *t,
-				    enum spaceship_part part)
+                                    enum spaceship_part part)
 {
   return t->sprites.spaceship[part];
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return a sprite for the given citizen.  The citizen's type is given,
   as well as their index (in the range [0..city_size_get(pcity))).  The
   citizen's city can be used to determine which sprite to use (a NULL
   value indicates there is no city; i.e., the sprite is just being
   used as a picture).
-**************************************************************************/
+****************************************************************************/
 struct sprite *get_citizen_sprite(const struct tileset *t,
-				  enum citizen_category type,
-				  int citizen_index,
-				  const struct city *pcity)
+                                  enum citizen_category type,
+                                  int citizen_index,
+                                  const struct city *pcity)
 {
   const struct citizen_graphic *graphic;
   int gfx_index = citizen_index;
@@ -6225,44 +6317,44 @@ struct sprite *get_citizen_sprite(const struct tileset *t,
   return graphic->sprite[gfx_index % graphic->count];
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return the sprite for the nation.
-**************************************************************************/
+****************************************************************************/
 struct sprite *get_nation_flag_sprite(const struct tileset *t,
-				      const struct nation_type *pnation)
+                                      const struct nation_type *pnation)
 {
   return t->sprites.nation_flag.p[nation_index(pnation)];
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return the shield sprite for the nation.
-**************************************************************************/
+****************************************************************************/
 struct sprite *get_nation_shield_sprite(const struct tileset *t,
                                         const struct nation_type *pnation)
 {
   return t->sprites.nation_shield.p[nation_index(pnation)];
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return the sprite for the technology/advance.
-**************************************************************************/
+****************************************************************************/
 struct sprite *get_tech_sprite(const struct tileset *t, Tech_type_id tech)
 {
   fc_assert_ret_val(0 <= tech && tech < advance_count(), NULL);
   return t->sprites.tech[tech];
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return the sprite for the building/improvement.
-**************************************************************************/
+****************************************************************************/
 struct sprite *get_building_sprite(const struct tileset *t,
-                                   struct impr_type *pimprove)
+                                   const struct impr_type *pimprove)
 {
   fc_assert_ret_val(NULL != pimprove, NULL);
   return t->sprites.building[improvement_index(pimprove)];
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the sprite for the government.
 ****************************************************************************/
 struct sprite *get_government_sprite(const struct tileset *t,
@@ -6272,7 +6364,7 @@ struct sprite *get_government_sprite(const struct tileset *t,
   return t->sprites.government[government_index(gov)];
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the sprite for the unit type (the base "unit" sprite).
   If 'facing' is direction8_invalid(), will use an unoriented sprite or
   a default orientation.
@@ -6305,9 +6397,9 @@ struct sprite *get_unittype_sprite(const struct tileset *t,
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return a "sample" sprite for this city style.
-**************************************************************************/
+****************************************************************************/
 struct sprite *get_sample_city_sprite(const struct tileset *t,
                                       int style_idx)
 {
@@ -6322,9 +6414,9 @@ struct sprite *get_sample_city_sprite(const struct tileset *t,
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return a sprite with an "arrow" theme graphic.
-**************************************************************************/
+****************************************************************************/
 struct sprite *get_arrow_sprite(const struct tileset *t,
                                 enum arrow_type arrow)
 {
@@ -6333,9 +6425,9 @@ struct sprite *get_arrow_sprite(const struct tileset *t,
   return t->sprites.arrow[arrow];
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return a tax sprite for the given output type (usually gold/lux/sci).
-**************************************************************************/
+****************************************************************************/
 struct sprite *get_tax_sprite(const struct tileset *t, Output_type_id otype)
 {
   switch (otype) {
@@ -6354,34 +6446,34 @@ struct sprite *get_tax_sprite(const struct tileset *t, Output_type_id otype)
   return NULL;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return event icon sprite
-**************************************************************************/
+****************************************************************************/
 struct sprite *get_event_sprite(const struct tileset *t, enum event_type event)
 {
   return t->sprites.events[event];
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return a thumbs-up/thumbs-down sprite to show treaty approval or
   disapproval.
-**************************************************************************/
+****************************************************************************/
 struct sprite *get_treaty_thumb_sprite(const struct tileset *t, bool on_off)
 {
   return t->sprites.treaty_thumb[on_off ? 1 : 0];
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return a sprite_vector containing the animation sprites for a unit
   explosion.
-**************************************************************************/
+****************************************************************************/
 const struct sprite_vector *get_unit_explode_animation(const struct
-						       tileset *t)
+                                                       tileset *t)
 {
   return &t->sprites.explode.unit;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return a sprite contining the single nuke graphic.
 
   TODO: This should be an animation like the unit explode animation.
@@ -6391,9 +6483,9 @@ struct sprite *get_nuke_explode_sprite(const struct tileset *t)
   return t->sprites.explode.nuke;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return all the sprites used for city bar drawing.
-**************************************************************************/
+****************************************************************************/
 const struct citybar_sprites *get_citybar_sprites(const struct tileset *t)
 {
   if (gui_options.draw_full_citybar) {
@@ -6403,30 +6495,30 @@ const struct citybar_sprites *get_citybar_sprites(const struct tileset *t)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Return all the sprites used for editor icons, images, etc.
-**************************************************************************/
+****************************************************************************/
 const struct editor_sprites *get_editor_sprites(const struct tileset *t)
 {
   return &t->sprites.editor;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Returns a sprite for the given cursor.  The "hot" coordinates (the
   active coordinates of the mouse relative to the sprite) are placed int
   (*hot_x, *hot_y). 
   A cursor can consist of several frames to be used for animation.
-**************************************************************************/
+****************************************************************************/
 struct sprite *get_cursor_sprite(const struct tileset *t,
-				 enum cursor_type cursor,
-				 int *hot_x, int *hot_y, int frame)
+                                 enum cursor_type cursor,
+                                 int *hot_x, int *hot_y, int frame)
 {
   *hot_x = t->sprites.cursor[cursor].hot_x;
   *hot_y = t->sprites.cursor[cursor].hot_y;
   return t->sprites.cursor[cursor].frame[frame];
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return a sprite for the given icon.  Icons are used by the operating
   system/window manager.  Usually freeciv has to tell the OS what icon to
   use.
@@ -6440,7 +6532,7 @@ struct sprite *get_icon_sprite(const struct tileset *t, enum icon_type icon)
   return t->sprites.icon[icon];
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns a sprite with the "user-attention" crosshair graphic.
 
   FIXME: This function shouldn't be needed if the attention graphics are
@@ -6451,7 +6543,7 @@ struct sprite *get_attention_crosshair_sprite(const struct tileset *t)
   return t->sprites.user.attention;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns a sprite for the given indicator with the given index.  The
   index should be in [0, NUM_TILES_PROGRESS).
 ****************************************************************************/
@@ -6466,7 +6558,7 @@ struct sprite *get_indicator_sprite(const struct tileset *t,
   return t->sprites.indicator[indicator][idx];
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return a sprite for the unhappiness of the unit - to be shown as an
   overlay on the unit in the city support dialog, for instance.
 
@@ -6485,7 +6577,7 @@ struct sprite *get_unit_unhappy_sprite(const struct tileset *t,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return a sprite for the upkeep of the unit - to be shown as an overlay
   on the unit in the city support dialog, for instance.
 
@@ -6505,7 +6597,7 @@ struct sprite *get_unit_upkeep_sprite(const struct tileset *t,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return a rectangular sprite containing a fog "color".  This can be used
   for drawing fog onto arbitrary areas (like the overview).
 ****************************************************************************/
@@ -6514,7 +6606,7 @@ struct sprite *get_basic_fog_sprite(const struct tileset *t)
   return t->sprites.tx.fog;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the tileset's color system.
 ****************************************************************************/
 struct color_system *get_color_system(const struct tileset *t)
@@ -6522,7 +6614,7 @@ struct color_system *get_color_system(const struct tileset *t)
   return t->color_system;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Loads preferred theme if there's any.
 ****************************************************************************/
 void tileset_use_preferred_theme(const struct tileset *t)
@@ -6547,6 +6639,7 @@ void tileset_use_preferred_theme(const struct tileset *t)
   case GUI_GTK3x:
     default_theme_name = gui_options.gui_gtk4_default_theme_name;
     default_theme_name_sz = sizeof(gui_options.gui_gtk4_default_theme_name);
+    break;
   case GUI_SDL2:
     default_theme_name = gui_options.gui_sdl2_default_theme_name;
     default_theme_name_sz = sizeof(gui_options.gui_sdl2_default_theme_name);
@@ -6580,7 +6673,7 @@ void tileset_use_preferred_theme(const struct tileset *t)
   gui_clear_theme();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Initialize tileset structure
 ****************************************************************************/
 void tileset_init(struct tileset *t)
@@ -6616,7 +6709,7 @@ void tileset_init(struct tileset *t)
   t->max_upkeep_height = 0;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Fill the sprite array with sprites that together make a representative
   image of the given terrain type. Suitable for use as an icon and in list
   views.
@@ -6654,7 +6747,7 @@ int fill_basic_terrain_layer_sprite_array(struct tileset *t,
   return sprs - save_sprs;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return a representative sprite for the given extra type.
 ****************************************************************************/
 int fill_basic_extra_sprite_array(const struct tileset *t,
@@ -6687,7 +6780,7 @@ int fill_basic_extra_sprite_array(const struct tileset *t,
   return sprs - saved_sprs;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Fills the sprite array with sprites that together make a representative
   image of the given road type. The image is suitable for use as an icon
   for the road type, for example.
@@ -6735,7 +6828,7 @@ int fill_basic_road_sprite_array(const struct tileset *t,
   return sprs - saved_sprs;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Fills the sprite array with sprites that together make a representative
   image of the given base type. The image is suitable for use as an icon
   for the base type, for example.
@@ -6761,7 +6854,7 @@ int fill_basic_base_sprite_array(const struct tileset *t,
   if ((x) != NULL) {\
     ADD_SPRITE_FULL(x);\
   }\
-} while (0)
+} while (FALSE)
 
   /* Corresponds to LAYER_SPECIAL{1,2,3} order. */
   ADD_SPRITE_IF_NOT_NULL(t->sprites.extras[idx].u.bmf.background);
@@ -6773,7 +6866,7 @@ int fill_basic_base_sprite_array(const struct tileset *t,
   return sprs - saved_sprs;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Gets the nth layer of the tileset.
 ****************************************************************************/
 enum mapview_layer tileset_get_layer(const struct tileset *t, int n)
@@ -6782,7 +6875,7 @@ enum mapview_layer tileset_get_layer(const struct tileset *t, int n)
   return t->layer_order[n];
 }
 
-/****************************************************************************
+/************************************************************************//**
   Gets the nth layer of the tileset.
 ****************************************************************************/
 bool tileset_layer_in_category(enum mapview_layer layer,
@@ -6815,6 +6908,7 @@ bool tileset_layer_in_category(enum mapview_layer layer,
   case LAYER_GOTO:
   case LAYER_WORKERTASK:
   case LAYER_EDITOR:
+  case LAYER_INFRAWORK:
     return FALSE;
   case LAYER_COUNT:
     break; /* and fail below */
@@ -6824,7 +6918,7 @@ bool tileset_layer_in_category(enum mapview_layer layer,
   return FALSE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Setup tiles for one player using the player color.
 ****************************************************************************/
 void tileset_player_init(struct tileset *t, struct player *pplayer)
@@ -6875,7 +6969,7 @@ void tileset_player_init(struct tileset *t, struct player *pplayer)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free tiles for one player using the player color.
 ****************************************************************************/
 static void tileset_player_free(struct tileset *t, int plrid)
@@ -6904,7 +6998,7 @@ static void tileset_player_free(struct tileset *t, int plrid)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Setup tiles for the background.
 ****************************************************************************/
 void tileset_background_init(struct tileset *t)
@@ -6923,7 +7017,7 @@ void tileset_background_init(struct tileset *t)
                   t->sprites.mask.tile, 0, 0, t->scale, FALSE);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free tiles for the background.
 ****************************************************************************/
 void tileset_background_free(struct tileset *t)
@@ -6939,7 +7033,7 @@ void tileset_background_free(struct tileset *t)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Reset tileset data specific to ruleset.
 ****************************************************************************/
 void tileset_ruleset_reset(struct tileset *t)
@@ -6959,7 +7053,7 @@ void tileset_ruleset_reset(struct tileset *t)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Is tileset in sane state?
 ****************************************************************************/
 bool tileset_is_fully_loaded(void)
@@ -6967,7 +7061,7 @@ bool tileset_is_fully_loaded(void)
   return !tileset_update;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return tileset name
 ****************************************************************************/
 const char *tileset_name_get(struct tileset *t)
@@ -6975,7 +7069,7 @@ const char *tileset_name_get(struct tileset *t)
   return t->given_name;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return tileset version
 ****************************************************************************/
 const char *tileset_version(struct tileset *t)
@@ -6983,7 +7077,7 @@ const char *tileset_version(struct tileset *t)
   return t->version;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return tileset description summary
 ****************************************************************************/
 const char *tileset_summary(struct tileset *t)
@@ -6991,7 +7085,7 @@ const char *tileset_summary(struct tileset *t)
   return t->summary;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return tileset description body
 ****************************************************************************/
 const char *tileset_description(struct tileset *t)
@@ -6999,7 +7093,7 @@ const char *tileset_description(struct tileset *t)
   return t->description;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return what ruleset this tileset is primarily meant for
 ****************************************************************************/
 char *tileset_what_ruleset(struct tileset *t)
@@ -7007,7 +7101,7 @@ char *tileset_what_ruleset(struct tileset *t)
   return t->for_ruleset;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return tileset topology index
 ****************************************************************************/
 int tileset_topo_index(struct tileset *t)

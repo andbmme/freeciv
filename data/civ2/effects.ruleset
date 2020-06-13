@@ -12,6 +12,7 @@
 [datafile]
 description="Civ2 effects data for Freeciv (incomplete)"
 options="+Freeciv-ruleset-Devel-2017.Jan.02"
+format_version=20
 
 ; /* <-- avoid gettext warnings
 ;
@@ -152,7 +153,7 @@ reqs    =
 
 [effect_corruption_anarchy1]
 type    = "Output_Waste_By_Distance"
-value   = 2
+value   = 200
 reqs    =
     { "type", "name", "range"
       "Gov", "Anarchy", "Player"
@@ -170,7 +171,7 @@ reqs    =
 
 [effect_corruption_despotism1]
 type    = "Output_Waste_By_Distance"
-value   = 4
+value   = 400
 reqs    =
     { "type", "name", "range"
       "Gov", "Despotism", "Player"
@@ -188,7 +189,7 @@ reqs    =
 
 [effect_corruption_monarchy1]
 type    = "Output_Waste_By_Distance"
-value   = 2
+value   = 200
 reqs    =
     { "type", "name", "range"
       "Gov", "Monarchy", "Player"
@@ -215,7 +216,7 @@ reqs    =
 
 [effect_corruption_republic1]
 type    = "Output_Waste_By_Distance"
-value   = 2
+value   = 200
 reqs    =
     { "type", "name", "range"
       "Gov", "Republic", "Player"
@@ -233,7 +234,7 @@ reqs    =
 
 [effect_corruption_fundamentalism1]
 type    = "Output_Waste_By_Distance"
-value   = 2
+value   = 200
 reqs    =
     { "type", "name", "range"
       "Gov", "Fundamentalism", "Player"
@@ -251,7 +252,7 @@ reqs    =
 
 [effect_waste_anarchy1]
 type    = "Output_Waste_By_Distance"
-value   = 1
+value   = 100
 reqs    =
     { "type", "name", "range"
       "Gov", "Anarchy", "Player"
@@ -269,7 +270,7 @@ reqs    =
 
 [effect_waste_despotism1]
 type    = "Output_Waste_By_Distance"
-value   = 2
+value   = 200
 reqs    =
     { "type", "name", "range"
       "Gov", "Despotism", "Player"
@@ -287,7 +288,7 @@ reqs    =
 
 [effect_waste_monarchy1]
 type    = "Output_Waste_By_Distance"
-value   = 1
+value   = 100
 reqs    =
     { "type", "name", "range"
       "Gov", "Monarchy", "Player"
@@ -314,7 +315,7 @@ reqs    =
 
 [effect_waste_republic1]
 type    = "Output_Waste_By_Distance"
-value   = 1
+value   = 100
 reqs    =
     { "type", "name", "range"
       "Gov", "Republic", "Player"
@@ -332,7 +333,7 @@ reqs    =
 
 [effect_waste_fundamentalism1]
 type    = "Output_Waste_By_Distance"
-value   = 1
+value   = 100
 reqs    =
     { "type", "name", "range"
       "Gov", "Fundamentalism", "Player"
@@ -387,6 +388,10 @@ value   = 5
 [effect_trade_routes]
 type    = "Max_Trade_Routes"
 value   = 3
+
+[effect_conquest_tech]
+type    = "Conquest_Tech_Pct"
+value   = 100
 
 [effect_republic]
 type    = "Make_Content_Mil"
@@ -1182,6 +1187,25 @@ reqs    =
       "Extra", "Fortress", "Local"
     }
 
+[effect_fortified]
+type    = "Fortify_Defense_Bonus"
+value   = 50
+reqs    =
+    { "type", "name", "range"
+      "Activity", "Fortified", "Local"
+    }
+
+[effect_city_fortified]
+type    = "Fortify_Defense_Bonus"
+value   = 50
+reqs    =
+    { "type",          "name",         "range", "present"
+      "CityTile",      "Center",       "Local", TRUE
+      "Activity",      "Fortified",    "Local", FALSE
+      "UnitClassFlag", "CanFortify",   "Local", TRUE
+      "UnitFlag",      "Cant_Fortify", "Local", FALSE
+    }
+
 [effect_incite_cost_empty]
 type = "Incite_Cost_Pct"
 value = -50
@@ -1652,17 +1676,17 @@ reqs    =
 type    = "Irrigation_Pct"
 value   = 100
 reqs    =
-    { "type", "name", "range", "present"
-      "Extra", "Irrigation", "Local", TRUE
-      "CityTile", "Center", "Local", FALSE
+    { "type", "name", "range"
+      "Extra", "Irrigation", "Local"
     }
 
-[effect_irrigation_2]
+[effect_irrigation_center]
 type    = "Irrigation_Pct"
 value	= 100
 reqs	=
     { "type", "name", "range", "present"
       "CityTile", "Center", "Local", TRUE
+      "Extra", "Irrigation", "Local", FALSE
       "TerrainAlter", "CanIrrigate", "Local", TRUE
       "Extra", "Mine", "Local", FALSE
     }
@@ -1671,19 +1695,19 @@ reqs	=
 type    = "Output_Per_Tile"
 value	= 50
 reqs	=
-    { "type", "name", "range", "present"
-      "Extra", "Farmland", "Local", TRUE
-      "Building", "Supermarket", "City", TRUE
-      "OutputType", "Food", "Local", TRUE
-      "CityTile", "Center", "Local", FALSE
+    { "type", "name", "range"
+      "Extra", "Farmland", "Local"
+      "Building", "Supermarket", "City"
+      "OutputType", "Food", "Local"
     }
 
-[effect_supermarket_2]
+[effect_supermarket_center]
 type    = "Output_Per_Tile"
 value	= 50
 reqs	=
     { "type", "name", "range", "present"
       "CityTile", "Center", "Local", TRUE
+      "Extra", "Farmland", "Local", FALSE
       "TerrainAlter", "CanIrrigate", "Local", TRUE
       "Building", "Supermarket", "City", TRUE
       "OutputType", "Food", "Local", TRUE
@@ -2140,8 +2164,7 @@ reqs    =
       "Gov", "Fundamentalism", "Player" 
     }
 
-; FIXME: Calendar effects are copied from default rulesets and are
-; probably wrong for civ2 ruleset.
+; This calendar is based on civ2 "King" level
 [effect_calendar_base]
 type    = "Turn_Years"
 value   = 50
@@ -2254,50 +2277,6 @@ reqs    =
       "MinSize", "16", "City"
     }
 
-[effect_irrigate_src_ocean]
-type    = "Irrig_Possible"
-value   = 1
-reqs    =
-    { "type", "name", "range"
-      "TerrainClass", "Oceanic", "CAdjacent"
-    }
-
-[effect_irrigate_src_river]
-type    = "Irrig_Possible"
-value   = 1
-reqs    =
-    { "type", "name", "range"
-      "Extra", "River", "CAdjacent"
-    }
-
-[effect_irrigate_src_irrigation]
-type    = "Irrig_Possible"
-value   = 1
-reqs    =
-    { "type", "name", "range"
-      "Extra", "Irrigation", "CAdjacent"
-    }
-
-[effect_mining]
-type    = "Mining_Possible"
-value   = 1
-
-[effect_irrig_tf]
-type    = "Irrig_TF_Possible"
-value   = 1
-
-[effect_mining_tf]
-type    = "Mining_TF_Possible"
-value   = 1
-
-[effect_transform]
-type    = "Transform_Possible"
-value   = 1
-reqs    =
-    { "type", "name", "range"
-      "UnitFlag", "Transform", "Local"
-    }
-
 [effect_pollution]
 type	= "Output_Tile_Punish_Pct"
 value	= 50
@@ -2321,6 +2300,10 @@ reqs	=
     { "type", "name", "range", "present"
       "Action", "Found City", "Local", FALSE
       "Action", "Join City", "Local", FALSE
+      "Action", "Transport Board", "Local", FALSE
+      "Action", "Transport Alight", "Local", FALSE
+      "Action", "Transport Disembark", "Local", FALSE
+      "Action", "Transport Disembark 2", "Local", FALSE
     }
 
 ; Allow everyone to declar war on the terrorist nation
@@ -2476,10 +2459,98 @@ reqs	=
       "Action", "Targeted Sabotage City Escape", "Local", TRUE
     }
 
+[effect_incident_success_sabotage_city_production]
+type	= "Casus_Belli_Success"
+value	= 1
+reqs	=
+    { "type", "name", "range", "present"
+      "Action", "Sabotage City Production Escape", "Local", TRUE
+      "DiplRel", "War", "Local", FALSE
+    }
+
+[effect_sabotage_city_production_city_half_chance]
+type	= "Action_Odds_Pct"
+value	= -50
+reqs	=
+    { "type", "name", "range", "present"
+      "Action", "Sabotage City Production Escape", "Local", TRUE
+    }
+
 [effect_incident_success_explode_nuke]
 type	= "Casus_Belli_Success"
 value	= 1
 reqs	=
     { "type", "name", "range", "present"
       "Action", "Explode Nuclear", "Local", TRUE
+    }
+
+[effect_incident_success_explode_nuke_city]
+type	= "Casus_Belli_Success"
+value	= 1
+reqs	=
+    { "type", "name", "range", "present"
+      "Action", "Nuke City", "Local", TRUE
+    }
+
+[effect_incident_success_explode_nuke_units]
+type	= "Casus_Belli_Success"
+value	= 1
+reqs	=
+    { "type", "name", "range", "present"
+      "Action", "Nuke Units", "Local", TRUE
+    }
+
+; Double (+100%) buy cost for Great Wonders
+[effect_great_wonder_buy_cost]
+type    = "Building_Buy_Cost_Pct"
+value   = 100
+reqs    =
+    { "type", "name", "range"
+      "BuildingGenus", "GreatWonder", "Local"
+    }
+
+; Civilization II took all remaining move fragments when a land unit
+; embarked to a ship. It didn't take all remaining more fragments when the
+; same land unit boarded a ship in the city it was in. It didn't take all
+; remaining move fragments when disembarking. Correct this rule if I'm wrong.
+; TODO: was transferring from a transport to a transport on an adjacent tile
+; legal? What was it's move cost?
+[effect_action_success_move_cost_embark]
+type    = "Action_Success_Actor_Move_Cost"
+value   = 65535
+reqs    =
+    { "type", "name", "range", "present"
+      "Action", "Transport Embark", "Local", TRUE
+    }
+
+[effect_action_success_move_cost_embassy]
+type    = "Action_Success_Actor_Move_Cost"
+value   = 1
+reqs    =
+    { "type", "name", "range", "present"
+      "Action", "Establish Embassy", "Local", TRUE
+    }
+
+[effect_action_success_move_cost_investigate]
+type    = "Action_Success_Actor_Move_Cost"
+value   = 1
+reqs    =
+    { "type", "name", "range", "present"
+      "Action", "Investigate City", "Local", TRUE
+    }
+
+[effect_unit_shield_value_recycle]
+type    = "Unit_Shield_Value_Pct"
+value   = -50
+reqs    =
+    { "type",   "name",         "range", "present"
+      "Action", "Recycle Unit", "Local", TRUE
+    }
+
+[effect_unit_shield_value_in_upgrade_price_calc]
+type    = "Unit_Shield_Value_Pct"
+value   = -50
+reqs    =
+    { "type",   "name",         "range", "present"
+      "Action", "Upgrade Unit", "Local", TRUE
     }

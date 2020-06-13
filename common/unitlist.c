@@ -219,10 +219,10 @@ bool units_contain_cityfounder(const struct unit_list *punits)
   the specified action.
 ****************************************************************************/
 bool units_can_do_action(const struct unit_list *punits,
-                         int action_id, bool can_do)
+                         action_id act_id, bool can_do)
 {
   unit_list_iterate(punits, punit) {
-    if (EQ(can_do, unit_can_do_action(punit, action_id))) {
+    if (EQ(can_do, unit_can_do_action(punit, act_id))) {
       return TRUE;
     }
   } unit_list_iterate_end;
@@ -311,7 +311,8 @@ bool units_can_upgrade(const struct unit_list *punits)
 bool units_can_convert(const struct unit_list *punits)
 {
   unit_list_iterate(punits, punit) {
-    if (unit_can_convert(punit)) {
+    if (utype_can_do_action(unit_type_get(punit), ACTION_CONVERT)
+        && unit_can_convert(punit)) {
       return TRUE;
     }
   } unit_list_iterate_end;

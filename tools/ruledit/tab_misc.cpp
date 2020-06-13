@@ -39,14 +39,13 @@
 #include "rssanity.h"
 
 // ruledit
-#include "effect_edit.h"
 #include "ruledit.h"
 #include "ruledit_qt.h"
 #include "rulesave.h"
 
 #include "tab_misc.h"
 
-/**************************************************************************
+/**********************************************************************//**
   Setup tab_misc object
 **************************************************************************/
 tab_misc::tab_misc(ruledit_gui *ui_in) : QWidget()
@@ -58,6 +57,7 @@ tab_misc::tab_misc(ruledit_gui *ui_in) : QWidget()
   QLabel *version_label;
   QPushButton *save_button;
   QPushButton *always_active_effects;
+  QPushButton *all_effects;
   QPushButton *refresh_button;
   int row = 0;
   QTableWidgetItem *item;
@@ -94,6 +94,9 @@ tab_misc::tab_misc(ruledit_gui *ui_in) : QWidget()
   always_active_effects = new QPushButton(QString::fromUtf8(R__("Always active Effects")), this);
   connect(always_active_effects, SIGNAL(pressed()), this, SLOT(edit_aae_effects()));
   main_layout->addWidget(always_active_effects, row++, 1);
+  all_effects = new QPushButton(QString::fromUtf8(R__("All Effects")), this);
+  connect(all_effects, SIGNAL(pressed()), this, SLOT(edit_all_effects()));
+  main_layout->addWidget(all_effects, row++, 1);
 
   stats = new QTableWidget(this);
   stats->setColumnCount(8);
@@ -166,6 +169,10 @@ tab_misc::tab_misc(ruledit_gui *ui_in) : QWidget()
   stats->setItem(4, 6, item);
   item = new QTableWidgetItem("-");
   stats->setItem(4, 7, item);
+  item = new QTableWidgetItem(QString::fromUtf8(RQ_("?stat:Multipliers")));
+  stats->setItem(5, 6, item);
+  item = new QTableWidgetItem("-");
+  stats->setItem(5, 7, item);
   stats->verticalHeader()->setVisible(false);
   stats->horizontalHeader()->setVisible(false);
   stats->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -183,7 +190,7 @@ tab_misc::tab_misc(ruledit_gui *ui_in) : QWidget()
   setLayout(main_layout);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh the information.
 **************************************************************************/
 void tab_misc::refresh()
@@ -193,24 +200,27 @@ void tab_misc::refresh()
   refresh_stats();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User entered savedir
 **************************************************************************/
 void tab_misc::save_now()
 {
   char nameUTF8[MAX_LEN_NAME];
   QString full_dir;
+  QByteArray ba_bytes;
 
   ui->flush_widgets();
 
-  strncpy(nameUTF8, name->text().toUtf8().data(), sizeof(nameUTF8));
+  ba_bytes = name->text().toUtf8();
+  strncpy(nameUTF8, ba_bytes.data(), sizeof(nameUTF8) - 1);
 
   if (nameUTF8[0] != '\0') {
     strncpy(game.control.name, nameUTF8, sizeof(game.control.name));
   }
 
-  strncpy(game.control.version, version->text().toUtf8().data(),
-          sizeof(game.control.version));
+  ba_bytes = version->text().toUtf8();
+  strncpy(game.control.version, ba_bytes.data(),
+          sizeof(game.control.version) - 1);
 
   if (!autoadjust_ruleset_data() || !sanity_check_ruleset_data(false)) {
     QMessageBox *box = new QMessageBox();
@@ -230,13 +240,14 @@ void tab_misc::save_now()
     full_dir = savedir->text();
   }
 
-  save_ruleset(full_dir.toUtf8().data(), nameUTF8,
+  ba_bytes = full_dir.toUtf8();
+  save_ruleset(ba_bytes.data(), nameUTF8,
                &(ui->data));
 
   ui->display_msg(R__("Ruleset saved"));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Recalculate stats
 **************************************************************************/
 void tab_misc::refresh_stats()
@@ -247,63 +258,63 @@ void tab_misc::refresh_stats()
   int road_count;
 
   count = 0;
-  terrain_active_iterate(pterr) {
+  terrain_re_active_iterate(pterr) {
     count++;
-  } terrain_active_iterate_end;
+  } terrain_re_active_iterate_end;
   stats->item(row++, 1)->setText(QString::number(count));
 
   stats->item(row++, 1)->setText(QString::number(game.control.num_resource_types));
 
   count = 0;
-  tech_class_active_iterate(ptclass) {
+  tech_class_re_active_iterate(ptclass) {
     count++;
-  } tech_class_active_iterate_end;
+  } tech_class_re_active_iterate_end;
   stats->item(row++, 1)->setText(QString::number(count));
 
   count = 0;
-  advance_active_iterate(padv) {
+  advance_re_active_iterate(padv) {
     count++;
-  } advance_active_iterate_end;
+  } advance_re_active_iterate_end;
   stats->item(row++, 1)->setText(QString::number(count));
 
   count = 0;
-  unit_active_class_iterate(pclass) {
+  unit_class_re_active_iterate(pclass) {
     count++;
-  } unit_active_class_iterate_end;
+  } unit_class_re_active_iterate_end;
   stats->item(row++, 1)->setText(QString::number(count));
 
   count = 0;
-  unit_active_type_iterate(ptype) {
+  unit_type_re_active_iterate(ptype) {
     count++;
-  } unit_active_type_iterate_end;
+  } unit_type_re_active_iterate_end;
   stats->item(row++, 1)->setText(QString::number(count));
 
   // Second column
   row = 0;
   count = 0;
-  improvement_active_iterate(pimpr) {
+  improvement_re_active_iterate(pimpr) {
     count++;
-  } improvement_active_iterate_end;
+  } improvement_re_active_iterate_end;
   stats->item(row++, 4)->setText(QString::number(count));
 
   stats->item(row++, 4)->setText(QString::number(game.control.nation_count));
 
   count = 0;
-  styles_active_iterate(pstyle) {
+  styles_re_active_iterate(pstyle) {
     count++;
-  } styles_active_iterate_end;
+  } styles_re_active_iterate_end;
   stats->item(row++, 4)->setText(QString::number(count));
 
   count = 0;
-  specialist_active_type_iterate(pspe) {
+  specialist_type_re_active_iterate(pspe) {
     count++;
-  } specialist_active_type_iterate_end;
+  } specialist_type_re_active_iterate_end;
   stats->item(row++, 4)->setText(QString::number(count));
 
   count = 0;
-  governments_active_iterate(pgov) {
+  governments_re_active_iterate(pgov) {
     count++;
-  } governments_active_iterate_end;
+  } governments_re_active_iterate_end;
   stats->item(row++, 4)->setText(QString::number(count));
 
   stats->item(row++, 4)->setText(QString::number(game.control.num_disaster_types));
@@ -312,15 +323,15 @@ void tab_misc::refresh_stats()
   row = 0;
 
   count = 0;
-  achievements_active_iterate(pach) {
+  achievements_re_active_iterate(pach) {
     count++;
-  } achievements_active_iterate_end;
+  } achievements_re_active_iterate_end;
   stats->item(row++, 7)->setText(QString::number(count));
 
   count = 0;
   base_count = 0;
   road_count = 0;
-  extra_active_type_iterate(pextra) {
+  extra_type_re_active_iterate(pextra) {
     count++;
     if (is_extra_caused_by(pextra, EC_BASE)) {
       base_count++;
@@ -328,29 +339,40 @@ void tab_misc::refresh_stats()
     if (is_extra_caused_by(pextra, EC_ROAD)) {
       road_count++;
     }
-  } extra_active_type_iterate_end;
+  } extra_type_re_active_iterate_end;
   stats->item(row++, 7)->setText(QString::number(count));
   stats->item(row++, 7)->setText(QString::number(base_count));
   stats->item(row++, 7)->setText(QString::number(road_count));
 
   count = 0;
-  goods_active_type_iterate(pg) {
+  goods_type_re_active_iterate(pg) {
     count++;
-  } goods_active_type_iterate_end;
+  } goods_type_re_active_iterate_end;
+  stats->item(row++, 7)->setText(QString::number(count));
+
+  count = 0;
+  multipliers_re_active_iterate(pmul) {
+    count++;
+  } multipliers_re_active_iterate_end;
   stats->item(row++, 7)->setText(QString::number(count));
 
   stats->resizeColumnsToContents();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User wants to edit always active effects
 **************************************************************************/
 void tab_misc::edit_aae_effects()
 {
-  effect_edit *e_edit;
+  ui->open_effect_edit(QString::fromUtf8(R__("Always active")),
+                       nullptr, EFMC_NONE);
+}
 
-  e_edit = new effect_edit(ui, QString::fromUtf8(R__("Always active")),
-                           nullptr);
-
-  e_edit->show();
+/**********************************************************************//**
+  User wants to edit effects from full list
+**************************************************************************/
+void tab_misc::edit_all_effects()
+{
+  ui->open_effect_edit(QString::fromUtf8(R__("All effects")),
+                       nullptr, EFMC_ALL);
 }

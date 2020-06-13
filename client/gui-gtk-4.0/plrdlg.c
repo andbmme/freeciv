@@ -81,12 +81,12 @@ static void players_ai_skill_callback(GtkMenuItem *item, gpointer data);
 
 static void update_views(void);
 
-/**************************************************************************
-popup the dialog 10% inside the main-window, and optionally raise it.
+/**********************************************************************//**
+  Popup the dialog 10% inside the main-window, and optionally raise it.
 **************************************************************************/
 void popup_players_dialog(bool raise)
 {
-  if (!players_dialog_shell){
+  if (!players_dialog_shell) {
     create_players_dialog();
   }
   gui_dialog_present(players_dialog_shell);
@@ -95,9 +95,9 @@ void popup_players_dialog(bool raise)
   }
 }
 
-/****************************************************************
- Closes the players dialog.
-*****************************************************************/
+/**********************************************************************//**
+  Closes the players dialog.
+**************************************************************************/
 void popdown_players_dialog(void)
 {
   if (players_dialog_shell) {
@@ -105,14 +105,15 @@ void popdown_players_dialog(void)
   }
 }
 
-/***************************************************************************
+/**********************************************************************//**
   Create a small colored square representing the player color, for use
   in player lists. 
   May return NULL if the player has no color yet.
-***************************************************************************/
+**************************************************************************/
 GdkPixbuf *create_player_icon(const struct player *plr)
 {
-  int width, height;
+  int width = 20;
+  int height = 20;
   GdkPixbuf *tmp;
   cairo_surface_t *surface;
   struct color *color;
@@ -122,7 +123,6 @@ GdkPixbuf *create_player_icon(const struct player *plr)
     return NULL;
   }
 
-  gtk_icon_size_lookup(GTK_ICON_SIZE_MENU, &width, &height);
   surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
 
   cr = cairo_create(surface);
@@ -144,7 +144,7 @@ GdkPixbuf *create_player_icon(const struct player *plr)
   return tmp;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh player menu
 **************************************************************************/
 static void update_players_menu(void)
@@ -191,7 +191,7 @@ static void update_players_menu(void)
   gtk_widget_set_sensitive(players_int_command, FALSE);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Something selected from player menu
 **************************************************************************/
 static void selection_callback(GtkTreeSelection *selection, gpointer data)
@@ -199,40 +199,48 @@ static void selection_callback(GtkTreeSelection *selection, gpointer data)
   update_players_menu();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Button pressed on player list
 **************************************************************************/
-static gboolean button_press_callback(GtkTreeView *view, GdkEventButton *ev)
+static gboolean button_press_callback(GtkTreeView *view, GdkEvent *ev)
 {
-  if (ev->type == GDK_2BUTTON_PRESS) {
-    GtkTreePath *path;
+  if (gdk_event_get_event_type(ev) == GDK_BUTTON_PRESS) {
+    guint click_count;
 
-    gtk_tree_view_get_cursor(view, &path, NULL);
-    if (path) {
-      GtkTreeModel *model = gtk_tree_view_get_model(view);
-      GtkTreeIter it;
-      gint id;
-      struct player *plr;
+    gdk_event_get_click_count(ev, &click_count);
 
-      gtk_tree_model_get_iter(model, &it, path);
-      gtk_tree_path_free(path);
+    if (click_count == 2) {
+      GtkTreePath *path;
 
-      gtk_tree_model_get(model, &it, PLR_DLG_COL_ID, &id, -1);
-      plr = player_by_number(id);
+      gtk_tree_view_get_cursor(view, &path, NULL);
+      if (path) {
+        GtkTreeModel *model = gtk_tree_view_get_model(view);
+        GtkTreeIter it;
+        gint id;
+        struct player *plr;
+        guint button;
 
-      if (ev->button == 1) {
-        if (can_intel_with_player(plr)) {
-          popup_intel_dialog(plr);
+        gtk_tree_model_get_iter(model, &it, path);
+        gtk_tree_path_free(path);
+
+        gtk_tree_model_get(model, &it, PLR_DLG_COL_ID, &id, -1);
+        plr = player_by_number(id);
+
+        gdk_event_get_button(ev, &button);
+        if (button == 1) {
+          if (can_intel_with_player(plr)) {
+            popup_intel_dialog(plr);
+          }
+        } else if (can_meet_with_player(plr)) {
+          dsend_packet_diplomacy_init_meeting_req(&client.conn, id);
         }
-      } else if (can_meet_with_player(plr)) {
-        dsend_packet_diplomacy_init_meeting_req(&client.conn, id);
       }
     }
   }
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Sorting function for plr dlg.
 **************************************************************************/
 static gint plrdlg_sort_func(GtkTreeModel *model,
@@ -256,9 +264,9 @@ static gint plrdlg_sort_func(GtkTreeModel *model,
   return player_dlg_columns[n].sort_func(player1, player2);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Create a player dialog store.
-****************************************************************************/
+**************************************************************************/
 static GtkListStore *players_dialog_store_new(void)
 {
   GtkListStore *store;
@@ -301,7 +309,7 @@ static GtkListStore *players_dialog_store_new(void)
   return store;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Toggled column visibility
 **************************************************************************/
 static void toggle_view(GtkCheckMenuItem* item, gpointer data)
@@ -312,17 +320,17 @@ static void toggle_view(GtkCheckMenuItem* item, gpointer data)
   update_views();
 }
 
-/*************************************************************************
+/**********************************************************************//**
   Called whenever player toggles the 'Show/Dead Players' menu item
-*************************************************************************/
+**************************************************************************/
 static void toggle_dead_players(GtkCheckMenuItem* item, gpointer data)
 {
   gui_options.player_dlg_show_dead_players = 
     gtk_check_menu_item_get_active(GTK_CHECK_MENU_ITEM(item));
-  real_players_dialog_update();
+  real_players_dialog_update(NULL);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create and return the "diplomacy" menu for the player report. This menu
   contains diplomacy actions the current player can use on other nations.
 **************************************************************************/
@@ -353,7 +361,7 @@ static GtkWidget *create_diplomacy_menu(void)
   return menu;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create and return the "intelligence" menu. The items in this menu are
   used by the player to see more detailed information about other nations.
 **************************************************************************/
@@ -378,7 +386,7 @@ static GtkWidget *create_intelligence_menu(void)
   return menu;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create 'show' menu for player dialog
 **************************************************************************/
 static GtkWidget* create_show_menu(void)
@@ -390,27 +398,27 @@ static GtkWidget* create_show_menu(void)
   /* index starting at one (1) here to force playername to always be shown */
   for (i = 1; i < num_player_dlg_columns; i++) {
     struct player_dlg_column *pcol;
-    
+
     pcol = &player_dlg_columns[i];
     item = gtk_check_menu_item_new_with_label(pcol->title);
     gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(item), pcol->show);
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), item);
     g_signal_connect(item, "toggled", G_CALLBACK(toggle_view), pcol);
   }
-  
+
   item = gtk_separator_menu_item_new();
   gtk_menu_shell_append(GTK_MENU_SHELL(menu), item);
-  
+
   item = gtk_check_menu_item_new_with_label(Q_("?show:Dead Players"));
   gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(item),
                                  gui_options.player_dlg_show_dead_players);
   gtk_menu_shell_append(GTK_MENU_SHELL(menu), item);
   g_signal_connect(item, "toggled", G_CALLBACK(toggle_dead_players), NULL);
-  
+
   return menu;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create all of player dialog
 **************************************************************************/
 void create_players_dialog(void)
@@ -425,7 +433,7 @@ void create_players_dialog(void)
   /* TRANS: Nations report title */
   gui_dialog_set_title(players_dialog_shell, _("Nations"));
 
-  gui_dialog_add_button(players_dialog_shell, "window-close", _("Close"),
+  gui_dialog_add_button(players_dialog_shell, "window-close", _("_Close"),
                         GTK_RESPONSE_CLOSE);
 
   gui_dialog_set_default_size(players_dialog_shell, -1, 270);
@@ -572,10 +580,7 @@ void create_players_dialog(void)
 
   gui_dialog_show_all(players_dialog_shell);
 
-  real_players_dialog_update();
-
-  gui_dialog_set_default_response(players_dialog_shell,
-    GTK_RESPONSE_CLOSE);
+  real_players_dialog_update(NULL);
 
   gtk_tree_view_focus(GTK_TREE_VIEW(players_list));
 }
@@ -586,10 +591,10 @@ void create_players_dialog(void)
 **************************************************************************/
 #define MIN_DIMENSION 5
 
-/**************************************************************************
- Builds the flag pixmap. May return NULL if there is not enough memory.
- You must call g_object_unref on the returned pixbuf when it is no
- longer needed.
+/**********************************************************************//**
+  Builds the flag pixmap. May return NULL if there is not enough memory.
+  You must call g_object_unref on the returned pixbuf when it is no
+  longer needed.
 **************************************************************************/
 GdkPixbuf *get_flag(const struct nation_type *nation)
 {
@@ -627,8 +632,7 @@ GdkPixbuf *get_flag(const struct nation_type *nation)
   return im;
 }
 
-
-/**************************************************************************
+/**********************************************************************//**
   Fills the player list with the information for 'pplayer' at the row
   given by 'it'.
 **************************************************************************/
@@ -698,7 +702,7 @@ static void fill_row(GtkListStore *store, GtkTreeIter *it,
                      -1);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return TRUE if the player should be shown in the player list.
 **************************************************************************/
 static bool player_should_be_shown(const struct player *pplayer)
@@ -708,10 +712,10 @@ static bool player_should_be_shown(const struct player *pplayer)
          && (!is_barbarian(pplayer));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Clear and refill the entire player list.
 **************************************************************************/
-void real_players_dialog_update(void)
+void real_players_dialog_update(void *unused)
 {
   GtkTreeModel *model;
   GtkTreeIter iter;
@@ -744,7 +748,7 @@ void real_players_dialog_update(void)
   update_views();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Callback for diplomatic meetings button. This button is enabled iff
   we can meet with the other player.
 **************************************************************************/
@@ -762,7 +766,7 @@ void players_meet_callback(GtkMenuItem *item, gpointer data)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Confirm pact/treaty cancellation.
   Frees strings passed in.
 **************************************************************************/
@@ -786,7 +790,7 @@ static void confirm_cancel_pact(enum clause_type clause, int plrno,
   FC_FREE(question);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Pact cancellation requested
 **************************************************************************/
 void players_war_callback(GtkMenuItem *item, gpointer data)
@@ -827,7 +831,7 @@ void players_war_callback(GtkMenuItem *item, gpointer data)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Withdrawing shared vision
 **************************************************************************/
 void players_vision_callback(GtkMenuItem *item, gpointer data)
@@ -854,7 +858,7 @@ void players_vision_callback(GtkMenuItem *item, gpointer data)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Intelligence report query
 **************************************************************************/
 void players_intel_callback(GtkMenuItem *item, gpointer data)
@@ -873,7 +877,7 @@ void players_intel_callback(GtkMenuItem *item, gpointer data)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Spaceship query callback
 **************************************************************************/
 void players_sship_callback(GtkMenuItem *item, gpointer data)
@@ -889,7 +893,7 @@ void players_sship_callback(GtkMenuItem *item, gpointer data)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   AI toggle callback.
 **************************************************************************/
 static void players_ai_toggle_callback(GtkMenuItem *item, gpointer data)
@@ -906,7 +910,7 @@ static void players_ai_toggle_callback(GtkMenuItem *item, gpointer data)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   AI skill level setting callback.
 **************************************************************************/
 static void players_ai_skill_callback(GtkMenuItem *item, gpointer data)
@@ -925,7 +929,7 @@ static void players_ai_skill_callback(GtkMenuItem *item, gpointer data)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh players dialog views.
 **************************************************************************/
 static void update_views(void)

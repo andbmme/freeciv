@@ -17,6 +17,8 @@
 extern "C" {
 #endif /* __cplusplus */
 
+#define COMMENTS_FILE_NAME "comments-3.1.txt"
+
 struct section_file;
 
 bool comments_load(void);
@@ -48,6 +50,7 @@ void comment_specialists(struct section_file *sfile);
 void comment_nationsets(struct section_file *sfile);
 void comment_nationgroups(struct section_file *sfile);
 void comment_nations(struct section_file *sfile);
+void comment_clauses(struct section_file *sfile);
 
 #ifdef __cplusplus
 }

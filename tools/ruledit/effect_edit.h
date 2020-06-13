@@ -30,9 +30,15 @@ class QSpinBox;
 
 class ruledit_gui;
 
+enum effect_filter_main_class { EFMC_NORMAL,
+                                EFMC_NONE, /* No requirements */
+                                EFMC_ALL   /* Any requirements */
+};
+
 struct effect_list_fill_data
 {
   struct universal *filter;
+  enum effect_filter_main_class efmc;
   class effect_edit *edit;
   int num;
 };
@@ -43,12 +49,16 @@ class effect_edit : public QDialog
 
   public:
     explicit effect_edit(ruledit_gui *ui_in, QString target,
-                         struct universal *filter_in);
+                         struct universal *filter_in, enum effect_filter_main_class efmc_in);
     ~effect_edit();
     void refresh();
     void add(const char *msg);
     void add_effect_to_list(struct effect *peffect,
                             struct effect_list_fill_data *data);
+
+    struct universal *filter_get();
+
+    enum effect_filter_main_class efmc;
 
   private:
     ruledit_gui *ui;
@@ -72,6 +82,9 @@ class effect_edit : public QDialog
 
     void effect_type_menu(QAction *action);
     void set_value(int value);
+
+ protected:
+    void closeEvent(QCloseEvent *event);
 };
 
 #endif // FC__EFFECT_EDIT_H

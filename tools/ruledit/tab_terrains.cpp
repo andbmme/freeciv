@@ -33,7 +33,6 @@
 #include "terrain.h"
 
 // ruledit
-#include "effect_edit.h"
 #include "req_edit.h"
 #include "ruledit.h"
 #include "ruledit_qt.h"
@@ -41,7 +40,7 @@
 
 #include "tab_terrains.h"
 
-/**************************************************************************
+/**********************************************************************//**
   Setup tab_terrains object
 **************************************************************************/
 tab_terrains::tab_terrains(ruledit_gui *ui_in) : QWidget()
@@ -85,7 +84,6 @@ tab_terrains::tab_terrains(ruledit_gui *ui_in) : QWidget()
   effects_button = new QPushButton(QString::fromUtf8(R__("Effects")), this);
   connect(effects_button, SIGNAL(pressed()), this, SLOT(edit_effects()));
   terrains_layout->addWidget(effects_button, 2, 2);
-  show_experimental(effects_button);
 
   add_button = new QPushButton(QString::fromUtf8(R__("Add Terrain")), this);
   connect(add_button, SIGNAL(pressed()), this, SLOT(add_now()));
@@ -104,7 +102,7 @@ tab_terrains::tab_terrains(ruledit_gui *ui_in) : QWidget()
   setLayout(main_layout);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh the information.
 **************************************************************************/
 void tab_terrains::refresh()
@@ -112,7 +110,7 @@ void tab_terrains::refresh()
   terrain_list->clear();
 
   terrain_type_iterate(pterr) {
-    if (!pterr->disabled) {
+    if (!pterr->ruledit_disabled) {
       QListWidgetItem *item =
         new QListWidgetItem(QString::fromUtf8(terrain_rule_name(pterr)));
 
@@ -121,7 +119,7 @@ void tab_terrains::refresh()
   } terrain_type_iterate_end;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update info of the terrain
 **************************************************************************/
 void tab_terrains::update_terrain_info(struct terrain *pterr)
@@ -149,7 +147,7 @@ void tab_terrains::update_terrain_info(struct terrain *pterr)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected terrain from the list.
 **************************************************************************/
 void tab_terrains::select_terrain()
@@ -157,19 +155,26 @@ void tab_terrains::select_terrain()
   QList<QListWidgetItem *> select_list = terrain_list->selectedItems();
 
   if (!select_list.isEmpty()) {
-    update_terrain_info(terrain_by_rule_name(select_list.at(0)->text().toUtf8().data()));
+    QByteArray tn_bytes;
+
+    tn_bytes = select_list.at(0)->text().toUtf8();
+    update_terrain_info(terrain_by_rule_name(tn_bytes.data()));
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User entered name for the terrain
 **************************************************************************/
 void tab_terrains::name_given()
 {
   if (selected != nullptr) {
+    QByteArray name_bytes;
+    QByteArray rname_bytes;
+
     terrain_type_iterate(pterr) {
-      if (pterr != selected && !pterr->disabled) {
-        if (!strcmp(terrain_rule_name(pterr), rname->text().toUtf8().data())) {
+      if (pterr != selected && !pterr->ruledit_disabled) {
+        rname_bytes = rname->text().toUtf8();
+        if (!strcmp(terrain_rule_name(pterr), rname_bytes.data())) {
           ui->display_msg(R__("A terrain with that rule name already exists!"));
           return;
         }
@@ -180,14 +185,16 @@ void tab_terrains::name_given()
       name->setText(rname->text());
     }
 
+    name_bytes = name->text().toUtf8();
+    rname_bytes = rname->text().toUtf8();
     names_set(&(selected->name), 0,
-              name->text().toUtf8().data(),
-              rname->text().toUtf8().data());
+              name_bytes.data(),
+              rname_bytes.data());
     refresh();
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested terrain deletion 
 **************************************************************************/
 void tab_terrains::delete_now()
@@ -200,14 +207,14 @@ void tab_terrains::delete_now()
       return;
     }
 
-    selected->disabled = true;
+    selected->ruledit_disabled = true;
 
     refresh();
     update_terrain_info(nullptr);
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Initialize new terrain for use.
 **************************************************************************/
 bool tab_terrains::initialize_new_terrain(struct terrain *pterr)
@@ -221,7 +228,7 @@ bool tab_terrains::initialize_new_terrain(struct terrain *pterr)
   return true;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested new terrain
 **************************************************************************/
 void tab_terrains::add_now()
@@ -230,9 +237,9 @@ void tab_terrains::add_now()
 
   // Try to reuse freed terrain slot
   terrain_type_iterate(pterr) {
-    if (pterr->disabled) {
+    if (pterr->ruledit_disabled) {
       if (initialize_new_terrain(pterr)) {
-        pterr->disabled = false;
+        pterr->ruledit_disabled = false;
         update_terrain_info(pterr);
         refresh();
       }
@@ -258,7 +265,7 @@ void tab_terrains::add_now()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Toggled whether rule_name and name should be kept identical
 **************************************************************************/
 void tab_terrains::same_name_toggle(bool checked)
@@ -269,21 +276,18 @@ void tab_terrains::same_name_toggle(bool checked)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User wants to edit effects
 **************************************************************************/
 void tab_terrains::edit_effects()
 {
   if (selected != nullptr) {
-    effect_edit *e_edit;
     struct universal uni;
 
     uni.value.terrain = selected;
     uni.kind = VUT_TERRAIN;
 
-    e_edit = new effect_edit(ui, QString::fromUtf8(terrain_rule_name(selected)),
-                             &uni);
-
-    e_edit->show();
+    ui->open_effect_edit(QString::fromUtf8(terrain_rule_name(selected)),
+                         &uni, EFMC_NORMAL);
   }
 }

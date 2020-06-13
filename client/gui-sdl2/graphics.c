@@ -60,7 +60,7 @@ static SDL_Surface *main_surface;
 
 static bool render_dirty = TRUE;
 
-/**************************************************************************
+/**********************************************************************//**
   Allocate new gui_layer.
 **************************************************************************/
 struct gui_layer *gui_layer_new(int x, int y, SDL_Surface *surface)
@@ -75,7 +75,7 @@ struct gui_layer *gui_layer_new(int x, int y, SDL_Surface *surface)
   return result;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Free resources associated with gui_layer.
 **************************************************************************/
 void gui_layer_destroy(struct gui_layer **gui_layer)
@@ -84,7 +84,7 @@ void gui_layer_destroy(struct gui_layer **gui_layer)
   FC_FREE(*gui_layer);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Get surface gui_layer.
 **************************************************************************/
 struct gui_layer *get_gui_layer(SDL_Surface *surface)
@@ -101,7 +101,7 @@ struct gui_layer *get_gui_layer(SDL_Surface *surface)
   return NULL;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Buffer allocation function.
   This function is call by "create_window(...)" function and allocate 
   buffer layer for this function.
@@ -140,7 +140,7 @@ struct gui_layer *add_gui_layer(int width, int height)
   return gui_layer;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Free buffer layer ( call by popdown_window_group_dialog(...) func )
   Func. Free buffer layer and clear buffer array entry.
 **************************************************************************/
@@ -166,8 +166,8 @@ void remove_gui_layer(struct gui_layer *gui_layer)
   }
 }
 
-/**************************************************************************
-  Adjust dest_rect according to gui_layer.
+/**********************************************************************//**
+  Translate dest_rect from global screen to gui_layer's coordinates.
 **************************************************************************/
 void screen_rect_to_layer_rect(struct gui_layer *gui_layer,
                                SDL_Rect *dest_rect)
@@ -178,9 +178,21 @@ void screen_rect_to_layer_rect(struct gui_layer *gui_layer,
   }
 }
 
+/**********************************************************************//**
+  Translate dest_rect from gui_layer's to global screen coordinates.
+**************************************************************************/
+void layer_rect_to_screen_rect(struct gui_layer *gui_layer,
+                               SDL_Rect *dest_rect)
+{
+  if (gui_layer) {
+    dest_rect->x = dest_rect->x + gui_layer->dest_rect.x;
+    dest_rect->y = dest_rect->y + gui_layer->dest_rect.y;
+  }
+}
+
 /* ============ Freeciv sdl graphics function =========== */
 
-/**************************************************************************
+/**********************************************************************//**
   Execute alphablit.
 **************************************************************************/
 int alphablit(SDL_Surface *src, SDL_Rect *srcrect,
@@ -204,7 +216,7 @@ int alphablit(SDL_Surface *src, SDL_Rect *srcrect,
   return ret;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Execute alphablit to the main surface
 **************************************************************************/
 int screen_blit(SDL_Surface *src, SDL_Rect *srcrect, SDL_Rect *dstrect,
@@ -214,7 +226,7 @@ int screen_blit(SDL_Surface *src, SDL_Rect *srcrect, SDL_Rect *dstrect,
   return alphablit(src, srcrect, main_surface, dstrect, alpha_mod);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create new surface (pRect->w x pRect->h size) and copy pRect area of
   pSource.
   if pRect == NULL then create copy of entire pSource.
@@ -236,7 +248,7 @@ SDL_Surface *crop_rect_from_surface(SDL_Surface *pSource,
   return pNew;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Reduce the alpha of the final surface proportional to the alpha of the mask.
   Thus if the mask has 50% alpha the final image will be reduced by 50% alpha.
 
@@ -287,7 +299,7 @@ SDL_Surface *mask_surface(SDL_Surface *pSrc, SDL_Surface *pMask,
   return pDest;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Load a surface from file putting it in software mem.
 **************************************************************************/
 SDL_Surface *load_surf(const char *pFname)
@@ -307,9 +319,9 @@ SDL_Surface *load_surf(const char *pFname)
   return pBuf;
 }
 
-/**************************************************************************
-   create an surface with format
-   MUST NOT BE USED IF NO SDLSCREEN IS SET
+/**********************************************************************//**
+  Create an surface with format
+  MUST NOT BE USED IF NO SDLSCREEN IS SET
 **************************************************************************/
 SDL_Surface *create_surf_with_format(SDL_PixelFormat *pf,
                                      int width, int height,
@@ -331,7 +343,7 @@ SDL_Surface *create_surf_with_format(SDL_PixelFormat *pf,
   return surf;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create surface with the same format as main window
 **************************************************************************/
 SDL_Surface *create_surf(int width, int height, Uint32 flags)
@@ -339,7 +351,7 @@ SDL_Surface *create_surf(int width, int height, Uint32 flags)
   return create_surf_with_format(main_surface->format, width, height, flags);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Convert surface to the main window format.
 **************************************************************************/
 SDL_Surface *convert_surf(SDL_Surface *surf_in)
@@ -347,9 +359,9 @@ SDL_Surface *convert_surf(SDL_Surface *surf_in)
   return SDL_ConvertSurface(surf_in, main_surface->format, 0);
 }
 
-/**************************************************************************
-  create an surface with screen format and fill with color.
-  if pColor == NULL surface is filled with transparent white A = 128
+/**********************************************************************//**
+  Create an surface with screen format and fill with color.
+  If pColor == NULL surface is filled with transparent white A = 128
 **************************************************************************/
 SDL_Surface *create_filled_surface(Uint16 w, Uint16 h, Uint32 iFlags,
                                    SDL_Color *pColor)
@@ -379,8 +391,8 @@ SDL_Surface *create_filled_surface(Uint16 w, Uint16 h, Uint32 iFlags,
   return pNew;
 }
 
-/**************************************************************************
-  fill surface with (0, 0, 0, 0), so the next blitting operation can set
+/**********************************************************************//**
+  Fill surface with (0, 0, 0, 0), so the next blitting operation can set
   the per pixel alpha
 **************************************************************************/
 int clear_surface(SDL_Surface *pSurf, SDL_Rect *dstrect)
@@ -395,12 +407,12 @@ int clear_surface(SDL_Surface *pSurf, SDL_Rect *dstrect)
   }
 }
 
-/**************************************************************************
-  blit entire src [SOURCE] surface to destination [DEST] surface
+/**********************************************************************//**
+  Blit entire src [SOURCE] surface to destination [DEST] surface
   on position : [iDest_x],[iDest_y] using it's actual alpha and
   color key settings.
 **************************************************************************/
-int blit_entire_src(SDL_Surface * pSrc, SDL_Surface * pDest,
+int blit_entire_src(SDL_Surface *pSrc, SDL_Surface *pDest,
                     Sint16 iDest_x, Sint16 iDest_y)
 {
   SDL_Rect dest_rect = { iDest_x, iDest_y, 0, 0 };
@@ -408,7 +420,7 @@ int blit_entire_src(SDL_Surface * pSrc, SDL_Surface * pDest,
   return alphablit(pSrc, NULL, pDest, &dest_rect, 255);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Get pixel
   Return the pixel value at (x, y)
   NOTE: The surface must be locked before calling this!
@@ -446,8 +458,8 @@ Uint32 getpixel(SDL_Surface *pSurface, Sint16 x, Sint16 y)
   }
 }
 
-/**************************************************************************
-  get first pixel
+/**********************************************************************//**
+  Get first pixel
   Return the pixel value at (0, 0)
   NOTE: The surface must be locked before calling this!
 **************************************************************************/
@@ -486,8 +498,8 @@ Uint32 get_first_pixel(SDL_Surface *pSurface)
 
 /* ===================================================================== */
 
-/**************************************************************************
-  initialize sdl with Flags
+/**********************************************************************//**
+  Initialize sdl with Flags
 **************************************************************************/
 void init_sdl(int iFlags)
 {
@@ -522,7 +534,7 @@ void init_sdl(int iFlags)
   atexit(TTF_Quit);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Free screen buffers
 **************************************************************************/
 void quit_sdl(void)
@@ -533,7 +545,7 @@ void quit_sdl(void)
   FREESURFACE(Main.dummy);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Switch to passed video mode.
 **************************************************************************/
 int set_video_mode(int iWidth, int iHeight, int iFlags)
@@ -601,7 +613,7 @@ int set_video_mode(int iWidth, int iHeight, int iFlags)
   return 0;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Render from main surface with screen renderer.
 **************************************************************************/
 void update_main_screen(void)
@@ -617,7 +629,7 @@ void update_main_screen(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return width of the main window
 **************************************************************************/
 int main_window_width(void)
@@ -625,7 +637,7 @@ int main_window_width(void)
   return main_surface->w;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return height of the main window
 **************************************************************************/
 int main_window_height(void)
@@ -647,7 +659,7 @@ int main_window_height(void)
         (((( s & (mask | mask << 16)) + ( d & ( mask | mask << 16 ))) >> 1) + \
         ( s & d & ( ~(mask | mask << 16))))
 
-/**************************************************************************
+/**********************************************************************//**
   Fill rectangle for "565" format surface
 **************************************************************************/
 static int __FillRectAlpha565(SDL_Surface *pSurface, SDL_Rect *pRect,
@@ -762,7 +774,7 @@ static int __FillRectAlpha565(SDL_Surface *pSurface, SDL_Rect *pRect,
   return 0;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Fill rectangle for "555" format surface
 **************************************************************************/
 static int __FillRectAlpha555(SDL_Surface *pSurface, SDL_Rect *pRect,
@@ -874,7 +886,7 @@ static int __FillRectAlpha555(SDL_Surface *pSurface, SDL_Rect *pRect,
   return 0;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Fill rectangle for 32bit "8888" format surface
 **************************************************************************/
 static int __FillRectAlpha8888_32bit(SDL_Surface *pSurface, SDL_Rect *pRect,
@@ -1027,7 +1039,7 @@ static int __FillRectAlpha8888_32bit(SDL_Surface *pSurface, SDL_Rect *pRect,
   return 0;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Fill rectangle for 32bit "888" format surface
 **************************************************************************/
 static int __FillRectAlpha888_32bit(SDL_Surface *pSurface, SDL_Rect *pRect,
@@ -1168,7 +1180,7 @@ static int __FillRectAlpha888_32bit(SDL_Surface *pSurface, SDL_Rect *pRect,
   return 0;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Fill rectangle for 24bit "888" format surface
 **************************************************************************/
 static int __FillRectAlpha888_24bit(SDL_Surface *pSurface, SDL_Rect *pRect,
@@ -1272,7 +1284,7 @@ static int __FillRectAlpha888_24bit(SDL_Surface *pSurface, SDL_Rect *pRect,
   return 0;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Fill rectangle with color with alpha channel.
 **************************************************************************/
 int fill_rect_alpha(SDL_Surface *pSurface, SDL_Rect *pRect,
@@ -1323,7 +1335,7 @@ int fill_rect_alpha(SDL_Surface *pSurface, SDL_Rect *pRect,
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make rectangle region sane. Return TRUE if result is sane.
 **************************************************************************/
 bool correct_rect_region(SDL_Rect *pRect)
@@ -1360,7 +1372,7 @@ bool correct_rect_region(SDL_Rect *pRect)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether coordinates are in rectangle.
 **************************************************************************/
 bool is_in_rect_area(int x, int y, SDL_Rect rect)
@@ -1371,7 +1383,7 @@ bool is_in_rect_area(int x, int y, SDL_Rect rect)
 
 /* ===================================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Get visible rectangle from surface.
 **************************************************************************/
 SDL_Rect get_smaller_surface_rect(SDL_Surface *pSurface)
@@ -1391,257 +1403,257 @@ SDL_Rect get_smaller_surface_rect(SDL_Surface *pSurface)
 
   lock_surf(pSurface);
 
-  switch(pSurface->format->BytesPerPixel) {
-    case 1:
-    {
-      Uint8 *pixel = (Uint8 *)pSurface->pixels;
-      Uint8 *start = pixel;
+  switch (pSurface->format->BytesPerPixel) {
+  case 1:
+  {
+    Uint8 *pixel = (Uint8 *)pSurface->pixels;
+    Uint8 *start = pixel;
+    x = 0;
+    y = 0;
+    w = pSurface->w;
+    h = pSurface->h;
+    while (h--) {
+      do {
+        if (*pixel != colorkey) {
+          if (minY > y) {
+            minY = y;
+          }
+
+          if (minX > x) {
+            minX = x;
+          }
+          break;
+        }
+        pixel++;
+        x++;
+      } while (--w > 0);
+      w = pSurface->w;
       x = 0;
-      y = 0;
-      w = pSurface->w;
-      h = pSurface->h;
-      while (h--) {
-        do {
-          if (*pixel != colorkey) {
-            if (minY > y) {
-              minY = y;
-            }
-
-            if (minX > x) {
-              minX = x;
-            }
-            break;
-          }
-          pixel++;
-          x++;
-        } while (--w > 0);
-        w = pSurface->w;
-        x = 0;
-        y++;
-        pixel = start + pSurface->pitch;
-        start = pixel;
-      }
-
-      w = pSurface->w;
-      h = pSurface->h;
-      x = w - 1;
-      y = h - 1;
-      pixel = (Uint8 *)((Uint8 *)pSurface->pixels + (y * pSurface->pitch) + x);
+      y++;
+      pixel = start + pSurface->pitch;
       start = pixel;
-      while (h--) {
-        do {
-          if (*pixel != colorkey) {
-            if (maxY < y) {
-              maxY = y;
-            }
+    }
 
-            if (maxX < x) {
-              maxX = x;
-            }
-            break;
+    w = pSurface->w;
+    h = pSurface->h;
+    x = w - 1;
+    y = h - 1;
+    pixel = (Uint8 *)((Uint8 *)pSurface->pixels + (y * pSurface->pitch) + x);
+    start = pixel;
+    while (h--) {
+      do {
+        if (*pixel != colorkey) {
+          if (maxY < y) {
+            maxY = y;
           }
-          pixel--;
-          x--;
-        } while (--w > 0);
-        w = pSurface->w;
-        x = w - 1;
-        y--;
-        pixel = start - pSurface->pitch;
-        start = pixel;
-      }
+
+          if (maxX < x) {
+            maxX = x;
+          }
+          break;
+        }
+        pixel--;
+        x--;
+      } while (--w > 0);
+      w = pSurface->w;
+      x = w - 1;
+      y--;
+      pixel = start - pSurface->pitch;
+      start = pixel;
     }
     break;
-    case 2:
-    {
-      Uint16 *pixel = (Uint16 *)pSurface->pixels;
-      Uint16 *start = pixel;
+  }
+  case 2:
+  {
+    Uint16 *pixel = (Uint16 *)pSurface->pixels;
+    Uint16 *start = pixel;
 
+    x = 0;
+    y = 0;
+    w = pSurface->w;
+    h = pSurface->h;
+    while (h--) {
+      do {
+        if (*pixel != colorkey) {
+          if (minY > y) {
+            minY = y;
+          }
+
+          if (minX > x) {
+            minX = x;
+          }
+          break;
+        }
+        pixel++;
+        x++;
+      } while (--w > 0);
+      w = pSurface->w;
       x = 0;
-      y = 0;
-      w = pSurface->w;
-      h = pSurface->h;
-      while (h--) {
-        do {
-          if (*pixel != colorkey) {
-            if (minY > y) {
-              minY = y;
-            }
-
-            if (minX > x) {
-              minX = x;
-            }
-            break;
-          }
-          pixel++;
-          x++;
-        } while (--w > 0);
-        w = pSurface->w;
-        x = 0;
-        y++;
-        pixel = start + pSurface->pitch / 2;
-        start = pixel;
-     }
-
-      w = pSurface->w;
-      h = pSurface->h;
-      x = w - 1;
-      y = h - 1;
-      pixel = ((Uint16 *)pSurface->pixels + (y * pSurface->pitch / 2) + x);
+      y++;
+      pixel = start + pSurface->pitch / 2;
       start = pixel;
-      while (h--) {
-        do {
-          if (*pixel != colorkey) {
-            if (maxY < y) {
-              maxY = y;
-            }
+    }
 
-            if (maxX < x) {
-              maxX = x;
-            }
-            break;
+    w = pSurface->w;
+    h = pSurface->h;
+    x = w - 1;
+    y = h - 1;
+    pixel = ((Uint16 *)pSurface->pixels + (y * pSurface->pitch / 2) + x);
+    start = pixel;
+    while (h--) {
+      do {
+        if (*pixel != colorkey) {
+          if (maxY < y) {
+            maxY = y;
           }
-          pixel--;
-          x--;
-        } while (--w > 0);
-        w = pSurface->w;
-        x = w - 1;
-        y--;
-        pixel = start - pSurface->pitch / 2;
-        start = pixel;
-      }
+
+          if (maxX < x) {
+            maxX = x;
+          }
+          break;
+        }
+        pixel--;
+        x--;
+      } while (--w > 0);
+      w = pSurface->w;
+      x = w - 1;
+      y--;
+      pixel = start - pSurface->pitch / 2;
+      start = pixel;
     }
     break;
-    case 3:
-    {
-      Uint8 *pixel = (Uint8 *)pSurface->pixels;
-      Uint8 *start = pixel;
-      Uint32 color;
+  }
+  case 3:
+  {
+    Uint8 *pixel = (Uint8 *)pSurface->pixels;
+    Uint8 *start = pixel;
+    Uint32 color;
 
+    x = 0;
+    y = 0;
+    w = pSurface->w;
+    h = pSurface->h;
+    while (h--) {
+      do {
+        if (is_bigendian()) {
+          color = (pixel[0] << 16 | pixel[1] << 8 | pixel[2]);
+        } else {
+          color = (pixel[0] | pixel[1] << 8 | pixel[2] << 16);
+        }
+        if (color != colorkey) {
+          if (minY > y) {
+            minY = y;
+          }
+
+          if (minX > x) {
+            minX = x;
+          }
+          break;
+        }
+        pixel += 3;
+        x++;
+      } while (--w > 0);
+      w = pSurface->w;
       x = 0;
-      y = 0;
-      w = pSurface->w;
-      h = pSurface->h;
-      while (h--) {
-        do {
-          if (is_bigendian()) {
-            color = (pixel[0] << 16 | pixel[1] << 8 | pixel[2]);
-          } else {
-            color = (pixel[0] | pixel[1] << 8 | pixel[2] << 16);
-          }
-          if (color != colorkey) {
-            if (minY > y) {
-              minY = y;
-            }
-
-            if (minX > x) {
-              minX = x;
-            }
-            break;
-          }
-          pixel += 3;
-          x++;
-        } while (--w > 0);
-        w = pSurface->w;
-        x = 0;
-        y++;
-        pixel = start + pSurface->pitch / 3;
-        start = pixel;
-      }
-
-      w = pSurface->w;
-      h = pSurface->h;
-      x = w - 1;
-      y = h - 1;
-      pixel = (Uint8 *)((Uint8 *)pSurface->pixels + (y * pSurface->pitch) + x * 3);
+      y++;
+      pixel = start + pSurface->pitch / 3;
       start = pixel;
-      while (h--) {
-        do {
-          if (is_bigendian()) {
-            color = (pixel[0] << 16 | pixel[1] << 8 | pixel[2]);
-          } else {
-            color = (pixel[0] | pixel[1] << 8 | pixel[2] << 16);
-          }
-          if (color != colorkey) {
-            if (maxY < y) {
-              maxY = y;
-            }
+    }
 
-            if (maxX < x) {
-              maxX = x;
-            }
-            break;
+    w = pSurface->w;
+    h = pSurface->h;
+    x = w - 1;
+    y = h - 1;
+    pixel = (Uint8 *)((Uint8 *)pSurface->pixels + (y * pSurface->pitch) + x * 3);
+    start = pixel;
+    while (h--) {
+      do {
+        if (is_bigendian()) {
+          color = (pixel[0] << 16 | pixel[1] << 8 | pixel[2]);
+        } else {
+          color = (pixel[0] | pixel[1] << 8 | pixel[2] << 16);
+        }
+        if (color != colorkey) {
+          if (maxY < y) {
+            maxY = y;
           }
-          pixel -= 3;
-          x--;
-        } while (--w > 0);
-        w = pSurface->w;
-        x = w - 1;
-        y--;
-        pixel = start - pSurface->pitch / 3;
-        start = pixel;
-     }
+
+          if (maxX < x) {
+            maxX = x;
+          }
+          break;
+        }
+        pixel -= 3;
+        x--;
+      } while (--w > 0);
+      w = pSurface->w;
+      x = w - 1;
+      y--;
+      pixel = start - pSurface->pitch / 3;
+      start = pixel;
     }
     break;
-    case 4:
-    {
-      Uint32 *pixel = (Uint32 *)pSurface->pixels;
-      Uint32 *start = pixel;
+  }
+  case 4:
+  {
+    Uint32 *pixel = (Uint32 *)pSurface->pixels;
+    Uint32 *start = pixel;
 
+    x = 0;
+    y = 0;
+    w = pSurface->w;
+    h = pSurface->h;
+    while (h--) {
+      do {
+        if (*pixel != colorkey) {
+          if (minY > y) {
+            minY = y;
+          }
+
+          if (minX > x) {
+            minX = x;
+          }
+          break;
+        }
+        pixel++;
+        x++;
+      } while (--w > 0);
+      w = pSurface->w;
       x = 0;
-      y = 0;
-      w = pSurface->w;
-      h = pSurface->h;
-      while (h--) {
-        do {
-          if (*pixel != colorkey) {
-            if (minY > y) {
-              minY = y;
-            }
-
-            if (minX > x) {
-              minX = x;
-            }
-            break;
-          }
-          pixel++;
-          x++;
-        } while (--w > 0);
-        w = pSurface->w;
-        x = 0;
-        y++;
-        pixel = start + pSurface->pitch / 4;
-        start = pixel;
-      }
-
-      w = pSurface->w;
-      h = pSurface->h;
-      x = w - 1;
-      y = h - 1;
-      pixel = ((Uint32 *)pSurface->pixels + (y * pSurface->pitch / 4) + x);
+      y++;
+      pixel = start + pSurface->pitch / 4;
       start = pixel;
-      while (h--) {
-        do {
-          if (*pixel != colorkey) {
-            if (maxY < y) {
-              maxY = y;
-            }
+    }
 
-            if (maxX < x) {
-              maxX = x;
-            }
-            break;
+    w = pSurface->w;
+    h = pSurface->h;
+    x = w - 1;
+    y = h - 1;
+    pixel = ((Uint32 *)pSurface->pixels + (y * pSurface->pitch / 4) + x);
+    start = pixel;
+    while (h--) {
+      do {
+        if (*pixel != colorkey) {
+          if (maxY < y) {
+            maxY = y;
           }
-          pixel--;
-          x--;
-        } while (--w > 0);
-        w = pSurface->w;
-        x = w - 1;
-        y--;
-        pixel = start - pSurface->pitch / 4;
-        start = pixel;
-      }
+
+          if (maxX < x) {
+            maxX = x;
+          }
+          break;
+        }
+        pixel--;
+        x--;
+      } while (--w > 0);
+      w = pSurface->w;
+      x = w - 1;
+      y--;
+      pixel = start - pSurface->pitch / 4;
+      start = pixel;
     }
     break;
+  }
   }
 
   unlock_surf(pSurface);
@@ -1653,7 +1665,7 @@ SDL_Rect get_smaller_surface_rect(SDL_Surface *pSurface)
   return src;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create new surface that is just visible part of source surface.
 **************************************************************************/
 SDL_Surface *crop_visible_part_from_surface(SDL_Surface *pSrc)
@@ -1663,7 +1675,7 @@ SDL_Surface *crop_visible_part_from_surface(SDL_Surface *pSrc)
   return crop_rect_from_surface(pSrc, &src);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Scale surface.
 **************************************************************************/
 SDL_Surface *ResizeSurface(const SDL_Surface *pSrc, Uint16 new_width,
@@ -1679,7 +1691,7 @@ SDL_Surface *ResizeSurface(const SDL_Surface *pSrc, Uint16 new_width,
                      smooth);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Resize a surface to fit into a box with the dimensions 'new_width' and a
   'new_height'. If 'scale_up' is FALSE, a surface that already fits into
   the box will not be scaled up to the boundaries of the box.
@@ -1734,7 +1746,7 @@ SDL_Surface *ResizeSurfaceBox(const SDL_Surface *pSrc,
   return result;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return copy of the surface
 **************************************************************************/
 SDL_Surface *copy_surface(SDL_Surface *src)
@@ -1752,7 +1764,7 @@ SDL_Surface *copy_surface(SDL_Surface *src)
 
 /* ============ Freeciv game graphics function =========== */
 
-/**************************************************************************
+/**********************************************************************//**
   Return whether the client supports given view type
 **************************************************************************/
 bool is_view_supported(enum ts_type type)
@@ -1768,14 +1780,14 @@ bool is_view_supported(enum ts_type type)
   return FALSE;
 }
 
-/***************************************************************************
+/**********************************************************************//**
   Loading tileset of the specified type
-***************************************************************************/
+**************************************************************************/
 void tileset_type_set(enum ts_type type)
 {
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Load intro sprites. Not used in SDL-client.
 **************************************************************************/
 void load_intro_gfx(void)
@@ -1783,7 +1795,7 @@ void load_intro_gfx(void)
   /* nothing */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Frees the introductory sprites.
 **************************************************************************/
 void free_intro_radar_sprites(void)
@@ -1791,7 +1803,7 @@ void free_intro_radar_sprites(void)
   /* nothing */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create colored frame
 **************************************************************************/
 void create_frame(SDL_Surface *dest, Sint16 left, Sint16 top,
@@ -1822,7 +1834,7 @@ void create_frame(SDL_Surface *dest, Sint16 left, Sint16 top,
   free_sprite(vertical);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create single colored line
 **************************************************************************/
 void create_line(SDL_Surface *dest, Sint16 x0, Sint16 y0, Sint16 x1, Sint16 y1,
@@ -1865,7 +1877,7 @@ void create_line(SDL_Surface *dest, Sint16 x0, Sint16 y0, Sint16 x1, Sint16 y1,
   } else {
     for (i = 0; i < l; i++) {
       int cx = (xr - xl) * i / l;
-      int cy = yb - (yb - yt) * i / l;
+      int cy = yb - yt - (yb - yt) * i / l;
 
       *((Uint32 *)spr->psurface->pixels + spr->psurface->w * cy + cx)
         |= (pcolor->a << spr->psurface->format->Ashift);

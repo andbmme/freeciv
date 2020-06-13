@@ -1044,7 +1044,7 @@ server/stdinhand.[ch]
 When a player starts a client, he is presents with several options: start
 a new game, continue a saved game and connect to a networked game. For the 
 latter option, connect_to_server() is called and login proceeeds as normal.
-The the first two options, connectdlg_common.c:client_start_server() is 
+The first two options, connectdlg_common.c:client_start_server() is
 called. Here, a server is spawned, standard input and outputs to that process
 are closed, and then connect_to_server() is called so the client connects to 
 that server.
@@ -1130,9 +1130,10 @@ Internationalization (I18N)
 ===========================================================================
 
 Messages and text in general which are shown in the GUI should be
-translated by using the "_()" macro. In addition log_normal() messages
-should be translated. In most cases, the other log levels (log_fatal(),
-log_error(), log_verbose(), log_debug()) should NOT be localised.
+translated by using the "_()" macro. In addition log_normal() and
+some log_warn() messages should be translated. In most cases, the other
+log levels (log_fatal(), log_error(), log_verbose(), log_debug()) should
+NOT be localised.
 
 See utility/fciconv.h for details of how Freeciv handles character sets
 and encodings. Briefly:
@@ -1151,19 +1152,17 @@ under our control, and all output to the command line must be converted.
 Debugging and Profiling
 ===========================================================================
 
-Debugging has to be activated on compile time by adding the option
-'--enable-debug=no/some/yes/checks' to the configure script. The different
-options have the following meaning:
+Debugging has to be activated on compile time. For autotools based builds
+that's done by adding the option '--enable-debug=no/some/yes/checks'
+to the configure script. See m4/debug.m4 for exact compiler flags each
+value sets. The different values have roughly the following meaning:
 
   no:     no debugging enabled(FREECIV_NDEBUG and NDEBUG are defined)
           additional compiler flags for optimisation (-O3 -fomit-frame-pointer)
   some:   default build (neither FREECIV_NDEBUG nor FREECIV_DEBUG is defined)
   yes:    debugging enable (FREECIV_DEBUG is defined)
           debugging log level available (4, log_debug())
-          additional compiler flags:
-            -Werror -Wmissing-prototypes -Wmissing-declarations
-            -Wformat -Wformat-security -Wnested-externs 
-            -Wl,--no-add-needed
+          more compiler warning flags than with lower debug levels
   checks: same as 'yes' but with one additional compiler check:
             -Wstrict-prototypes
 

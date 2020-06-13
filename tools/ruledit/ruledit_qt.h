@@ -22,6 +22,7 @@
 #include <QTabWidget>
 
 // ruledit
+#include "effect_edit.h"
 #include "rulesave.h"
 
 class QLineEdit;
@@ -32,6 +33,7 @@ class tab_building;
 class tab_good;
 class tab_gov;
 class tab_misc;
+class tab_multiplier;
 class tab_tech;
 class tab_unit;
 class tab_nation;
@@ -65,6 +67,15 @@ protected:
   TYPED_LIST_ITERATE(class req_edit, reqeditlist, preqedit)
 #define req_edit_list_iterate_end LIST_ITERATE_END
 
+/* get 'struct effect_edit_list' and related functions: */
+#define SPECLIST_TAG effect_edit
+#define SPECLIST_TYPE class effect_edit
+#include "speclist.h"
+
+#define effect_edit_list_iterate(effecteditlist, peffectedit) \
+  TYPED_LIST_ITERATE(class effect_edit, effecteditlist, peffectedit)
+#define effect_edit_list_iterate_end LIST_ITERATE_END
+
 class ruledit_gui : public QObject
 {
   Q_OBJECT
@@ -78,6 +89,11 @@ class ruledit_gui : public QObject
 
     void open_req_edit(QString target, struct requirement_vector *preqs);
     void unregister_req_edit(class req_edit *redit);
+
+    void open_effect_edit(QString target, struct universal *uni,
+                          enum effect_filter_main_class efmc);
+    void unregister_effect_edit(class effect_edit *e_edit);
+    void refresh_effect_edits();
 
     struct rule_data data;
 
@@ -96,10 +112,12 @@ class ruledit_gui : public QObject
     tab_gov *gov;
     tab_enabler *enablers;
     tab_extras *extras;
+    tab_multiplier *multipliers;
     tab_terrains *terrains;
     tab_nation *nation;
 
     struct req_edit_list *req_edits;
+    struct effect_edit_list *effect_edits;
 
   private slots:
     void launch_now();

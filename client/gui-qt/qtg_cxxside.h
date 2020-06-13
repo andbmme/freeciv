@@ -98,7 +98,7 @@ void qtg_options_extra_init();
 void qtg_server_connect();
 void qtg_add_net_input(int sock);
 void qtg_remove_net_input();
-void qtg_real_conn_list_dialog_update();
+void qtg_real_conn_list_dialog_update(void *unused);
 void qtg_close_connection_dialog();
 void qtg_add_idle_callback(void (callback)(void *), void *data);
 void qtg_sound_bell();
@@ -108,13 +108,11 @@ enum client_pages qtg_get_current_client_page();
 
 void qtg_popup_combat_info(int attacker_unit_id, int defender_unit_id,
                            int attacker_hp, int defender_hp,
-                           bool make_winner_veteran);
+                           bool make_att_veteran, bool make_def_veteran);
 void qtg_set_unit_icon(int idx, struct unit *punit);
 void qtg_set_unit_icons_more_arrow(bool onoff);
 void qtg_real_focus_units_changed(void);
 void qtg_gui_update_font(const char *font_name, const char *font_value);
-void qtg_set_city_names_font_sizes(int my_city_names_font_size,
-                                   int my_city_productions_font_size);
 
 void qtg_editgui_refresh();
 void qtg_editgui_notify_object_created(int tag, int id);
@@ -124,6 +122,7 @@ void qtg_editgui_tileset_changed();
 void qtg_editgui_popdown_all();
 
 void qtg_update_timeout_label();
+void qtg_start_turn();
 void qtg_real_city_dialog_popup(struct city *pcity);
 void qtg_real_city_dialog_refresh(struct city *pcity);
 void qtg_popdown_city_dialog(struct city *pcity);
@@ -133,6 +132,8 @@ void qtg_refresh_unit_city_dialogs(struct unit *punit);
 bool qtg_city_dialog_is_open(struct city *pcity);
 
 bool qtg_request_transport(struct unit *pcargo, struct tile *ptile);
+
+void qtg_update_infra_dialog();
 
 void qtg_gui_load_theme(const char *directory, const char *theme_name);
 void qtg_gui_clear_theme();

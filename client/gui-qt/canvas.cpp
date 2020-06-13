@@ -1,4 +1,4 @@
-/**********************************************************************
+/***********************************************************************
  Freeciv - Copyright (C) 1996-2005 - Freeciv Development Team
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 // Qt
 #include <QFontMetrics>
 #include <QPainter>
+#include <QPainterPath>
 
 // qt-client
 #include "canvas.h"
@@ -28,7 +29,7 @@
 #include "sprite.h"
 
 static QFont *get_font(enum client_font font);
-/****************************************************************************
+/************************************************************************//**
   Create a canvas of the given size.
 ****************************************************************************/
 struct canvas *qtg_canvas_create(int width, int height)
@@ -39,7 +40,7 @@ struct canvas *qtg_canvas_create(int width, int height)
   return store;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free any resources associated with this canvas and the canvas struct
   itself.
 ****************************************************************************/
@@ -48,7 +49,7 @@ void qtg_canvas_free(struct canvas *store)
   delete store;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set canvas zoom for future drawing operations.
 ****************************************************************************/
 void qtg_canvas_set_zoom(struct canvas *store, float zoom)
@@ -56,7 +57,7 @@ void qtg_canvas_set_zoom(struct canvas *store, float zoom)
   /* Qt-client has no zoom support */
 }
 
-/****************************************************************************
+/************************************************************************//**
   This gui has zoom support.
 ****************************************************************************/
 bool qtg_has_zoom_support()
@@ -64,7 +65,7 @@ bool qtg_has_zoom_support()
   return FALSE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Copies an area from the source canvas to the destination canvas.
 ****************************************************************************/
 void qtg_canvas_copy(struct canvas *dest, struct canvas *src,
@@ -86,7 +87,7 @@ void qtg_canvas_copy(struct canvas *dest, struct canvas *src,
 
 }
 
-/****************************************************************************
+/************************************************************************//**
   Copies an area from the source pixmap to the destination pixmap.
 ****************************************************************************/
 void pixmap_copy(QPixmap *dest, QPixmap *src, int src_x, int src_y,
@@ -105,7 +106,7 @@ void pixmap_copy(QPixmap *dest, QPixmap *src, int src_x, int src_y,
   p.end();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Copies an area from the source image to the destination image.
 ****************************************************************************/
 void image_copy(QImage *dest, QImage *src, int src_x, int src_y,
@@ -124,7 +125,7 @@ void image_copy(QImage *dest, QImage *src, int src_x, int src_y,
   p.end();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Draw some or all of a sprite onto the canvas.
 ****************************************************************************/
 void qtg_canvas_put_sprite(struct canvas *pcanvas,
@@ -139,7 +140,7 @@ void qtg_canvas_put_sprite(struct canvas *pcanvas,
   p.end();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Draw a full sprite onto the canvas.
 ****************************************************************************/
 void qtg_canvas_put_sprite_full(struct canvas *pcanvas,
@@ -153,7 +154,7 @@ void qtg_canvas_put_sprite_full(struct canvas *pcanvas,
                     0, 0, width, height);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Draw a full sprite onto the canvas.  If "fog" is specified draw it with
   fog.
 ****************************************************************************/
@@ -171,7 +172,7 @@ void qtg_canvas_put_sprite_fogged(struct canvas *pcanvas,
   p.end();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Draw a filled-in colored rectangle onto canvas.
 ****************************************************************************/
 void qtg_canvas_put_rectangle(struct canvas *pcanvas,
@@ -200,7 +201,7 @@ void qtg_canvas_put_rectangle(struct canvas *pcanvas,
   p.end();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Fill the area covered by the sprite with the given color.
 ****************************************************************************/
 void qtg_canvas_fill_sprite_area(struct canvas *pcanvas,
@@ -213,7 +214,7 @@ void qtg_canvas_fill_sprite_area(struct canvas *pcanvas,
   qtg_canvas_put_rectangle(pcanvas, pcolor, canvas_x, canvas_y, width, height);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Draw a 1-pixel-width colored line onto the canvas.
 ****************************************************************************/
 void qtg_canvas_put_line(struct canvas *pcanvas, struct color *pcolor,
@@ -252,7 +253,7 @@ void qtg_canvas_put_line(struct canvas *pcanvas, struct color *pcolor,
   p.end();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Draw a 1-pixel-width colored curved line onto the canvas.
 ****************************************************************************/
 void qtg_canvas_put_curved_line(struct canvas *pcanvas, struct color *pcolor,
@@ -295,7 +296,7 @@ void qtg_canvas_put_curved_line(struct canvas *pcanvas, struct color *pcolor,
   p.end();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the size of the given text in the given font.  This size should
   include the ascent and descent of the text.  Either of width or height
   may be NULL in which case those values simply shouldn't be filled out.
@@ -309,7 +310,7 @@ void qtg_get_text_size(int *width, int *height,
   afont = get_font(font);
   fm = new QFontMetrics(*afont);
   if (width) {
-    *width = fm->width(QString::fromUtf8(text));
+    *width = fm->horizontalAdvance(QString::fromUtf8(text));
   }
 
   if (height) {
@@ -318,7 +319,7 @@ void qtg_get_text_size(int *width, int *height,
   delete fm;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Draw the text onto the canvas in the given color and font.  The canvas
   position does not account for the ascent of the text; this function must
   take care of this manually.  The text will not be NULL but may be empty.
@@ -345,7 +346,7 @@ void qtg_canvas_put_text(struct canvas *pcanvas, int canvas_x, int canvas_y,
   delete fm;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns given font
 ****************************************************************************/
 QFont *get_font(client_font font)
@@ -356,7 +357,7 @@ QFont *get_font(client_font font)
   switch (font) {
   case FONT_CITY_NAME:
   qf = fc_font::instance()->get_font(fonts::city_names);
-    if (gui()->map_scale != 1.0f) {
+    if (gui()->map_scale != 1.0f && gui()->map_font_scale) {
      ssize = ceil(gui()->map_scale * fc_font::instance()->city_fontsize);
       if (qf->pointSize() != ssize) {
         qf->setPointSize(ssize);
@@ -365,7 +366,7 @@ QFont *get_font(client_font font)
     break;
   case FONT_CITY_PROD:
     qf = fc_font::instance()->get_font(fonts::city_productions);
-    if (gui()->map_scale != 1.0f) {
+    if (gui()->map_scale != 1.0f && gui()->map_font_scale) {
       ssize = ceil(gui()->map_scale * fc_font::instance()->prod_fontsize);
       if (qf->pointSize() != ssize) {
         qf->setPointSize(ssize);
@@ -385,7 +386,7 @@ QFont *get_font(client_font font)
   return qf;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return rectangle containing pure image (crops transparency)
 ****************************************************************************/
 QRect zealous_crop_rect(QImage &p)
@@ -423,6 +424,5 @@ QRect zealous_crop_rect(QImage &p)
       b = y;
     }
   }
-  return QRect(l, t, r - l, b - t);
+  return QRect(l, t, qMax(0, r - l + 1), qMax(0, b - t + 1));
 }
-

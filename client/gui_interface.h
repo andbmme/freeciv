@@ -37,7 +37,6 @@ struct gui_funcs {
 
   enum gui_type (*get_gui_type)(void);
   void (*insert_client_build_info)(char *outbuf, size_t outlen);
-  void (*adjust_default_options)(void);
 
   void (*version_message)(const char *vertext);
   void (*real_output_window_append)(const char *astring,
@@ -102,7 +101,7 @@ struct gui_funcs {
   void (*server_connect)(void);
   void (*add_net_input)(int sock);
   void (*remove_net_input)(void);
-  void (*real_conn_list_dialog_update)(void);
+  void (*real_conn_list_dialog_update)(void *unused);
   void (*close_connection_dialog)(void);
   void (*add_idle_callback)(void (callback)(void *), void *data);
   void (*sound_bell)(void);
@@ -114,8 +113,6 @@ struct gui_funcs {
   void (*set_unit_icons_more_arrow)(bool onoff);
   void (*real_focus_units_changed)(void);
   void (*gui_update_font)(const char *font_name, const char *font_value);
-  void (*set_city_names_font_sizes)(int my_city_names_font_size,
-                                    int my_city_productions_font_size);
 
   void (*editgui_refresh)(void);
   void (*editgui_notify_object_created)(int tag, int id);
@@ -126,8 +123,9 @@ struct gui_funcs {
 
   void (*popup_combat_info)(int attacker_unit_id, int defender_unit_id,
                             int attacker_hp, int defender_hp,
-                            bool make_winner_veteran);
+                            bool make_att_veteran, bool make_def_veteran);
   void (*update_timeout_label)(void);
+  void (*start_turn)(void);
   void (*real_city_dialog_popup)(struct city *pcity);
   void (*real_city_dialog_refresh)(struct city *pcity);
   void (*popdown_city_dialog)(struct city *pcity);
@@ -137,6 +135,8 @@ struct gui_funcs {
   bool (*city_dialog_is_open)(struct city *pcity);
 
   bool (*request_transport)(struct unit *pcargo, struct tile *ptile);
+
+  void (*update_infra_dialog)(void);
 
   void (*gui_load_theme)(const char *directory, const char *theme_name);
   void (*gui_clear_theme)(void);

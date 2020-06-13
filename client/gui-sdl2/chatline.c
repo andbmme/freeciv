@@ -47,7 +47,6 @@
 #include "colors.h"
 #include "dialogs.h"
 #include "graphics.h"
-#include "gui_iconv.h"
 #include "gui_id.h"
 #include "gui_main.h"
 #include "gui_tilespec.h"
@@ -87,19 +86,19 @@ static void add_to_chat_list(char *msg, size_t n_alloc);
 
 struct ADVANCED_DLG *pLoadDialog;
 
-/**************************************************************************
+/**********************************************************************//**
   User event to load game dialog window.
 **************************************************************************/
 static int move_load_game_dlg_callback(struct widget *pWindow)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     move_window_group(pLoadDialog->pBeginWidgetList, pWindow);
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Close load game dialog
 **************************************************************************/
 void popdown_load_game_dialog(void)
@@ -124,12 +123,12 @@ void popdown_load_game_dialog(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User clicked load game dialog close-button.
 **************************************************************************/
 static int exit_load_dlg_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     if (get_client_page() == PAGE_LOAD) {
       set_client_page(PAGE_START);
     } else {
@@ -140,12 +139,12 @@ static int exit_load_dlg_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected file to load.
 **************************************************************************/
 static int load_selected_game_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     char *filename = (char*)pWidget->data.ptr;
 
     if (is_server_running()) {
@@ -164,7 +163,7 @@ static int load_selected_game_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Open load game dialog
 **************************************************************************/
 static void popup_load_game_dialog(void)
@@ -336,7 +335,7 @@ static void popup_load_game_dialog(void)
   flush_dirty();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Sent msg/command from input dlg to server
 **************************************************************************/
 static int inputline_return_callback(struct widget *pWidget)
@@ -359,7 +358,7 @@ static int inputline_return_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   This function is main chat/command client input.
 **************************************************************************/
 void popup_input_line(void)
@@ -383,7 +382,7 @@ void popup_input_line(void)
   flush_dirty();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Appends the string to the chat output window.  The string should be
   inserted on its own line, although it will have no newline.
 **************************************************************************/
@@ -403,7 +402,7 @@ void real_output_window_append(const char *astring,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Get the text of the output window, and call write_chatline_content() to
   log it.
 **************************************************************************/
@@ -412,7 +411,7 @@ void log_output_window(void)
   /* TODO */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Clear all text from the output window.
 **************************************************************************/
 void clear_output_window(void)
@@ -422,7 +421,7 @@ void clear_output_window(void)
 
 /* ====================================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   User did something to connection list dialog.
 **************************************************************************/
 static int conn_dlg_callback(struct widget *pWindow)
@@ -430,12 +429,12 @@ static int conn_dlg_callback(struct widget *pWindow)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected to get back from connection list dialog.
 **************************************************************************/
 static int disconnect_conn_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     popdown_conn_list_dialog();
     flush_dirty();
     disconnect_from_server();
@@ -444,7 +443,7 @@ static int disconnect_conn_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Handle chat messages when connection dialog open.
 **************************************************************************/
 static void add_to_chat_list(char *msg, size_t n_alloc)
@@ -503,7 +502,7 @@ static void add_to_chat_list(char *msg, size_t n_alloc)
   flush_dirty();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with connection dialog input field.
 **************************************************************************/
 static int input_edit_conn_callback(struct widget *pWidget)
@@ -525,24 +524,24 @@ static int input_edit_conn_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
    User interacted with Start Game button.
 **************************************************************************/
 static int start_game_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     send_chat("/start");
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with Select Nation button.
 **************************************************************************/
 static int select_nation_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     popup_races_dialog(client.conn.playing);
   }
 
@@ -551,7 +550,7 @@ static int select_nation_callback(struct widget *pWidget)
 
 /* not implemented yet */
 #if 0
-/**************************************************************************
+/**********************************************************************//**
   User interacted with Server Settings button.
 **************************************************************************/
 static int server_config_callback(struct widget *pWidget)
@@ -560,12 +559,12 @@ static int server_config_callback(struct widget *pWidget)
 }
 #endif
 
-/**************************************************************************
+/**********************************************************************//**
   User interacted with Load Game button.
 **************************************************************************/
 static int load_game_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     /* set_wstate(pConnDlg->pLoadGameButton, FC_WS_NORMAL);
      * widget_redraw(pConnDlg->pLoadGameButton);        
      * flush_dirty(); */
@@ -575,10 +574,10 @@ static int load_game_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update the connected users list at pregame state.
 **************************************************************************/
-void real_conn_list_dialog_update(void)
+void real_conn_list_dialog_update(void *unused)
 {
   if (C_S_PREPARING == client_state()) {
     if (pConnDlg) {
@@ -667,7 +666,7 @@ void real_conn_list_dialog_update(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Open connection list dialog
 **************************************************************************/
 static void popup_conn_list_dialog(void)
@@ -867,7 +866,7 @@ static void popup_conn_list_dialog(void)
   conn_list_dialog_update();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Close connection list dialog.
 **************************************************************************/
 bool popdown_conn_list_dialog(void)
@@ -897,7 +896,7 @@ bool popdown_conn_list_dialog(void)
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Got version message from metaserver thread.
 **************************************************************************/
 void version_message(const char *vertext)

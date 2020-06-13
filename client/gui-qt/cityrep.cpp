@@ -28,7 +28,7 @@
 #include "fc_client.h"
 #include "hudwidget.h"
 
-/***************************************************************************
+/***********************************************************************//**
   Overriden compare for sorting items
 ***************************************************************************/
 bool city_sort_model::lessThan(const QModelIndex &left,
@@ -37,11 +37,14 @@ bool city_sort_model::lessThan(const QModelIndex &left,
   QVariant qleft;
   QVariant qright;
   int i;
+  QByteArray l_bytes;
+  QByteArray r_bytes;
 
   qleft = sourceModel()->data(left);
   qright = sourceModel()->data(right);
-  i = cityrepfield_compare(qleft.toString().toLocal8Bit().data(),
-                           qright.toString().toLocal8Bit().data());
+  l_bytes = qleft.toString().toLocal8Bit();
+  r_bytes = qright.toString().toLocal8Bit();
+  i = cityrepfield_compare(l_bytes.data(), r_bytes.data());
 
   if (i >= 0) {
     return true;
@@ -51,7 +54,7 @@ bool city_sort_model::lessThan(const QModelIndex &left,
 }
 
 
-/***************************************************************************
+/***********************************************************************//**
   City item delegate constructor
 ***************************************************************************/
 city_item_delegate::city_item_delegate(QObject *parent)
@@ -63,7 +66,7 @@ city_item_delegate::city_item_delegate(QObject *parent)
   item_height = fm.height() + 4;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   City item delgate paint event
 ***************************************************************************/
 void city_item_delegate::paint(QPainter *painter,
@@ -99,7 +102,7 @@ void city_item_delegate::paint(QPainter *painter,
   QItemDelegate::paint(painter, opt, index);
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Size hint for city item delegate
 ***************************************************************************/
 QSize city_item_delegate::sizeHint(const QStyleOptionViewItem &option,
@@ -111,7 +114,7 @@ QSize city_item_delegate::sizeHint(const QStyleOptionViewItem &option,
   return s;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Constructor for city item
 ***************************************************************************/
 city_item::city_item(city *pcity): QObject()
@@ -119,7 +122,7 @@ city_item::city_item(city *pcity): QObject()
   i_city = pcity;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Returns used city pointer for city item creation
 ***************************************************************************/
 city *city_item::get_city()
@@ -127,7 +130,7 @@ city *city_item::get_city()
   return i_city;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Sets nothing, but must be declared
 ***************************************************************************/
 bool city_item::setData(int column, const QVariant &value, int role)
@@ -135,7 +138,7 @@ bool city_item::setData(int column, const QVariant &value, int role)
   return false;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Returns data from city item (or city pointer from Qt::UserRole)
 ***************************************************************************/
 QVariant city_item::data(int column, int role) const
@@ -155,7 +158,7 @@ QVariant city_item::data(int column, int role) const
   return QString(buf).trimmed();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Constructor for city model
 ***************************************************************************/
 city_model::city_model(QObject *parent): QAbstractListModel(parent)
@@ -163,7 +166,7 @@ city_model::city_model(QObject *parent): QAbstractListModel(parent)
   populate();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Destructor for city model
 ***************************************************************************/
 city_model::~city_model()
@@ -172,7 +175,7 @@ city_model::~city_model()
   city_list.clear();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Notifies about changed row
 ***************************************************************************/
 void city_model::notify_city_changed(int row)
@@ -180,28 +183,34 @@ void city_model::notify_city_changed(int row)
   emit dataChanged(index(row, 0), index(row, columnCount() - 1));
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Returns stored data in index
 ***************************************************************************/
 QVariant city_model::data(const QModelIndex &index, int role) const
 {
-  if (!index.isValid()) return QVariant();
+  if (!index.isValid()) {
+    return QVariant();
+  }
   if (index.row() >= 0 && index.row() < rowCount() && index.column() >= 0
-      && index.column() < columnCount())
+      && index.column() < columnCount()) {
     return city_list[index.row()]->data(index.column(), role);
+  }
   return QVariant();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Sets data in model under index
 ***************************************************************************/
-bool city_model::setData(const QModelIndex &index, const QVariant &value, 
+bool city_model::setData(const QModelIndex &index, const QVariant &value,
                          int role)
 {
-  if (!index.isValid() || role != Qt::DisplayRole) return false;
-  if (index.row() >= 0 && index.row() < rowCount() && index.column() >= 0 
-    && index.column() < columnCount()) {
+  if (!index.isValid() || role != Qt::DisplayRole) {
+    return false;
+  }
+  if (index.row() >= 0 && index.row() < rowCount() && index.column() >= 0
+      && index.column() < columnCount()) {
     bool change = city_list[index.row()]->setData(index.column(), value, role);
+
     if (change) {
       notify_city_changed(index.row());
     }
@@ -210,7 +219,7 @@ bool city_model::setData(const QModelIndex &index, const QVariant &value,
   return false;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Returns header data for given section(column)
 ***************************************************************************/
 QVariant city_model::headerData(int section, Qt::Orientation orientation, 
@@ -235,7 +244,7 @@ QVariant city_model::headerData(int section, Qt::Orientation orientation,
   return QVariant();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Returns header information about section
 ***************************************************************************/
 QVariant city_model::menu_data(int section) const
@@ -249,7 +258,7 @@ QVariant city_model::menu_data(int section) const
   return QVariant();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Hides given column if show is false
 ***************************************************************************/
 QVariant city_model::hide_data(int section) const
@@ -263,7 +272,7 @@ QVariant city_model::hide_data(int section) const
   return QVariant();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Creates city model
 ***************************************************************************/
 void city_model::populate()
@@ -282,7 +291,8 @@ void city_model::populate()
     } cities_iterate_end;
   }
 }
-/***************************************************************************
+
+/***********************************************************************//**
   Notifies about changed item
 ***************************************************************************/
 void city_model::city_changed(struct city *pcity)
@@ -299,7 +309,7 @@ void city_model::city_changed(struct city *pcity)
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Notifies about whole model changed
 ***************************************************************************/
 void city_model::all_changed()
@@ -310,8 +320,8 @@ void city_model::all_changed()
   endResetModel();
 }
 
-/***************************************************************************
-  Resores last selection
+/***********************************************************************//**
+  Restores last selection
 ***************************************************************************/
 void city_widget::restore_selection()
 {
@@ -338,7 +348,7 @@ void city_widget::restore_selection()
                            | QItemSelectionModel::SelectCurrent);
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Constructor for city widget
 ***************************************************************************/
 city_widget::city_widget(city_report *ctr): QTreeView()
@@ -378,7 +388,7 @@ city_widget::city_widget(city_report *ctr): QTreeView()
           this, &city_widget::display_list_menu);
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Slot for double clicking row
 ***************************************************************************/
 void city_widget::city_doubleclick(const QModelIndex& index)
@@ -386,7 +396,7 @@ void city_widget::city_doubleclick(const QModelIndex& index)
   city_view();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Shows first selected city
 ***************************************************************************/
 void city_widget::city_view()
@@ -405,7 +415,7 @@ void city_widget::city_view()
   qtg_real_city_dialog_popup(pcity);
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Clears worklist for selected cities
 ***************************************************************************/
 void city_widget::clear_worlist()
@@ -420,36 +430,36 @@ void city_widget::clear_worlist()
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Buys current item in city
 ***************************************************************************/
 void city_widget::buy()
 {
   struct city *pcity;
 
-  foreach(pcity, selected_cities){
+  foreach(pcity, selected_cities) {
     Q_ASSERT(pcity != NULL);
     cityrep_buy(pcity);
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Centers map on city
 ***************************************************************************/
 void city_widget::center()
 {
   struct city *pcity;
 
-  if (selected_cities.isEmpty()){
+  if (selected_cities.isEmpty()) {
     return;
   }
-  pcity= selected_cities[0];
+  pcity = selected_cities[0];
   Q_ASSERT(pcity != NULL);
   center_tile_mapcanvas(pcity->tile);
   gui()->game_tab_widget->setCurrentIndex(0);
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Displays right click menu on city row
 ***************************************************************************/
 void city_widget::display_list_menu(const QPoint &)
@@ -459,23 +469,11 @@ void city_widget::display_list_menu(const QPoint &)
   QMenu *some_menu;
   QMenu *tmp2_menu;
   QMenu *tmp_menu;
-  hud_message_box ask(gui()->central_wdg);
-  QVariant qvar, qvar2;
-  bool sell_ask;
-  bool need_clear = true;
   bool select_only = false;
   char buf[200];
-  cid id;
-  const char *imprname;
-  enum menu_labels m_state;
-  int sell_count;
   int sell_gold;
-  int sell_ret = QMessageBox::Cancel;
   struct city *pcity;
-  struct impr_type *building;
-  struct universal target;
-  QMenu list_menu(this);
-  QAction *act;
+  QMenu *list_menu;
   QAction cty_view(style()->standardIcon(QStyle::SP_CommandLink),
                    Q_("?verb:View"), 0);
   sell_gold = 0;
@@ -483,9 +481,10 @@ void city_widget::display_list_menu(const QPoint &)
     select_only = true;
   }
   foreach (pcity, selected_cities) {
-    sell_gold = sell_gold + city_production_buy_gold_cost(pcity);
+    sell_gold = sell_gold + pcity->client.buy_cost;
   }
   fc_snprintf(buf, sizeof(buf), _("Buy ( Cost: %d )"), sell_gold);
+
   QAction cty_buy(QString(buf), 0);
   QAction cty_center(style()->standardIcon(QStyle::SP_ArrowRight),
                      _("Center"), 0);
@@ -496,8 +495,9 @@ void city_widget::display_list_menu(const QPoint &)
   if (!can_client_issue_orders()) {
     return;
   }
-  if (select_only == false) {
-    some_menu = list_menu.addMenu(_("Production"));
+  list_menu = new QMenu(this);
+  if (!select_only) {
+    some_menu = list_menu->addMenu(_("Production"));
     tmp_menu = some_menu->addMenu(_("Change"));
     fill_production_menus(CHANGE_PROD_NOW, custom_labels, can_city_build_now,
                           tmp_menu);
@@ -527,30 +527,45 @@ void city_widget::display_list_menu(const QPoint &)
       worklist_defined = false;
     }
     fill_data(WORKLIST_CHANGE, cma_labels, tmp2_menu);
-    some_menu = list_menu.addMenu(_("Governor"));
+    some_menu = list_menu->addMenu(_("Governor"));
     gen_cma_labels(cma_labels);
     fill_data(CMA, cma_labels, some_menu);
-    some_menu = list_menu.addMenu(_("Sell"));
+    some_menu = list_menu->addMenu(_("Sell"));
     gen_production_labels(SELL, custom_labels, false, false,
                           can_city_sell_universal);
     fill_data(SELL, custom_labels, some_menu);
   }
-  some_menu = list_menu.addMenu(_("Select"));
+  some_menu = list_menu->addMenu(_("Select"));
   gen_select_labels(some_menu);
-  if (select_only == false) {
-    list_menu.addAction(&cty_view);
+  if (!select_only) {
+    list_menu->addAction(&cty_view);
     connect(&cty_view, &QAction::triggered, this, &city_widget::city_view);
-    list_menu.addAction(&cty_buy);
+    list_menu->addAction(&cty_buy);
     connect(&cty_buy, &QAction::triggered, this, &city_widget::buy);
-    list_menu.addAction(&cty_center);
+    list_menu->addAction(&cty_center);
     connect(&cty_center, &QAction::triggered, this, &city_widget::center);
   }
-  act = 0;
-  sell_count = 0;
   sell_gold = 0;
-  sell_ask = true;
-  act = list_menu.exec(QCursor::pos());
-  if (act) {
+
+  list_menu->setAttribute(Qt::WA_DeleteOnClose);
+  connect(list_menu, &QMenu::triggered, this, [=](QAction *act) {
+    QVariant qvar, qvar2;
+    enum menu_labels m_state;
+    cid id;
+    struct universal target;
+    char buf[200];
+    const char *imprname;
+    const struct impr_type *building;
+    Impr_type_id impr_id;
+    struct city *pcity;
+    int city_id;
+    bool need_clear = true;
+    bool sell_ask = true;
+
+    if (!act) {
+      return;
+    }
+
     qvar2 = act->property("FC");
     m_state = static_cast<menu_labels>(qvar2.toInt());
     qvar = act->data();
@@ -648,22 +663,29 @@ void city_widget::display_list_menu(const QPoint &)
         case SELL:
           building = target.value.building;
           if (sell_ask) {
+            hud_message_box *ask = new hud_message_box(gui()->central_wdg);
             imprname = improvement_name_translation(building);
             fc_snprintf(buf, sizeof(buf),
                         _("Are you sure you want to sell those %s?"),
                         imprname);
             sell_ask = false;
-            ask.setStandardButtons(QMessageBox::Cancel | QMessageBox::Ok);
-            ask.setDefaultButton(QMessageBox::Cancel);
-            ask.set_text_title(buf, _("Sell?"));
-            sell_ret = ask.exec();
-          }
-          if (sell_ret == QMessageBox::Ok) {
-            if (!pcity->did_sell && city_has_building(pcity, building)) {
-              sell_count++;
-              sell_gold += impr_sell_gold(building);
-              city_sell_improvement(pcity, improvement_number(building));
-            }
+            ask->setStandardButtons(QMessageBox::Cancel | QMessageBox::Ok);
+            ask->setDefaultButton(QMessageBox::Cancel);
+            ask->set_text_title(buf, _("Sell?"));
+            ask->setAttribute(Qt::WA_DeleteOnClose);
+            city_id = pcity->id;
+            impr_id = improvement_number(building);
+            connect(ask, &hud_message_box::accepted, this, [=]() {
+              struct city *pcity = game_city_by_number(city_id);
+              struct impr_type *building = improvement_by_number(impr_id);
+              if (!pcity || !building) {
+                return;
+              }
+              if (!pcity->did_sell && city_has_building(pcity, building)) {
+                city_sell_improvement(pcity, impr_id);
+              }
+            });
+            ask->show();
           }
           break;
         case CMA:
@@ -695,10 +717,11 @@ void city_widget::display_list_menu(const QPoint &)
         }
       }
     }
-  }
+  });
+  list_menu->popup(QCursor::pos());
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Fills menu items that can be produced or sold
 ***************************************************************************/
 void city_widget::fill_production_menus(city_widget::menu_labels what,
@@ -719,7 +742,7 @@ void city_widget::fill_production_menus(city_widget::menu_labels what,
 }
 
 
-/***************************************************************************
+/***********************************************************************//**
   Fills menu actions
 ***************************************************************************/
 void city_widget::fill_data(menu_labels which,
@@ -740,7 +763,7 @@ void city_widget::fill_data(menu_labels which,
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Selects all cities on report
 ***************************************************************************/
 void city_widget::select_all()
@@ -748,7 +771,7 @@ void city_widget::select_all()
   selectAll();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Selects no cities on report
 ***************************************************************************/
 void city_widget::select_none()
@@ -756,7 +779,7 @@ void city_widget::select_none()
   clearSelection();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Inverts selection on report
 ***************************************************************************/
 void city_widget::invert_selection()
@@ -784,7 +807,7 @@ void city_widget::invert_selection()
 
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Marks given city selected
 ***************************************************************************/
 void city_widget::select_city(city *spcity)
@@ -810,7 +833,7 @@ void city_widget::select_city(city *spcity)
 
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Selects coastal cities on report
 ***************************************************************************/
 void city_widget::select_coastal()
@@ -836,7 +859,7 @@ void city_widget::select_coastal()
                            | QItemSelectionModel::SelectCurrent);
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Selects same cities on the same island
 ***************************************************************************/
 void city_widget::select_same_island()
@@ -866,7 +889,7 @@ void city_widget::select_same_island()
                            | QItemSelectionModel::SelectCurrent);
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Selects cities building units or buildings or wonders
   depending on data stored in QAction
 ***************************************************************************/
@@ -909,8 +932,7 @@ void city_widget::select_building_something()
                            | QItemSelectionModel::SelectCurrent);
 }
 
-
-/***************************************************************************
+/***********************************************************************//**
   Creates menu labels and id of available cma, stored in list
 ***************************************************************************/
 void city_widget::gen_cma_labels(QMap<QString, int> &list)
@@ -921,7 +943,7 @@ void city_widget::gen_cma_labels(QMap<QString, int> &list)
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Creates menu labels for selecting cities
 ***************************************************************************/
 void city_widget::gen_select_labels(QMenu *menu)
@@ -941,7 +963,7 @@ void city_widget::gen_select_labels(QMenu *menu)
   connect(act, &QAction::triggered, this, &city_widget::select_coastal);
   act = menu->addAction(_("Same Island"));
   connect(act, &QAction::triggered, this, &city_widget::select_same_island);
-  if (selected_cities.isEmpty()){
+  if (selected_cities.isEmpty()) {
     act->setDisabled(true);
   }
   menu->addSeparator();
@@ -988,7 +1010,7 @@ void city_widget::gen_select_labels(QMenu *menu)
 
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Creates menu labels and info of available worklists, stored in list
 ***************************************************************************/
 void city_widget::gen_worklist_labels(QMap<QString, int> &list)
@@ -999,7 +1021,7 @@ void city_widget::gen_worklist_labels(QMap<QString, int> &list)
   } global_worklists_iterate_end;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Creates menu labels and id about available production targets
 ***************************************************************************/
 void city_widget::gen_production_labels(city_widget::menu_labels what,
@@ -1057,7 +1079,7 @@ void city_widget::gen_production_labels(city_widget::menu_labels what,
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Updates single city
 ***************************************************************************/
 void city_widget::update_city(city *pcity)
@@ -1066,7 +1088,7 @@ void city_widget::update_city(city *pcity)
   restore_selection();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Updates whole model
 ***************************************************************************/
 void city_widget::update_model()
@@ -1087,7 +1109,7 @@ void city_widget::update_model()
       sl = str.split('\n');
       width = 0;
       foreach (s, sl) {
-        width = qMax(width, fm.width(s));
+        width = qMax(width, fm.horizontalAdvance(s));
       }
       header()->resizeSection(j, width + 10);
     }
@@ -1095,37 +1117,42 @@ void city_widget::update_model()
   setUpdatesEnabled(true);
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Context menu for header
 ***************************************************************************/
 void city_widget::display_header_menu(const QPoint &)
 {
-  struct city_report_spec *spec;
-  QMenu hideshowColumn(this);
+  QMenu *hideshow_column = new QMenu(this);
   QList<QAction *> actions;
-  QAction *act;
 
-  hideshowColumn.setTitle(_("Column visibility"));
+  hideshow_column->setTitle(_("Column visibility"));
   for (int i = 0; i < list_model->columnCount(); i++) {
-    QAction *myAct = hideshowColumn.addAction(
+    QAction *myAct = hideshow_column->addAction(
                        list_model->menu_data(i).toString());
     myAct->setCheckable(true);
     myAct->setChecked(!isColumnHidden(i));
     actions.append(myAct);
   }
-  act = hideshowColumn.exec(QCursor::pos());
-  if (act) {
-    int col = actions.indexOf(act);
-    Q_ASSERT(col >= 0);
+  hideshow_column->setAttribute(Qt::WA_DeleteOnClose);
+  connect(hideshow_column, &QMenu::triggered, this, [=](QAction *act) {
+    int col;
+    struct city_report_spec *spec;
+    if (!act) {
+      return;
+    }
+
+    col = actions.indexOf(act);
+    fc_assert_ret(col >= 0);
     setColumnHidden(col, !isColumnHidden(col));
     spec = city_report_specs + col;
     spec->show = !spec->show; 
     if (!isColumnHidden(col) && columnWidth(col) <= 5)
       setColumnWidth(col, 100);
-  }
+  });
+  hideshow_column->popup(QCursor::pos());
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Hides columns for city widget, depending on stored data (bool spec->show)
 ***************************************************************************/
 void city_widget::hide_columns()
@@ -1133,13 +1160,13 @@ void city_widget::hide_columns()
   int col;
 
   for (col = 0; col < list_model->columnCount(); col++) {
-    if (!list_model->hide_data(col).toBool()){
+    if (!list_model->hide_data(col).toBool()) {
       setColumnHidden(col, !isColumnHidden(col));
     }
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Slot for selecting items in city widget, they are stored in
   selected_cities until deselected
 ***************************************************************************/
@@ -1156,7 +1183,7 @@ void city_widget::cities_selected(const QItemSelection &sl,
   if (indexes.isEmpty()) {
     return;
   }
-  foreach(i,indexes){
+  foreach(i,indexes) {
     qvar = i.data(Qt::UserRole);
     if (qvar.isNull()) {
       continue;
@@ -1166,7 +1193,7 @@ void city_widget::cities_selected(const QItemSelection &sl,
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Returns used model
 ***************************************************************************/
 city_model *city_widget::get_model() const
@@ -1174,7 +1201,7 @@ city_model *city_widget::get_model() const
   return list_model;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Destructor for city widget
 ***************************************************************************/
 city_widget::~city_widget()
@@ -1186,7 +1213,7 @@ city_widget::~city_widget()
   gui()->qt_settings.city_report_sort = header()->sortIndicatorOrder();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Constructor for city report
 ***************************************************************************/
 city_report::city_report(): QWidget()
@@ -1201,7 +1228,7 @@ city_report::city_report(): QWidget()
   setLayout(layout);
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Destructor for city report
 ***************************************************************************/
 city_report::~city_report()
@@ -1209,7 +1236,7 @@ city_report::~city_report()
   gui()->remove_repo_dlg("CTS");
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Inits place in game tab widget
 ***************************************************************************/
 void city_report::init()
@@ -1218,7 +1245,8 @@ void city_report::init()
   index = gui()->add_game_tab(this);
   gui()->game_tab_widget->setCurrentIndex(index);
 }
-/***************************************************************************
+
+/***********************************************************************//**
   Updates whole report
 ***************************************************************************/
 void city_report::update_report()
@@ -1226,7 +1254,7 @@ void city_report::update_report()
   city_wdg->update_model();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Updates single city
 ***************************************************************************/
 void city_report::update_city(struct city *pcity)
@@ -1234,9 +1262,9 @@ void city_report::update_city(struct city *pcity)
   city_wdg->update_city(pcity);
 }
 
-/**************************************************************************
+/***********************************************************************//**
   Display the city report dialog.  Optionally raise it.
-**************************************************************************/
+***************************************************************************/
 void city_report_dialog_popup(bool raise)
 {
   int i;
@@ -1251,7 +1279,7 @@ void city_report_dialog_popup(bool raise)
     i = gui()->gimme_index_of("CTS");
     fc_assert(i != -1);
     w = gui()->game_tab_widget->widget(i);
-    if (w->isVisible() == true) {
+    if (w->isVisible()) {
       gui()->game_tab_widget->setCurrentIndex(0);
       return;
     }
@@ -1261,10 +1289,10 @@ void city_report_dialog_popup(bool raise)
   }
 }
 
-/**************************************************************************
+/***********************************************************************//**
   Update (refresh) the entire city report dialog.
-**************************************************************************/
-void real_city_report_dialog_update(void)
+***************************************************************************/
+void real_city_report_dialog_update(void *unused)
 {
   int i;
   city_report *cr;
@@ -1280,9 +1308,9 @@ void real_city_report_dialog_update(void)
   }
 }
 
-/**************************************************************************
+/***********************************************************************//**
   Update the information for a single city in the city report.
-**************************************************************************/
+***************************************************************************/
 void real_city_report_update_city(struct city *pcity)
 {
   int i;
@@ -1299,9 +1327,9 @@ void real_city_report_update_city(struct city *pcity)
   }
 }
 
-/**************************************************************************
+/***********************************************************************//**
   Closes city report
-**************************************************************************/
+***************************************************************************/
 void popdown_city_report()
 {
   int i;
@@ -1317,19 +1345,19 @@ void popdown_city_report()
   }
 }
 
-/****************************************************************
- After a selection rectangle is defined, make the cities that
- are hilited on the canvas exclusively hilited in the
- City List window.
-*****************************************************************/
+/***********************************************************************//**
+  After a selection rectangle is defined, make the cities that
+  are hilited on the canvas exclusively hilited in the
+  City List window.
+***************************************************************************/
 void hilite_cities_from_canvas(void)
 {
   /* PORTME */
 }
 
-/****************************************************************
- Toggle a city's hilited status.
-*****************************************************************/
+/***********************************************************************//**
+  Toggle a city's hilited status.
+***************************************************************************/
 void toggle_city_hilite(struct city *pcity, bool on_off)
 {
   /* PORTME */

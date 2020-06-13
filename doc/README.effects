@@ -40,65 +40,82 @@ A requirement may have a 'present' field, and if this is 'FALSE',
 the requirement is negated (the condition must not be true for the req to be
 met).
 
+A requirement may have a 'quiet' field, and if this is 'TRUE', the help
+system does not try to autogenerate text about that requirement. This
+can be used if the help system's text is unclear or misleading, or if
+you want to describe the requirement in your own words. The 'quiet'
+field has no effect on the game rules.
+
 
 Requirement types and supported ranges
 ======================================
 
-Tech:          World, Alliance, Team, Player
-TechFlag:      World, Alliance, Team, Player
-MinTechs:      World, Player
-Achievement:   World, Alliance, Team, Player
-Gov:           Player
-Building:      World, Alliance, Team, Player, Continent, Traderoute, City, Local
-BuildingGenus: Local
-Extra:         Local, Adjacent, CAdjacent, Traderoute, City
-BaseFlag:      Local, Adjacent, CAdjacent, Traderoute, City
-RoadFlag:      Local, Adjacent, CAdjacent, Traderoute, City
-ExtraFlag:     Local, Adjacent, CAdjacent, Traderoute, City
-Terrain:       Local, Adjacent, CAdjacent, Traderoute, City
-Good:                                                  City
-UnitType:      Local
-UnitFlag:      Local
-UnitClass:     Local
-UnitClassFlag: Local
-Nation:        World, Alliance, Team, Player
-NationGroup:   World, Alliance, Team, Player
-Nationality:   Traderoute, City
-DiplRel:       World, Alliance, Team, Player, Local
-Action:        Local
-OutputType:    Local
-Specialist:    Local
-MinYear:       World
-MinCalFrag:    World
-Topology:      World
-ServerSetting: World
-Age:           Local, City
-MinSize:       Traderoute, City
-MinCulture:    World, Alliance, Team, Player, Traderoute, City
-AI:            Player
-MaxUnitsOnTile:Local, Adjacent, CAdjacent
-TerrainClass:  Local, Adjacent, CAdjacent, Traderoute, City
-TerrainFlag:   Local, Adjacent, CAdjacent, Traderoute, City
-TerrainAlter:  Local
-CityTile:      Local, Adjacent, CAdjacent
-Style:         Player
-UnitState:     Local
-MinMoveFrags:  Local
-MinVeteran:    Local
-MinHitPoints:  Local
+Tech:            World, Alliance, Team, Player
+TechFlag:        World, Alliance, Team, Player
+MinTechs:        World, Player
+Achievement:     World, Alliance, Team, Player
+Gov:             Player
+Building:        World, Alliance, Team, Player, Continent, Traderoute, City, Local
+BuildingGenus:   Local
+Extra:           Local, Adjacent, CAdjacent, Traderoute, City
+BaseFlag:        Local, Adjacent, CAdjacent, Traderoute, City
+RoadFlag:        Local, Adjacent, CAdjacent, Traderoute, City
+ExtraFlag:       Local, Adjacent, CAdjacent, Traderoute, City
+Terrain:         Local, Adjacent, CAdjacent, Traderoute, City
+Good:            City
+UnitType:        Local
+UnitFlag:        Local
+UnitClass:       Local
+UnitClassFlag:   Local
+Nation:          World, Alliance, Team, Player
+NationGroup:     World, Alliance, Team, Player
+Nationality:     Traderoute, City
+DiplRel:         World, Alliance, Team, Player, Local
+Action:          Local
+OutputType:      Local
+Specialist:      Local
+MinYear:         World
+MinCalFrag:      World
+Topology:        World
+ServerSetting:   World
+Age (of unit):   Local
+Age (of city):   City
+Age (of player): Player
+MinSize:         Traderoute, City
+MinCulture:      World, Alliance, Team, Player, Traderoute, City
+MinForeignPct:   Traderoute, City
+AI:              Player
+MaxUnitsOnTile:  Local, Adjacent, CAdjacent
+TerrainClass:    Local, Adjacent, CAdjacent, Traderoute, City
+TerrainFlag:     Local, Adjacent, CAdjacent, Traderoute, City
+TerrainAlter:    Local
+CityTile:        Local, Adjacent, CAdjacent
+CityStatus:      Traderoute, City
+Style:           Player
+UnitState:       Local
+Activity:        Local
+MinMoveFrags:    Local
+MinVeteran:      Local
+MinHitPoints:    Local
 
 
 MinSize is the minimum size of a city required.
 AI is ai player difficulty level.
 TerrainClass is either "Land" or "Oceanic".
 CityTile is either "Center" (city center) or "Claimed" (owned).
+CityStatus is "OwnedByOriginal"
 DiplRel is a diplomatic relationship.
 MaxUnitsOnTile is about the number of units present on a tile.
 UnitState is "Transported", "Transporting", "OnNativeTile", "OnLivableTile",
-"OnDomesticTile" or "HasHomeCity".
-MinMoveFargs is the minimum move fragments the unit must have left.
+"InNativeExtra", "OnDomesticTile", "MovedThisTurn" or "HasHomeCity".
+Activity is "Idle", "Pollution", "Mine", "Irrigate", "Fortified", "Fortress", "Sentry",
+"Pillage", "Goto", "Explore", "Transform", "Fortifying", "Fallout", "Base", "Road",
+"Convert", "Cultivate", or "Plant".
+MinMoveFrags is the minimum move fragments the unit must have left.
 MinCalFrag is the minimum sub-year division the calendar must have reached,
 if enabled (see [calendar].fragments in game.ruleset).
+Nationality is fulfilled by any citizens of the given nationality
+present in the city.
 ServerSetting is if a Boolean server setting is enabled. The setting must be
 visible to all players and affect the game rules.
 
@@ -106,12 +123,18 @@ Effect types
 ============
 
 Tech_Parasite
-    Gain any advance known already by amount number of other players. Note 
-that if you have two such effects, they combine into one much worse effect 
-(the number of players required to gain an advance is increased).
+    Gain any advance known already by amount number of other teams,
+if team_pooled_research is enabled, or amount number of other players
+otherwise. Note that if you have two such effects, they combine into
+one much worse effect (the number of players required to gain an advance
+is increased).
 
 Airlift
-    Allow airlift to/from a city.
+    Allow airlift to/from a city. The value tells how many units per
+    turn can be airlifted, unless server setting 'airlifttingstyle' sets
+    the number unlimited for either source or destination city. If airlifts
+    are set to unlimited, they are enabled by any positive value of this
+    effect.
 
 Any_Government
     Allow changing to any form of government regardless of tech prerequisites.
@@ -164,6 +187,10 @@ penalties.
 Give_Imm_Tech
     Give amount techs immediately.
 
+Conquest_Tech_Pct
+    Percent chance that a player conquering a city learns a tech from the
+    former owner.
+
 Growth_Food
     Food left after cities grow or shrink is amount percent of the capacity of 
 the city's foodbox. This also affects the 'aqueductloss' penalty.
@@ -176,10 +203,12 @@ Have_Embassies
     had contact with.
 
 Irrigation_Pct
-    Irrigation output of the tile is value %.
+    The tile gets value % of its terrain's irrigation_food_incr bonus.
+(This is how irrigation-like extras have an effect.)
 
 Mining_Pct
-    Mining output of the tile is value %.
+    The tile gets value % of its terrain's mining_shield_incr bonus.
+(This is how mine-like extras have an effect.)
 
 Make_Content
     Make amount unhappy citizens content. Applied before martial law and unit 
@@ -250,33 +279,65 @@ Thiefs_Share_Pm
 "Steal Gold Escape" actions that is lost before it reaches the player
 ordering it. Evaluated against the actor unit.
 
+Maps_Stolen_Pct
+    The probability (in percent) that the map of a tile is stolen in the
+actions "Steal Maps" and "Steal Maps Escape".
+DiplRel reqs are unit owner to city owner.
+Requirements evaluated against tile or city not supported.
+Default value: 100%
+
 Illegal_Action_Move_Cost
     The number of move fragments lost when the player tries to do an action
 that turns out to be illegal.
+
+Action_Success_Actor_Move_Cost
+    The number of move fragments lost when a unit successfully performs an
+action. Evaluated and done after the action is successfully completed. Added
+on top of any movement fragments the action itself subtracts.
+
+Action_Success_Target_Move_Cost
+    The number of move fragments subtracted from a unit when someone
+successfully performs an action on it. Evaluated and done after the action
+is successfully completed. Added on top of any movement fragments the
+action itself subtracts. Only supported for actions that targets an
+individual unit. (See doc/README.actions)
 
 Casus_Belli_Caught
     Checked when a player is caught trying to do an action. Will cause an
 incident with the intended victim player if the value is 1 or higher. The
 incident gives the intended victim a casus belli against the actor player.
-If the value is 1000 or higher every other player gets a casus belli
-against the actor.
+A value of 1000 or higher is international outrage. International outrage
+gives every other player a casus belli against the actor.
 
 Casus_Belli_Success
     Checked when a player does an action to another player. Will cause an
 incident with the intended victim player if the value is 1 or higher. The
 incident gives the intended victim a casus belli against the actor player.
-If the value is 1000 or higher every other player gets a casus belli
-against the actor.
+A value of 1000 or higher is international outrage. International outrage
+gives every other player a casus belli against the actor.
+
+Casus_Belli_Complete
+    Checked when a player completes an action that takes several turns
+against another player. Will cause an incident with the intended victim
+player if the value is 1 or higher. The incident gives the intended victim
+a casus belli against the actor player. A value of 1000 or higher is
+international outrage. International outrage gives every other player a
+casus belli against the actor.
+Only "Pillage" is currently supported.
 
 Action_Odds_Pct
     Modifies the odds of an action being successful. Some actions have a
-    risk: the actor may get caught before he can perform it. This effect
-    modifies the actor's odds. A positive value helps him. A negative value
-    makes it more probable that he will get caught. Currently supports the
-    actions "Incite City", "Incite City Escape", "Steal Gold",
-    "Steal Gold Escape", "Steal Maps", "Steal Maps Escape", "Suitcase Nuke",
-    "Suitcase Nuke Escape", "Sabotage City", "Sabotage City Escape",
-    "Targeted Sabotage City" and "Targeted Sabotage City Escape".
+risk: the actor may get caught before he can perform it. This effect
+modifies the actor's odds. A positive value helps him. A negative value
+makes it more probable that he will get caught. Currently supports the
+actions "Incite City", "Incite City Escape", "Steal Gold",
+"Steal Gold Escape", "Steal Maps", "Steal Maps Escape", "Suitcase Nuke",
+"Suitcase Nuke Escape", "Sabotage City", "Sabotage City Escape",
+"Targeted Sabotage City", "Targeted Sabotage City Escape",
+"Sabotage City Production", "Sabotage City Production Escape",
+"Surgical Strike Building", "Surgical Strike Production",
+"Steal Tech", "Steal Tech Escape Expected", "Targeted Steal Tech",
+"Targeted Steal Tech Escape Expected" and "Spread Plague".
 
 Size_Adj
     Increase maximum size of a city by amount.
@@ -346,6 +407,10 @@ Veteran_Combat
     Increases the chance of units of this type becoming veteran after combat 
 by amount percent.
 
+Combat_Rounds
+    Maximum number of rounds combat lasts. Unit is the attacker. Zero and
+    negative values mean that combat continues until either side dies.
+
 HP_Regen
     Units that do not move recover amount percentage of their full hitpoints 
 per turn.
@@ -364,6 +429,11 @@ Defend_Bonus
 Attack_Bonus
     Increases offensive bonuses of units. Unit requirements on this effect are
     the attacking unit itself.
+
+Fortify_Defense_Bonus
+    Percentage defense bonus multiplicative with Defend_Bonus, usually given
+    to fortified units. Unit requirements on this effect are the defending unit
+    itself.
 
 Gain_AI_Love
     Gain amount points of "AI love" with AI(s).
@@ -470,11 +540,11 @@ with any output type, use an OutputType requirement to specify which.
 
 Output_Waste_By_Distance
     For each tile in real distance that a city is from nearest
-Government Center, it gets amount of extra waste.
+Government Center, it gets amount / 100 of extra waste.
 
 Output_Waste_By_Rel_Distance
     City gets extra waste based on distance to nearest Government Center, relative
-    to world size. The amount of this extra waste is (distance * amount / max_distance)
+    to world size. The amount of this extra waste is (distance * amount / 100 / max_distance)
 
 Output_Penalty_Tile
     When a tile yields more output than amount, it gets a penalty of -1.
@@ -486,6 +556,13 @@ Upgrade_Price_Pct
     Increases unit upgrade cost by amount percent. This effect works at
     player level. You cannot adjust upgrade costs for certain unit type or
     for units upgraded in certain city.
+
+Unit_Shield_Value_Pct
+    Increase the unit's value in shields by amount percent. When this effect
+is used to determine how many shields the player gets for the actions
+"Recycle Unit" and "Help Wonder" it gets access to unit state. When it is
+used to influence the gold cost of "Upgrade Unit" it only has access to unit
+type.
 
 Retire_Pct
     The chance that unit gets retired (removed) when turn changes.
@@ -499,6 +576,18 @@ Visible_Wall
 Tech_Cost_Factor
     Factor for research costs.
 
+Building_Build_Cost_Pct
+    Percentage added to building building cost.
+
+Building_Buy_Cost_Pct
+    Percentage added to building buy cost.
+
+Unit_Build_Cost_Pct
+    Percentage added to unit building cost.
+
+Unit_Buy_Cost_Pct
+    Percentage added to unit buy cost.
+
 Shield2Gold_Factor
     Factor in percent for the conversion of unit shield upkeep to gold upkeep.
     A value of 200 would transfer 1 shield upkeep to 2 gold upkeep. The range
@@ -507,29 +596,6 @@ Shield2Gold_Factor
 
 Tile_Workable
     If value > 0, city can work target tile.
-
-Irrig_Possible
-    If value > 0, unit can build irrigation to target tile. In addition to
-    requirements given to this effect, unit must also have Settlers flag.
-
-Mining_Possible
-    If value > 0, unit can build mine to target tile. In addition to
-    requirements given to this effect, terrain type must be one to which mine
-    can be built.
-
-Transform_Possible
-    If value > 0, unit can transform target tile. In addition to requirements
-    given to this effect, terrain type needs to be one that can be transformed.
-
-Irrig_TF_Possible
-    If value > 0, unit can transform target tile terrain to another by irrigating.
-    In addition to requirements given to this effect, terrain must be one that
-    can be transformed by irrigating.
-
-Mining_TF_Possible
-    If value > 0, unit can transform target tile terrain to another by mining.
-    In addition to requirements given to this effect, terrain must be one that
-    can be transformed by mining.
 
 Migration_Pct
     Increase the calculated migration score for the a city by amount in
@@ -562,6 +628,10 @@ National_Performance
 National_History
     Value is how much history type (cumulative) culture, not tied to any any
     specific city, nation produces.
+
+Infra_Points
+    City increases owner's infra points by value each turn. If overall points
+    are negative after all cities have been processed, they are set to 0.
 
 
 Details about requirement types
@@ -620,5 +690,8 @@ The UnitState requirement type
                and safe tiles.
 "OnLivableTile" is fulfilled if the unit is on a tile where it can exist
                 outside of a transport.
+"InNativeExtra" is fulfilled if the unit is on a tile with an extra native
+                to it.
 "OnDomesticTile" is fulfilled if the unit is on a tile owned by its player.
+"MovedThisTurn" is fulfilled if the unit has moved this turn.
 "HasHomeCity" is fulfilled if the unit has a home city.

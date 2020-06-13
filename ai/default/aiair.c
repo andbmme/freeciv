@@ -42,21 +42,21 @@
 #include "handicaps.h"
 
 /* ai/default */
-#include "aicity.h"
 #include "aiplayer.h"
 #include "ailog.h"
 #include "aitools.h"
 #include "aiunit.h"
+#include "daicity.h"
 
 #include "aiair.h"
 
-/**************************************************************************
+/******************************************************************//**
   Looks for nearest airbase for punit reachable imediatly.
   Returns NULL if not found.  The path is stored in the path
   argument if not NULL.
   TODO: Special handicaps for planes running out of fuel
         IMO should be less restrictive than general H_MAP, H_FOG
-*************************************************************************/
+**********************************************************************/
 static struct tile *find_nearest_airbase(const struct unit *punit,
                                          struct pf_path **path)
 {
@@ -87,7 +87,7 @@ static struct tile *find_nearest_airbase(const struct unit *punit,
   return NULL;
 }
 
-/**********************************************************************
+/******************************************************************//**
   Very preliminary estimate for our intent to attack the tile (x, y).
   Used by bombers only.
 **********************************************************************/
@@ -112,11 +112,11 @@ static bool dai_should_we_air_attack_tile(struct ai_type *ait,
   return TRUE;
 }
 
-/**********************************************************************
+/******************************************************************//**
   Returns an estimate for the profit gained through attack.
   Assumes that the victim is within one day's flight
 **********************************************************************/
-static int dai_evaluate_tile_for_air_attack(struct unit *punit, 
+static int dai_evaluate_tile_for_air_attack(struct unit *punit,
                                             struct tile *dst_tile)
 {
   struct unit *pdefender;
@@ -138,7 +138,7 @@ static int dai_evaluate_tile_for_air_attack(struct unit *punit,
   /* Ok, we can attack, but is it worth it? */
 
   /* Cost of our unit */
-  unit_cost = unit_build_shield_cost(punit);
+  unit_cost = unit_build_shield_cost_base(punit);
   /* This is to say "wait, ill unit will get better!" */
   unit_cost = unit_cost * unit_type_get(punit)->hp / punit->hp; 
 
@@ -149,8 +149,10 @@ static int dai_evaluate_tile_for_air_attack(struct unit *punit,
   }
 
   /* Missile would die 100% so we adjust the victim_cost -- GB */
-  if (uclass_has_flag(unit_class_get(punit), UCF_MISSILE)) {
-    victim_cost -= unit_build_shield_cost(punit);
+  if (utype_can_do_action(unit_type_get(punit), ACTION_SUICIDE_ATTACK)) {
+    /* Assume that the attack will be a suicide attack even if a regular
+     * attack may be legal. */
+    victim_cost -= unit_build_shield_cost_base(punit);
   }
 
   unit_attack = (int) (PROB_MULTIPLIER
@@ -160,7 +162,13 @@ static int dai_evaluate_tile_for_air_attack(struct unit *punit,
 
   balanced_cost = build_cost_balanced(unit_type_get(punit));
 
-  sortie_time = (unit_has_type_flag(punit, UTYF_ONEATTACK) ? 1 : 0);
+  sortie_time = (utype_pays_mp_for_action_estimate(
+                 action_by_number(ACTION_ATTACK),
+                 unit_type_get(punit), unit_owner(punit),
+                 /* Assume that dst_tile is closer to the tile the actor
+                  * unit will attack from than its current tile. */
+                 dst_tile,
+                 dst_tile) >= MAX_MOVE_FRAGS ? 1 : 0);
 
   profit = kill_desire(victim_cost, unit_attack, unit_cost, victim_defence, 1) 
     - SHIELD_WEIGHTING + 2 * TRADE_WEIGHTING;
@@ -181,7 +189,7 @@ static int dai_evaluate_tile_for_air_attack(struct unit *punit,
 }
   
 
-/**********************************************************************
+/******************************************************************//**
   Find something to bomb
   Air-units specific victim search
   Returns the want for the best target.  The targets are stored in the
@@ -189,7 +197,7 @@ static int dai_evaluate_tile_for_air_attack(struct unit *punit,
   TODO: take counterattack dangers into account
   TODO: make separate handicaps for air units seeing targets
         IMO should be more restrictive than general H_MAP, H_FOG
-*********************************************************************/
+**********************************************************************/
 static int find_something_to_bomb(struct ai_type *ait, struct unit *punit,
                                   struct pf_path **path, struct tile **pptile)
 {
@@ -247,7 +255,7 @@ static int find_something_to_bomb(struct ai_type *ait, struct unit *punit,
   return best;
 } 
 
-/***********************************************************************
+/******************************************************************//**
   Iterates through reachable cities and appraises them as a possible 
   base for air operations by (air)unit punit.  Returns NULL if not
   found.  The path is stored in the path argument if not NULL.
@@ -312,7 +320,7 @@ static struct tile *dai_find_strategic_airbase(struct ai_type *ait,
   return best_tile;
 }
 
-/************************************************************************
+/******************************************************************//**
   Trying to manage bombers and stuff.
   If we are in the open {
     if moving intelligently on a valid GOTO, {
@@ -324,7 +332,7 @@ static struct tile *dai_find_strategic_airbase(struct ai_type *ait,
     try to attack something
   } 
   TODO: distant target selection, support for fuel > 2
-***********************************************************************/
+**********************************************************************/
 void dai_manage_airunit(struct ai_type *ait, struct player *pplayer,
                         struct unit *punit)
 {
@@ -422,12 +430,12 @@ void dai_manage_airunit(struct ai_type *ait, struct player *pplayer,
 
 }
 
-/*******************************************************************
-  Chooses the best available and usable air unit and records it in 
+/******************************************************************//**
+  Chooses the best available and usable air unit and records it in
   choice, if it's better than previous choice
   The interface is somewhat different from other ai_choose, but
   that's what it should be like, I believe -- GB
-******************************************************************/
+**********************************************************************/
 bool dai_choose_attacker_air(struct ai_type *ait, struct player *pplayer,
                              struct city *pcity, struct adv_choice *choice,
                              bool allow_gold_upkeep)
@@ -465,17 +473,19 @@ bool dai_choose_attacker_air(struct ai_type *ait, struct player *pplayer,
     }
 
     /* Temporary hack because pathfinding can't handle Fighters. */
-    if (!uclass_has_flag(pclass, UCF_MISSILE) && 1 == utype_fuel(punittype)) {
+    if (!utype_can_do_action(punittype, ACTION_SUICIDE_ATTACK)
+        && 1 == utype_fuel(punittype)) {
       continue;
     }
 
     if (can_city_build_unit_now(pcity, punittype)) {
-      struct unit *virtual_unit = 
-	unit_virtual_create(pplayer, pcity, punittype,
-                            do_make_unit_veteran(pcity, punittype));
+      struct unit *virtual_unit =
+       unit_virtual_create(
+          pplayer, pcity, punittype,
+          city_production_unit_veteran_level(pcity, punittype));
       int profit = find_something_to_bomb(ait, virtual_unit, NULL, NULL);
 
-      if (profit > choice->want){
+      if (profit > choice->want) {
         /* Update choice */
         choice->want = profit;
         choice->value.utype = punittype;

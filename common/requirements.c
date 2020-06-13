@@ -39,14 +39,11 @@
 
 #include "requirements.h"
 
-/* The item contradicts, fulfills or is irrelevant to the requirement */
-enum item_found {ITF_NO, ITF_YES, ITF_NOT_APPLICABLE};
-
 /************************************************************************
-  Container for item_found functions
+  Container for req_item_found functions
 ************************************************************************/
-typedef enum item_found (*universal_found)(const struct requirement *,
-                                           const struct universal *);
+typedef enum req_item_found (*universal_found)(const struct requirement *,
+                                               const struct universal *);
 static universal_found universal_found_function[VUT_COUNT] = {NULL};
 
 /**********************************************************************//**
@@ -210,6 +207,12 @@ void universal_value_from_str(struct universal *source, const char *value)
       return;
     }
     break;
+  case VUT_ACTIVITY:
+    source->value.activity = unit_activity_by_name(value, fc_strcasecmp);
+    if (unit_activity_is_valid(source->value.activity)) {
+      return;
+    }
+    break;
   case VUT_MINMOVES:
     source->value.minmoves = atoi(value);
     if (source->value.minmoves > 0) {
@@ -233,6 +236,7 @@ void universal_value_from_str(struct universal *source, const char *value)
     if (source->value.min_techs > 0) {
       return;
     }
+    break;
   case VUT_ACTION:
     source->value.action = action_by_rule_name(value);
     if (source->value.action != NULL) {
@@ -250,6 +254,7 @@ void universal_value_from_str(struct universal *source, const char *value)
     if (source->value.specialist) {
       return;
     }
+    break;
   case VUT_MINSIZE:
     source->value.minsize = atoi(value);
     if (source->value.minsize > 0) {
@@ -259,6 +264,12 @@ void universal_value_from_str(struct universal *source, const char *value)
   case VUT_MINCULTURE:
     source->value.minculture = atoi(value);
     if (source->value.minculture > 0) {
+      return;
+    }
+    break;
+  case VUT_MINFOREIGNPCT:
+    source->value.minforeignpct = atoi(value);
+    if (source->value.minforeignpct > 0) {
       return;
     }
     break;
@@ -309,6 +320,7 @@ void universal_value_from_str(struct universal *source, const char *value)
       /* More range checking done later, in sanity_check_req_individual() */
       return;
     }
+    break;
   case VUT_TOPO:
     source->value.topo_property = topo_flag_by_name(value, fc_strcasecmp);
     if (topo_flag_is_valid(source->value.topo_property)) {
@@ -331,6 +343,12 @@ void universal_value_from_str(struct universal *source, const char *value)
   case VUT_CITYTILE:
     source->value.citytile = citytile_type_by_name(value, fc_strcasecmp);
     if (source->value.citytile != CITYT_LAST) {
+      return;
+    }
+    break;
+  case VUT_CITYSTATUS:
+    source->value.citystatus = citystatus_type_by_name(value, fc_strcasecmp);
+    if (source->value.citystatus != CITYS_LAST) {
       return;
     }
     break;
@@ -459,6 +477,9 @@ struct universal universal_by_number(const enum universals_n kind,
   case VUT_UNITSTATE:
     source.value.unit_state = value;
     return source;
+  case VUT_ACTIVITY:
+    source.value.activity = value;
+    return source;
   case VUT_MINMOVES:
     source.value.minmoves = value;
     return source;
@@ -488,6 +509,9 @@ struct universal universal_by_number(const enum universals_n kind,
     return source;
   case VUT_MINCULTURE:
     source.value.minculture = value;
+    return source;
+  case VUT_MINFOREIGNPCT:
+    source.value.minforeignpct = value;
     return source;
   case VUT_AI_LEVEL:
     source.value.ai_level = value;
@@ -524,6 +548,9 @@ struct universal universal_by_number(const enum universals_n kind,
     return source;
   case VUT_CITYTILE:
     source.value.citytile = value;
+    return source;
+  case VUT_CITYSTATUS:
+    source.value.citystatus = value;
     return source;
   case VUT_COUNT:
     break;
@@ -598,6 +625,8 @@ int universal_number(const struct universal *source)
     return source->value.minveteran;
   case VUT_UNITSTATE:
     return source->value.unit_state;
+  case VUT_ACTIVITY:
+    return source->value.activity;
   case VUT_MINMOVES:
     return source->value.minmoves;
   case VUT_MINHP:
@@ -616,6 +645,8 @@ int universal_number(const struct universal *source)
     return source->value.minsize;
   case VUT_MINCULTURE:
     return source->value.minculture;
+  case VUT_MINFOREIGNPCT:
+    return source->value.minforeignpct;
   case VUT_AI_LEVEL:
     return source->value.ai_level;
   case VUT_MAXTILEUNITS:
@@ -640,6 +671,8 @@ int universal_number(const struct universal *source)
     return source->value.terrainalter;
   case VUT_CITYTILE:
     return source->value.citytile;
+  case VUT_CITYSTATUS:
+    return source->value.citystatus;
   case VUT_COUNT:
     break;
   }
@@ -710,6 +743,7 @@ struct requirement req_from_str(const char *type, const char *range,
       case VUT_UCFLAG:
       case VUT_MINVETERAN:
       case VUT_UNITSTATE:
+      case VUT_ACTIVITY:
       case VUT_MINMOVES:
       case VUT_MINHP:
       case VUT_AGE:
@@ -727,7 +761,9 @@ struct requirement req_from_str(const char *type, const char *range,
         break;
       case VUT_MINSIZE:
       case VUT_MINCULTURE:
+      case VUT_MINFOREIGNPCT:
       case VUT_NATIONALITY:
+      case VUT_CITYSTATUS:
         req.range = REQ_RANGE_CITY;
         break;
       case VUT_GOVERNMENT:
@@ -785,8 +821,10 @@ struct requirement req_from_str(const char *type, const char *range,
       invalid = (req.range != REQ_RANGE_PLAYER);
       break;
     case VUT_MINSIZE:
+    case VUT_MINFOREIGNPCT:
     case VUT_NATIONALITY:
     case VUT_GOOD:
+    case VUT_CITYSTATUS:
       invalid = (req.range != REQ_RANGE_CITY
                  && req.range != REQ_RANGE_TRADEROUTE);
       break;
@@ -821,6 +859,7 @@ struct requirement req_from_str(const char *type, const char *range,
     case VUT_UCFLAG:
     case VUT_MINVETERAN:
     case VUT_UNITSTATE:
+    case VUT_ACTIVITY:
     case VUT_MINMOVES:
     case VUT_MINHP:
     case VUT_ACTION:
@@ -887,6 +926,7 @@ struct requirement req_from_str(const char *type, const char *range,
     case VUT_UCFLAG:
     case VUT_MINVETERAN:
     case VUT_UNITSTATE:
+    case VUT_ACTIVITY:
     case VUT_MINMOVES:
     case VUT_MINHP:
     case VUT_AGE:
@@ -895,6 +935,7 @@ struct requirement req_from_str(const char *type, const char *range,
     case VUT_SPECIALIST:
     case VUT_MINSIZE:
     case VUT_MINCULTURE:
+    case VUT_MINFOREIGNPCT:
     case VUT_AI_LEVEL:
     case VUT_TERRAINCLASS:
     case VUT_MINYEAR:
@@ -903,6 +944,7 @@ struct requirement req_from_str(const char *type, const char *range,
     case VUT_SERVERSETTING:
     case VUT_TERRAINALTER:
     case VUT_CITYTILE:
+    case VUT_CITYSTATUS:
     case VUT_TERRFLAG:
     case VUT_NATIONALITY:
     case VUT_BASEFLAG:
@@ -1202,13 +1244,17 @@ static int first_contradiction(const struct requirement_vector *vec)
   This allows requirement adjustment code to append the new requirement(s)
   and leave the contradiction clean up to this function.
 **************************************************************************/
-void requirement_vector_contradiction_clean(struct requirement_vector *vec)
+bool requirement_vector_contradiction_clean(struct requirement_vector *vec)
 {
   int conflict;
+  bool had_contradiction = FALSE;
 
   while (NO_CONTRADICTIONS != (conflict = first_contradiction(vec))) {
     requirement_vector_remove(vec, conflict);
+    had_contradiction = TRUE;
   }
+
+  return had_contradiction;
 }
 
 /**********************************************************************//**
@@ -1638,11 +1684,63 @@ static enum fc_tristate is_minculture_in_range(const struct city *target_city,
 }
 
 /**********************************************************************//**
+  Is city with at least min_foreign_pct foreigners in range?
+**************************************************************************/
+static enum fc_tristate
+is_minforeignpct_in_range(const struct city *target_city, enum req_range range,
+                          int min_foreign_pct)
+{
+  int foreign_pct;
+
+  switch (range) {
+  case REQ_RANGE_CITY:
+    if (!target_city) {
+      return TRI_MAYBE;
+    }
+    foreign_pct = citizens_nation_foreign(target_city) * 100
+      / city_size_get(target_city);
+    return BOOL_TO_TRISTATE(foreign_pct >= min_foreign_pct);
+  case REQ_RANGE_TRADEROUTE:
+    if (!target_city) {
+      return TRI_MAYBE;
+    }
+    foreign_pct = citizens_nation_foreign(target_city) * 100
+      / city_size_get(target_city);
+    if (foreign_pct >= min_foreign_pct) {
+      return TRI_YES;
+    } else {
+      trade_partners_iterate(target_city, trade_partner) {
+        foreign_pct = citizens_nation_foreign(trade_partner) * 100
+          / city_size_get(trade_partner); 
+        if (foreign_pct >= min_foreign_pct) {
+          return TRI_YES;
+        }
+      } trade_partners_iterate_end;
+      return TRI_MAYBE;
+    }
+  case REQ_RANGE_PLAYER:
+  case REQ_RANGE_TEAM:
+  case REQ_RANGE_ALLIANCE:
+  case REQ_RANGE_WORLD:
+  case REQ_RANGE_LOCAL:
+  case REQ_RANGE_CADJACENT:
+  case REQ_RANGE_ADJACENT:
+  case REQ_RANGE_CONTINENT:
+  case REQ_RANGE_COUNT:
+    break;
+  }
+
+  fc_assert_msg(FALSE, "Invalid range %d.", range);
+
+  return TRI_MAYBE;
+}
+
+/**********************************************************************//**
   Is there a tile with max X units within range of the target?
 **************************************************************************/
 static enum fc_tristate
 is_tile_units_in_range(const struct tile *target_tile, enum req_range range,
-                       int maxUnits)
+                       int max_units)
 {
   /* TODO: if can't see V_INVIS -> TRI_MAYBE */
   switch (range) {
@@ -1650,16 +1748,16 @@ is_tile_units_in_range(const struct tile *target_tile, enum req_range range,
     if (!target_tile) {
       return TRI_MAYBE;
     }
-    return BOOL_TO_TRISTATE(unit_list_size(target_tile->units) <= maxUnits);
+    return BOOL_TO_TRISTATE(unit_list_size(target_tile->units) <= max_units);
   case REQ_RANGE_CADJACENT:
     if (!target_tile) {
       return TRI_MAYBE;
     }
-    if (unit_list_size(target_tile->units) <= maxUnits) {
+    if (unit_list_size(target_tile->units) <= max_units) {
       return TRI_YES;
     }
     cardinal_adjc_iterate(&(wld.map), target_tile, adjc_tile) {
-      if (unit_list_size(adjc_tile->units) <= maxUnits) {
+      if (unit_list_size(adjc_tile->units) <= max_units) {
         return TRI_YES;
       }
     } cardinal_adjc_iterate_end;
@@ -1668,11 +1766,11 @@ is_tile_units_in_range(const struct tile *target_tile, enum req_range range,
     if (!target_tile) {
       return TRI_MAYBE;
     }
-    if (unit_list_size(target_tile->units) <= maxUnits) {
+    if (unit_list_size(target_tile->units) <= max_units) {
       return TRI_YES;
     }
     adjc_iterate(&(wld.map), target_tile, adjc_tile) {
-      if (unit_list_size(adjc_tile->units) <= maxUnits) {
+      if (unit_list_size(adjc_tile->units) <= max_units) {
         return TRI_YES;
       }
     } adjc_iterate_end;
@@ -2496,7 +2594,7 @@ static enum fc_tristate is_diplrel_in_range(const struct player *target_player,
 **************************************************************************/
 static enum fc_tristate is_unittype_in_range(const struct unit_type *target_unittype,
                                              enum req_range range, bool survives,
-                                             struct unit_type *punittype)
+                                             const struct unit_type *punittype)
 {
   /* If no target_unittype is given, we allow the req to be met.  This is
    * to allow querying of certain effect types (like the presence of city
@@ -2594,6 +2692,13 @@ static enum fc_tristate is_unit_state(const struct unit *target_unit,
     return BOOL_TO_TRISTATE(
         is_native_tile(unit_type_get(target_unit), unit_tile(target_unit)));
     break;
+  case USP_NATIVE_EXTRA:
+    return BOOL_TO_TRISTATE(
+        tile_has_native_base(unit_tile(target_unit),
+                             unit_type_get(target_unit)));
+    break;
+  case USP_MOVED_THIS_TURN:
+    return BOOL_TO_TRISTATE(target_unit->moved);
   case USP_COUNT:
     fc_assert_msg(uprop != USP_COUNT, "Invalid unit state property.");
     /* Invalid property is unknowable. */
@@ -2602,8 +2707,7 @@ static enum fc_tristate is_unit_state(const struct unit *target_unit,
 
   /* Should never be reached */
   fc_assert_ret_val_msg(FALSE, TRI_NO,
-                        "Unsupported unit property \"%s\"",
-                        ustate_prop_name(uprop));
+                        "Unsupported unit property %d", uprop);
 }
 
 /**********************************************************************//**
@@ -2715,6 +2819,53 @@ static enum fc_tristate is_citytile_in_range(const struct tile *target_tile,
       return TRI_MAYBE;
     }
   } else {
+    return TRI_MAYBE;
+  }
+}
+
+/**********************************************************************//**
+  Is city with specific status in range. If city is NULL, any city will do.
+**************************************************************************/
+static enum fc_tristate is_citystatus_in_range(const struct city *target_city,
+                                               enum req_range range,
+                                               enum citystatus_type citystatus)
+{
+  if (citystatus == CITYS_OWNED_BY_ORIGINAL) {
+    switch (range) {
+    case REQ_RANGE_CITY:
+      return city_owner(target_city) == target_city->original;
+    case REQ_RANGE_TRADEROUTE:
+      {
+        bool found = FALSE;
+
+        trade_partners_iterate(target_city, trade_partner) {
+          if (city_owner(trade_partner) == trade_partner->original) {
+            found = TRUE;
+            break;
+          }
+        } trade_partners_iterate_end;
+
+        return BOOL_TO_TRISTATE(found);
+      }
+    case REQ_RANGE_LOCAL:
+    case REQ_RANGE_CADJACENT:
+    case REQ_RANGE_ADJACENT:
+    case REQ_RANGE_CONTINENT:
+    case REQ_RANGE_PLAYER:
+    case REQ_RANGE_TEAM:
+    case REQ_RANGE_ALLIANCE:
+    case REQ_RANGE_WORLD:
+    case REQ_RANGE_COUNT:
+      break;
+    }
+
+    fc_assert_msg(FALSE, "Invalid range %d for citystatus.", range);
+
+    return TRI_MAYBE;
+  } else {
+    /* Not implemented */
+    log_error("is_req_active(): citystatus %d not supported.",
+              citystatus);
     return TRI_MAYBE;
   }
 }
@@ -2916,6 +3067,13 @@ bool is_req_active(const struct player *target_player,
                            req->source.value.unit_state);
     }
     break;
+  case VUT_ACTIVITY:
+    if (target_unit == NULL) {
+      eval = TRI_MAYBE;
+    } else {
+      eval = BOOL_TO_TRISTATE(target_unit->activity == req->source.value.activity);
+    }
+    break;
   case VUT_MINMOVES:
     if (target_unit == NULL) {
       eval = TRI_MAYBE;
@@ -3023,6 +3181,10 @@ bool is_req_active(const struct player *target_player,
     eval = is_minculture_in_range(target_city, target_player, req->range,
                                   req->source.value.minculture);
     break;
+  case VUT_MINFOREIGNPCT:
+    eval = is_minforeignpct_in_range(target_city, req->range,
+                                     req->source.value.minforeignpct);
+    break;
   case VUT_AI_LEVEL:
     if (target_player == NULL) {
       eval = TRI_MAYBE;
@@ -3084,6 +3246,15 @@ bool is_req_active(const struct player *target_player,
       eval = is_citytile_in_range(target_tile, target_city,
                                   req->range,
                                   req->source.value.citytile);
+    }
+    break;
+  case VUT_CITYSTATUS:
+    if (target_city == NULL) {
+      eval = TRI_MAYBE;
+    } else {
+      eval = is_citystatus_in_range(target_city,
+                                    req->range,
+                                    req->source.value.citystatus);
     }
     break;
   case VUT_COUNT:
@@ -3162,6 +3333,7 @@ bool is_req_unchanging(const struct requirement *req)
   case VUT_SPECIALIST:	/* Only so long as it's at local range only */
   case VUT_AI_LEVEL:
   case VUT_CITYTILE:
+  case VUT_CITYSTATUS:  /* We don't *want* owner of our city to change */
   case VUT_STYLE:
   case VUT_TOPO:
   case VUT_SERVERSETTING:
@@ -3177,6 +3349,7 @@ bool is_req_unchanging(const struct requirement *req)
   case VUT_IMPR_GENUS:
   case VUT_MINSIZE:
   case VUT_MINCULTURE:
+  case VUT_MINFOREIGNPCT:
   case VUT_MINTECHS:
   case VUT_NATIONALITY:
   case VUT_DIPLREL:
@@ -3187,6 +3360,7 @@ bool is_req_unchanging(const struct requirement *req)
   case VUT_UCFLAG:	/* Not sure about this one */
   case VUT_MINVETERAN:
   case VUT_UNITSTATE:
+  case VUT_ACTIVITY:
   case VUT_MINMOVES:
   case VUT_MINHP:
   case VUT_AGE:
@@ -3287,6 +3461,8 @@ bool are_universals_equal(const struct universal *psource1,
     return psource1->value.minveteran == psource2->value.minveteran;
   case VUT_UNITSTATE:
     return psource1->value.unit_state == psource2->value.unit_state;
+  case VUT_ACTIVITY:
+    return psource1->value.activity == psource2->value.activity;
   case VUT_MINMOVES:
     return psource1->value.minmoves == psource2->value.minmoves;
   case VUT_MINHP:
@@ -3306,6 +3482,8 @@ bool are_universals_equal(const struct universal *psource1,
     return psource1->value.minsize == psource2->value.minsize;
   case VUT_MINCULTURE:
     return psource1->value.minculture == psource2->value.minculture;
+  case VUT_MINFOREIGNPCT:
+    return psource1->value.minforeignpct == psource2->value.minforeignpct;
   case VUT_AI_LEVEL:
     return psource1->value.ai_level == psource2->value.ai_level;
   case VUT_MAXTILEUNITS:
@@ -3330,6 +3508,8 @@ bool are_universals_equal(const struct universal *psource1,
     return psource1->value.terrainalter == psource2->value.terrainalter;
   case VUT_CITYTILE:
     return psource1->value.citytile == psource2->value.citytile;
+  case VUT_CITYSTATUS:
+    return psource1->value.citystatus == psource2->value.citystatus;
   case VUT_COUNT:
     break;
   }
@@ -3351,6 +3531,8 @@ const char *universal_rule_name(const struct universal *psource)
     return "(none)";
   case VUT_CITYTILE:
     return citytile_type_name(psource->value.citytile);
+  case VUT_CITYSTATUS:
+    return citystatus_type_name(psource->value.citystatus);
   case VUT_MINYEAR:
     fc_snprintf(buffer, sizeof(buffer), "%d", psource->value.minyear);
 
@@ -3408,6 +3590,8 @@ const char *universal_rule_name(const struct universal *psource)
     return buffer;
   case VUT_UNITSTATE:
     return ustate_prop_name(psource->value.unit_state);
+  case VUT_ACTIVITY:
+    return unit_activity_name(psource->value.activity);
   case VUT_MINMOVES:
     fc_snprintf(buffer, sizeof(buffer), "%d", psource->value.minmoves);
 
@@ -3427,7 +3611,7 @@ const char *universal_rule_name(const struct universal *psource)
   case VUT_ACTION:
     return action_rule_name(psource->value.action);
   case VUT_OTYPE:
-    return get_output_name(psource->value.outputtype);
+    return get_output_identifier(psource->value.outputtype);
   case VUT_SPECIALIST:
     return specialist_rule_name(psource->value.specialist);
   case VUT_MINSIZE:
@@ -3436,6 +3620,10 @@ const char *universal_rule_name(const struct universal *psource)
     return buffer;
   case VUT_MINCULTURE:
     fc_snprintf(buffer, sizeof(buffer), "%d", psource->value.minculture);
+
+    return buffer;
+  case VUT_MINFOREIGNPCT:
+    fc_snprintf(buffer, sizeof(buffer), "%d", psource->value.minforeignpct);
 
     return buffer;
   case VUT_AI_LEVEL:
@@ -3591,11 +3779,26 @@ const char *universal_name_translation(const struct universal *psource,
                     * "Missile+On native tile") */
                    _("On native tile"));
       break;
+    case USP_NATIVE_EXTRA:
+      cat_snprintf(buf, bufsz,
+                   /* TRANS: unit state. (appears in strings like
+                    * "Missile+In native extra") */
+                   _("In native extra"));
+      break;
+    case USP_MOVED_THIS_TURN:
+      /* TRANS: unit state. (appears in strings like
+       * "Missile+Has moved this turn") */
+      cat_snprintf(buf, bufsz, _("Has moved this turn"));
+      break;
     case USP_COUNT:
       fc_assert_msg(psource->value.unit_state != USP_COUNT,
                     "Invalid unit state property.");
       break;
     }
+    return buf;
+  case VUT_ACTIVITY:
+    cat_snprintf(buf, bufsz, _("%s activity"),
+                 _(unit_activity_name(psource->value.activity)));
     return buf;
   case VUT_MINMOVES:
     /* TRANS: Minimum unit movement points left for requirement to be met
@@ -3635,6 +3838,10 @@ const char *universal_name_translation(const struct universal *psource,
   case VUT_MINCULTURE:
     cat_snprintf(buf, bufsz, _("Culture %d"),
 		 psource->value.minculture);
+    return buf;
+  case VUT_MINFOREIGNPCT:
+    cat_snprintf(buf, bufsz, _("%d%% Foreigners"),
+		 psource->value.minforeignpct);
     return buf;
   case VUT_AI_LEVEL:
     /* TRANS: "Hard AI" */
@@ -3688,6 +3895,7 @@ const char *universal_name_translation(const struct universal *psource,
                  textcalfrag(psource->value.mincalfrag));
     return buf;
   case VUT_TOPO:
+    /* TRANS: topology flag name ("WrapX", "ISO", etc) */
     cat_snprintf(buf, bufsz, _("%s map"),
                  _(topo_flag_name(psource->value.topo_property)));
     return buf;
@@ -3701,7 +3909,29 @@ const char *universal_name_translation(const struct universal *psource,
                  Q_(terrain_alteration_name(psource->value.terrainalter)));
     return buf;
   case VUT_CITYTILE:
-    fc_strlcat(buf, _("City center"), bufsz);
+    switch (psource->value.citytile) {
+    case CITYT_CENTER:
+      fc_strlcat(buf, _("City center"), bufsz);
+      break;
+    case CITYT_CLAIMED:
+      fc_strlcat(buf, _("Tile claimed"), bufsz);
+      break;
+    case CITYT_LAST:
+      fc_assert(psource->value.citytile != CITYT_LAST);
+      fc_strlcat(buf, "error", bufsz);
+      break;
+    }
+    return buf;
+  case VUT_CITYSTATUS:
+    switch (psource->value.citystatus) {
+    case CITYS_OWNED_BY_ORIGINAL:
+      fc_strlcat(buf, _("Owned by original"), bufsz);
+      break;
+    case CITYS_LAST:
+      fc_assert(psource->value.citystatus != CITYS_LAST);
+      fc_strlcat(buf, "error", bufsz);
+      break;
+    }
     return buf;
   case VUT_COUNT:
     break;
@@ -3722,13 +3952,14 @@ const char *universal_type_rule_name(const struct universal *psource)
 /**********************************************************************//**
   Return the number of shields it takes to build this universal.
 **************************************************************************/
-int universal_build_shield_cost(const struct universal *target)
+int universal_build_shield_cost(const struct city *pcity,
+                                const struct universal *target)
 {
   switch (target->kind) {
   case VUT_IMPROVEMENT:
-    return impr_build_shield_cost(target->value.building);
+    return impr_build_shield_cost(pcity, target->value.building);
   case VUT_UTYPE:
-    return utype_build_shield_cost(target->value.utype);
+    return utype_build_shield_cost(pcity, target->value.utype);
   default:
     break;
   }
@@ -3736,15 +3967,78 @@ int universal_build_shield_cost(const struct universal *target)
 }
 
 /**********************************************************************//**
-  Will the specified universal fulfill the requirements in the list?
+  Replaces all instances of the universal to_replace with replacement in
+  the requirement vector reqs and returns TRUE iff any requirements were
+  replaced.
 **************************************************************************/
-bool universal_fulfills_requirement(bool check_necessary,
-                                    const struct requirement_vector *reqs,
-                                    const struct universal *source)
+bool universal_replace_in_req_vec(struct requirement_vector *reqs,
+                                  const struct universal *to_replace,
+                                  const struct universal *replacement)
+{
+  bool changed = FALSE;
+
+  requirement_vector_iterate(reqs, preq) {
+    if (universal_is_mentioned_by_requirement(preq, to_replace)) {
+      preq->source = *replacement;
+      changed = TRUE;
+    }
+  } requirement_vector_iterate_end;
+
+  return changed;
+}
+
+/**********************************************************************//**
+  Returns TRUE iff the universal 'psource' is directly mentioned by any of
+  the requirements in 'reqs'.
+**************************************************************************/
+bool universal_is_mentioned_by_requirements(
+    const struct requirement_vector *reqs,
+    const struct universal *psource)
+{
+  requirement_vector_iterate(reqs, preq) {
+    if (universal_is_mentioned_by_requirement(preq, psource)) {
+      return TRUE;
+    }
+  } requirement_vector_iterate_end;
+
+  return FALSE;
+}
+
+/**********************************************************************//**
+  Will the universal 'source' fulfill this requirement?
+**************************************************************************/
+enum req_item_found
+universal_fulfills_requirement(const struct requirement *preq,
+                               const struct universal *source)
+{
+  fc_assert_ret_val_msg(universal_found_function[source->kind],
+                        ITF_NOT_APPLICABLE,
+                        "No req item found function for %s",
+                        universal_type_rule_name(source));
+
+  return (*universal_found_function[source->kind])(preq, source);
+}
+
+/**********************************************************************//**
+  Will the universal 'source' fulfill the requirements in the list?
+  If 'check_necessary' is FALSE: are there no requirements that 'source'
+    would actively prevent the fulfilment of?
+  If 'check_necessary' is TRUE: does 'source' help the requirements to be
+    fulfilled? (NB 'source' might not be the only source of its type that
+    would be sufficient; for instance, if 'source' is a specific terrain
+    type, we can return TRUE even if the requirement is only for something
+    vague like a TerrainClass.)
+**************************************************************************/
+bool universal_fulfills_requirements(bool check_necessary,
+                                     const struct requirement_vector *reqs,
+                                     const struct universal *source)
 {
   bool necessary = FALSE;
 
-  fc_assert(universal_found_function[source->kind]);
+  fc_assert_ret_val_msg(universal_found_function[source->kind],
+                        !check_necessary,
+                        "No req item found function for %s",
+                        universal_type_rule_name(source));
 
   requirement_vector_iterate(reqs, preq) {
     switch ((*universal_found_function[source->kind])(preq, source)) {
@@ -3775,9 +4069,7 @@ bool universal_fulfills_requirement(bool check_necessary,
 bool universal_is_relevant_to_requirement(const struct requirement *req,
                                           const struct universal *source)
 {
-  fc_assert(universal_found_function[source->kind]);
-
-  switch ((*universal_found_function[source->kind])(req, source)) {
+  switch (universal_fulfills_requirement(req, source)) {
   case ITF_NOT_APPLICABLE:
     return FALSE;
   case ITF_NO:
@@ -3792,8 +4084,8 @@ bool universal_is_relevant_to_requirement(const struct requirement *req,
 /**********************************************************************//**
   Find if a nation fulfills a requirement
 **************************************************************************/
-static enum item_found nation_found(const struct requirement *preq,
-                                    const struct universal *source)
+static enum req_item_found nation_found(const struct requirement *preq,
+                                        const struct universal *source)
 {
   fc_assert(source->value.nation);
 
@@ -3815,8 +4107,8 @@ static enum item_found nation_found(const struct requirement *preq,
 /**********************************************************************//**
   Find if a government fulfills a requirement
 **************************************************************************/
-static enum item_found government_found(const struct requirement *preq,
-                                        const struct universal *source)
+static enum req_item_found government_found(const struct requirement *preq,
+                                            const struct universal *source)
 {
   fc_assert(source->value.govern);
 
@@ -3831,8 +4123,8 @@ static enum item_found government_found(const struct requirement *preq,
 /**********************************************************************//**
   Find if an improvement fulfills a requirement
 **************************************************************************/
-static enum item_found improvement_found(const struct requirement *preq,
-                                         const struct universal *source)
+static enum req_item_found improvement_found(const struct requirement *preq,
+                                             const struct universal *source)
 {
   fc_assert(source->value.building);
 
@@ -3862,8 +4154,8 @@ static enum item_found improvement_found(const struct requirement *preq,
 /**********************************************************************//**
   Find if a unit class fulfills a requirement
 **************************************************************************/
-static enum item_found unit_class_found(const struct requirement *preq,
-                                        const struct universal *source)
+static enum req_item_found unit_class_found(const struct requirement *preq,
+                                            const struct universal *source)
 {
   fc_assert(source->value.uclass);
 
@@ -3885,8 +4177,8 @@ static enum item_found unit_class_found(const struct requirement *preq,
 /**********************************************************************//**
   Find if a unit type fulfills a requirement
 **************************************************************************/
-static enum item_found unit_type_found(const struct requirement *preq,
-                                       const struct universal *source)
+static enum req_item_found unit_type_found(const struct requirement *preq,
+                                           const struct universal *source)
 {
   fc_assert(source->value.utype);
 
@@ -3912,8 +4204,8 @@ static enum item_found unit_type_found(const struct requirement *preq,
 /**********************************************************************//**
   Find if a terrain type fulfills a requirement
 **************************************************************************/
-static enum item_found terrain_type_found(const struct requirement *preq,
-                                          const struct universal *source)
+static enum req_item_found terrain_type_found(const struct requirement *preq,
+                                              const struct universal *source)
 {
   fc_assert(source->value.terrain);
 
@@ -3933,7 +4225,113 @@ static enum item_found terrain_type_found(const struct requirement *preq,
 }
 
 /**********************************************************************//**
-  Initialise universal_found_callbacks array.
+  Find if an extra type fulfills a requirement
+**************************************************************************/
+static enum req_item_found extra_type_found(const struct requirement *preq,
+                                            const struct universal *source)
+{
+  fc_assert(source->value.extra);
+
+  switch (preq->source.kind) {
+  case VUT_EXTRA:
+    return source->value.extra == preq->source.value.extra ? ITF_YES : ITF_NO;
+  case VUT_EXTRAFLAG:
+    return extra_has_flag(source->value.extra,
+                          preq->source.value.extraflag) ? ITF_YES : ITF_NO;
+  case VUT_BASEFLAG:
+    {
+      struct base_type *b = extra_base_get(source->value.extra);
+      return b && base_has_flag(b, preq->source.value.baseflag)
+        ? ITF_YES : ITF_NO;
+    }
+  case VUT_ROADFLAG:
+    {
+      struct road_type *r = extra_road_get(source->value.extra);
+      return r && road_has_flag(r, preq->source.value.roadflag)
+        ? ITF_YES : ITF_NO;
+    }
+  default:
+    /* Not found and not relevant. */
+    return ITF_NOT_APPLICABLE;
+  }
+}
+
+/**********************************************************************//**
+  Find if an action fulfills a requirement
+**************************************************************************/
+static enum req_item_found action_found(const struct requirement *preq,
+                                        const struct universal *source)
+{
+  fc_assert(source->value.action);
+
+  if (preq->source.kind == VUT_ACTION) {
+    return preq->source.value.action == source->value.action ? ITF_YES
+                                                             : ITF_NO;
+  }
+
+  return ITF_NOT_APPLICABLE;
+}
+
+/**********************************************************************//**
+  Find if a diplrel fulfills a requirement
+**************************************************************************/
+static enum req_item_found diplrel_found(const struct requirement *preq,
+                                         const struct universal *source)
+{
+  if (preq->source.kind == VUT_DIPLREL) {
+    if (preq->source.value.diplrel == source->value.diplrel) {
+      /* The diplrel itself. */
+      return ITF_YES;
+    }
+    if (preq->source.value.diplrel == DRO_FOREIGN
+        && source->value.diplrel < DS_LAST) {
+      /* All diplstate_type values are to foreigners. */
+      return ITF_YES;
+    }
+    if (preq->source.value.diplrel == DRO_HOSTS_EMBASSY
+        && source->value.diplrel == DRO_HOSTS_REAL_EMBASSY) {
+      /* A real embassy is an embassy. */
+      return ITF_YES;
+    }
+    if (preq->source.value.diplrel == DRO_HAS_EMBASSY
+        && source->value.diplrel == DRO_HAS_REAL_EMBASSY) {
+      /* A real embassy is an embassy. */
+      return ITF_YES;
+    }
+    if (preq->source.value.diplrel < DS_LAST
+        && source->value.diplrel < DS_LAST
+        && preq->range == REQ_RANGE_LOCAL) {
+      fc_assert_ret_val(preq->source.value.diplrel != source->value.diplrel,
+                        ITF_YES);
+      /* Can only have one diplstate_type to a specific player. */
+      return ITF_NO;
+    }
+    /* Can't say this diplrel blocks the other diplrel. */
+    return ITF_NOT_APPLICABLE;
+  }
+
+  /* Not relevant. */
+  return ITF_NOT_APPLICABLE;
+}
+
+/**********************************************************************//**
+  Find if an output type fulfills a requirement
+**************************************************************************/
+static enum req_item_found output_type_found(const struct requirement *preq,
+                                             const struct universal *source)
+{
+  switch (preq->source.kind) {
+  case VUT_OTYPE:
+    return source->value.outputtype == preq->source.value.outputtype ? ITF_YES
+                                                                     : ITF_NO;
+  default:
+    /* Not found and not relevant. */
+    return ITF_NOT_APPLICABLE;
+  }
+}
+
+/**********************************************************************//**
+  Initialise universal_found_function array.
 **************************************************************************/
 void universal_found_functions_init(void)
 {
@@ -3943,6 +4341,10 @@ void universal_found_functions_init(void)
   universal_found_function[VUT_UCLASS] = &unit_class_found;
   universal_found_function[VUT_UTYPE] = &unit_type_found;
   universal_found_function[VUT_TERRAIN] = &terrain_type_found;
+  universal_found_function[VUT_EXTRA] = &extra_type_found;
+  universal_found_function[VUT_OTYPE] = &output_type_found;
+  universal_found_function[VUT_ACTION] = &action_found;
+  universal_found_function[VUT_DIPLREL] = &diplrel_found;
 }
 
 /**********************************************************************//**

@@ -49,7 +49,6 @@
 #include "citydlg.h"
 #include "colors.h"
 #include "graphics.h"
-#include "gui_iconv.h"
 #include "gui_id.h"
 #include "gui_main.h"
 #include "gui_tilespec.h"
@@ -98,7 +97,7 @@ static void refresh_production_label(int stock);
 
 /* =========================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Worklist Editor Window Callback
 **************************************************************************/
 static int window_worklist_editor_callback(struct widget *pWidget)
@@ -106,25 +105,25 @@ static int window_worklist_editor_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Popdwon Worklist Editor
 **************************************************************************/
 static int popdown_worklist_editor_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     popdown_worklist_editor();
   }
 
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Commit changes to city/global worklist.
   In City Mode Remove Double entry of Imprv/Woder Targets from list.
 **************************************************************************/
 static int ok_worklist_editor_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     int i, j;
     struct city *pCity = pEditor->pCity;
 
@@ -178,12 +177,12 @@ static int ok_worklist_editor_callback(struct widget *pWidget)
   return -1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Rename Global Worklist
 **************************************************************************/
 static int rename_worklist_editor_callback(struct widget *pWidget)
 {
-  if (Main.event.button.button == SDL_BUTTON_LEFT) {
+  if (PRESSED_EVENT(Main.event)) {
     if (pWidget->string_utf8->text != NULL) {
       fc_snprintf(pEditor->worklist_name, MAX_LEN_NAME, "%s",
                   pWidget->string_utf8->text);
@@ -201,7 +200,7 @@ static int rename_worklist_editor_callback(struct widget *pWidget)
 
 /* ====================================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Add target to worklist.
 **************************************************************************/
 static void add_target_to_worklist(struct widget *pTarget)
@@ -295,7 +294,7 @@ static void add_target_to_worklist(struct widget *pTarget)
   flush_dirty();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Find if two targets are the same class (unit, imprv. , wonder).
   This is needed by calculation of change production shields penalty.
   [similar to are_universals_equal()]
@@ -318,7 +317,7 @@ static bool are_prods_same_class(const struct universal *one,
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Change production in editor shell, calculate production shields penalty and
   refresh production progress label
 **************************************************************************/
@@ -339,7 +338,7 @@ static void change_production(struct universal *prod)
   refresh_production_label(pEditor->stock);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Change production of city but only in Editor.
   You must commit this changes by exit editor via OK button (commit function).
 
@@ -382,7 +381,7 @@ static void add_target_to_production(struct widget *pTarget)
   flush_dirty();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Get Help Info about target
 **************************************************************************/
 static void get_target_help_data(struct widget *pTarget)
@@ -405,7 +404,7 @@ static void get_target_help_data(struct widget *pTarget)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Targets callback
   left mouse button -> In city mode change production to target.
                        In global mode add target to worklist.
@@ -414,23 +413,31 @@ static void get_target_help_data(struct widget *pTarget)
 **************************************************************************/
 static int worklist_editor_targets_callback(struct widget *pWidget)
 {
-  switch (Main.event.button.button) {
-  case SDL_BUTTON_LEFT:
+  if (Main.event.type == SDL_MOUSEBUTTONDOWN) {
+    switch (Main.event.button.button) {
+    case SDL_BUTTON_LEFT:
+      if (pEditor->pCity) {
+        add_target_to_production(pWidget);
+      } else {
+        add_target_to_worklist(pWidget);
+      }
+      break;
+    case SDL_BUTTON_MIDDLE:
+      get_target_help_data(pWidget);
+      break;
+    case SDL_BUTTON_RIGHT:
+      add_target_to_worklist(pWidget);
+      break;
+    default:
+      /* do nothing */
+      break;
+    }
+  } else if (PRESSED_EVENT(Main.event)) {
     if (pEditor->pCity) {
       add_target_to_production(pWidget);
     } else {
       add_target_to_worklist(pWidget);
     }
-    break;
-  case SDL_BUTTON_MIDDLE:
-    get_target_help_data(pWidget);
-    break;
-  case SDL_BUTTON_RIGHT:
-    add_target_to_worklist(pWidget);
-    break;
-  default:
-    /* do nothing */
-    break;
   }
 
   return -1;
@@ -438,7 +445,7 @@ static int worklist_editor_targets_callback(struct widget *pWidget)
 
 /* ====================================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Remove element from worklist or
   remove currently building imprv/unit and change production to first worklist
   element (or Capitalizations if worklist is empty)
@@ -508,7 +515,7 @@ static void remove_item_from_worklist(struct widget *pItem)
   flush_dirty();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Swap worklist entries DOWN.
   Fuction swap current element with next element of worklist.
 
@@ -564,7 +571,7 @@ static void swap_item_down_from_worklist(struct widget *pItem)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Swap worklist entries UP.
   Fuction swap current element with prev. element of worklist.
 
@@ -621,7 +628,7 @@ static void swap_item_up_from_worklist(struct widget *pItem)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   worklist callback
   left mouse button -> swap entries up.
   middle mouse button -> remove element from list
@@ -629,26 +636,30 @@ static void swap_item_up_from_worklist(struct widget *pItem)
 **************************************************************************/
 static int worklist_editor_item_callback(struct widget *pWidget)
 {
-  switch (Main.event.button.button) {
-  case SDL_BUTTON_LEFT:
+  if (Main.event.type == SDL_MOUSEBUTTONDOWN) {
+    switch (Main.event.button.button) {
+    case SDL_BUTTON_LEFT:
+      swap_item_up_from_worklist(pWidget);
+      break;
+    case SDL_BUTTON_MIDDLE:
+      remove_item_from_worklist(pWidget);
+      break;
+    case SDL_BUTTON_RIGHT:
+      swap_item_down_from_worklist(pWidget);
+      break;
+    default:
+      ;/* do nothing */
+      break;
+    }
+  } else if (PRESSED_EVENT(Main.event)) {
     swap_item_up_from_worklist(pWidget);
-    break;
-  case SDL_BUTTON_MIDDLE:
-    remove_item_from_worklist(pWidget);
-    break;
-  case SDL_BUTTON_RIGHT:
-    swap_item_down_from_worklist(pWidget);
-    break;
-  default:
-    ;/* do nothing */
-    break;
   }
 
   return -1;
 }
 /* ======================================================= */
 
-/**************************************************************************
+/**********************************************************************//**
   Add global worklist to city worklist starting from last free entry.
   Add only avilable targets in current game state.
   If global worklist have more targets that city worklist have free
@@ -727,9 +738,9 @@ static void add_global_worklist(struct widget *pWidget)
   flush_dirty();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Clear city worklist and copy here global worklist.
-  Copy only avilable targets in current game state.
+  Copy only available targets in current game state.
   If all targets are unavilable then leave city worklist untouched.
 **************************************************************************/
 static void set_global_worklist(struct widget *pWidget)
@@ -823,7 +834,7 @@ static void set_global_worklist(struct widget *pWidget)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Global worklist callback
   left mouse button -> add global worklist to current city list
   right mouse button -> clear city worklist and copy here global worklist.
@@ -836,19 +847,23 @@ static void set_global_worklist(struct widget *pWidget)
 **************************************************************************/
 static int global_worklist_callback(struct widget *pWidget)
 {
-  switch (Main.event.button.button) {
-  case SDL_BUTTON_LEFT:
+  if (Main.event.type == SDL_MOUSEBUTTONDOWN) {
+    switch (Main.event.button.button) {
+    case SDL_BUTTON_LEFT:
+      add_global_worklist(pWidget);
+      break;
+    case SDL_BUTTON_MIDDLE:
+      /* nothing */
+      break;
+    case SDL_BUTTON_RIGHT:
+      set_global_worklist(pWidget);
+      break;
+    default:
+      /* do nothing */
+      break;
+    }
+  } else if (PRESSED_EVENT(Main.event)) {
     add_global_worklist(pWidget);
-    break;
-  case SDL_BUTTON_MIDDLE:
-    /* nothing */
-    break;
-  case SDL_BUTTON_RIGHT:
-    set_global_worklist(pWidget);
-    break;
-  default:
-    /* do nothing */
-    break;
   }
 
   return -1;
@@ -856,7 +871,7 @@ static int global_worklist_callback(struct widget *pWidget)
 
 /* ======================================================= */
 
-/**************************************************************************
+/**********************************************************************//**
   Return full unit/imprv. name and build cost in "cost" pointer.
 **************************************************************************/
 static const char *get_production_name(struct city *pCity,
@@ -864,7 +879,8 @@ static const char *get_production_name(struct city *pCity,
 {
   fc_assert_ret_val(cost != NULL, NULL);
 
-  *cost = universal_build_shield_cost(&prod);
+  *cost = universal_build_shield_cost(pCity, &prod);
+
   if (VUT_UTYPE == prod.kind) {
     return utype_name_translation(prod.value.utype);
   } else {
@@ -872,7 +888,7 @@ static const char *get_production_name(struct city *pCity,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return progress icon (bar) of current production state
   stock - current shields stocks
   cost - unit/imprv. cost
@@ -911,7 +927,7 @@ static SDL_Surface *get_progress_icon(int stock, int cost, int *progress)
   return pIcon;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update and redraw production name label in worklist editor.
   stock - pCity->shields_stock or current stock after change production lost.
 **************************************************************************/
@@ -953,10 +969,12 @@ static void refresh_production_label(int stock)
   pEditor->pProduction_Name->size.x = pEditor->pEndWidgetList->area.x +
     (adj_size(130) - pEditor->pProduction_Name->size.w)/2;
 
-  area.x = pEditor->pEndWidgetList->area.x;
+  /* Can't just widget_mark_dirty(), as it may have reduced in size */
+  area.x = pEditor->pEndWidgetList->area.x;  /* left edge of client area */
   area.y = pEditor->pProduction_Name->size.y;
   area.w = adj_size(130);
   area.h = pEditor->pProduction_Name->size.h;
+  layer_rect_to_screen_rect(pEditor->pEndWidgetList->dst, &area);
 
   if (get_wflags(pEditor->pProduction_Name) & WF_RESTORE_BACKGROUND) {
     refresh_widget_background(pEditor->pProduction_Name);
@@ -979,24 +997,22 @@ static void refresh_production_label(int stock)
   widget_mark_dirty(pEditor->pProduction_Progres);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update and redraw worklist length counter in worklist editor
 **************************************************************************/
 static void refresh_worklist_count_label(void)
 {
   char cBuf[64];
   SDL_Rect area;
-  int external_entries;
+  int len = worklist_length(&pEditor->worklist_copy);
 
   if (pEditor->pCity != NULL) {
-    external_entries = 1; /* Current production */
-  } else {
-    external_entries = 0;
+    len += 1;  /* External entry from current production */
   }
 
-  /* TRANS: length of worklist */
-  fc_snprintf(cBuf, sizeof(cBuf), _("( %d entries )"),
-              worklist_length(&pEditor->worklist_copy) + external_entries);
+  fc_snprintf(cBuf, sizeof(cBuf),
+              /* TRANS: length of worklist */
+              PL_("( %d entry )", "( %d entries )", len), len);
   copy_chars_to_utf8_str(pEditor->pWorkList_Counter->string_utf8, cBuf);
 
   widget_undraw(pEditor->pWorkList_Counter);
@@ -1011,16 +1027,18 @@ static void refresh_worklist_count_label(void)
 
   widget_redraw(pEditor->pWorkList_Counter);
 
-  area.x = pEditor->pEndWidgetList->area.x;
+  /* Can't just widget_mark_dirty(), as it may have reduced in size */
+  area.x = pEditor->pEndWidgetList->area.x;  /* left edge of client area */
   area.y = pEditor->pWorkList_Counter->size.y;
   area.w = adj_size(130);
   area.h = pEditor->pWorkList_Counter->size.h;
+  layer_rect_to_screen_rect(pEditor->pEndWidgetList->dst, &area);
   dirty_sdl_rect(&area);
 }
 
 /* ====================================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Global/City worklist editor.
   if pCity == NULL then fucnction take pWorklist as global worklist.
   pWorklist must be not NULL.
@@ -1043,7 +1061,7 @@ void popup_worklist_editor(struct city *pCity, struct global_worklist *gwl)
   bool advanced_tech;
   bool can_build, can_eventually_build;
   SDL_Rect area;
-  int external_entries;
+  int len;
 
   if (pEditor) {
     return;
@@ -1069,6 +1087,7 @@ void popup_worklist_editor(struct city *pCity, struct global_worklist *gwl)
     return;
   }
 
+  len = worklist_length(&pEditor->worklist_copy);
   advanced_tech = (pCity == NULL);
 
   /* --------------- */
@@ -1094,10 +1113,9 @@ void popup_worklist_editor(struct city *pCity, struct global_worklist *gwl)
   /* ---------------- */
   if (pCity) {
     fc_snprintf(cbuf, sizeof(cbuf), _("Worklist of\n%s"), city_name_get(pCity));
-    external_entries = 1; /* Current production */
+    len += 1;  /* External entry from current production */
   } else {
     fc_snprintf(cbuf, sizeof(cbuf), "%s", global_worklist_name(gwl));
-    external_entries = 0;
   }
 
   pstr = create_utf8_from_char(cbuf, adj_font(12));
@@ -1108,9 +1126,9 @@ void popup_worklist_editor(struct city *pCity, struct global_worklist *gwl)
   add_to_gui_list(ID_LABEL, pBuf);
   /* --------------------------- */
 
-  /* TRANS: length of worklist */
-  fc_snprintf(cbuf, sizeof(cbuf), _("( %d entries )"),
-              worklist_length(&pEditor->worklist_copy) + external_entries);
+  fc_snprintf(cbuf, sizeof(cbuf),
+              /* TRANS: length of worklist */
+              PL_("( %d entry )", "( %d entries )", len), len);
   pstr = create_utf8_from_char(cbuf, adj_font(10));
   pstr->bgcol = (SDL_Color) {0, 0, 0, 0};
   pBuf = create_iconlabel(NULL, pWindow->dst, pstr, WF_RESTORE_BACKGROUND);
@@ -1376,7 +1394,7 @@ void popup_worklist_editor(struct city *pCity, struct global_worklist *gwl)
   improvement_iterate(pImprove) {
     can_build = can_player_build_improvement_now(client.conn.playing, pImprove);
     can_eventually_build =
-	can_player_build_improvement_later(client.conn.playing, pImprove);
+        can_player_build_improvement_later(client.conn.playing, pImprove);
 
     /* If there's a city, can the city build the improvement? */
     if (pCity) {
@@ -1394,7 +1412,7 @@ void popup_worklist_editor(struct city *pCity, struct global_worklist *gwl)
       copy_chars_to_utf8_str(pstr, cbuf);
       pstr->style |= TTF_STYLE_BOLD;
 
-      if (is_improvement_redundant(pCity, pImprove)) {
+      if (pCity && is_improvement_redundant(pCity, pImprove)) {
         pstr->style |= TTF_STYLE_STRIKETHROUGH;
       }
 
@@ -1425,36 +1443,31 @@ void popup_worklist_editor(struct city *pCity, struct global_worklist *gwl)
       if (pCity) {
         if (!improvement_has_flag(pImprove, IF_GOLD)) {
           struct universal univ = cid_production(cid_encode_building(pImprove));
+          int cost = impr_build_shield_cost(pCity, pImprove);
 
           turns = city_turns_to_build(pCity, &univ, TRUE);
 
           if (turns == FC_INFINITY) {
             if (state) {
               fc_snprintf(cbuf, sizeof(cbuf), _("(%s)\n%d/%d %s\n%s"),
-                          state, pCity->shield_stock,
-                          impr_build_shield_cost(pImprove),
-                          PL_("shield", "shields",
-                              impr_build_shield_cost(pImprove)),
+                          state, pCity->shield_stock, cost,
+                          PL_("shield", "shields", cost),
                           _("never"));
             } else {
               fc_snprintf(cbuf, sizeof(cbuf), _("%d/%d %s\n%s"),
-                          pCity->shield_stock, impr_build_shield_cost(pImprove),
-                          PL_("shield","shields",
-                              impr_build_shield_cost(pImprove)), _("never"));
-            }	  
+                          pCity->shield_stock, cost,
+                          PL_("shield", "shields", cost), _("never"));
+            }
           } else {
             if (state) {
               fc_snprintf(cbuf, sizeof(cbuf), _("(%s)\n%d/%d %s\n%d %s"),
-                          state, pCity->shield_stock,
-                          impr_build_shield_cost(pImprove),
-                          PL_("shield","shields",
-                              impr_build_shield_cost(pImprove)),
+                          state, pCity->shield_stock, cost,
+                          PL_("shield", "shields", cost),
                           turns, PL_("turn", "turns", turns));
             } else {
               fc_snprintf(cbuf, sizeof(cbuf), _("%d/%d %s\n%d %s"),
-                          pCity->shield_stock, impr_build_shield_cost(pImprove),
-                          PL_("shield","shields",
-                              impr_build_shield_cost(pImprove)),
+                          pCity->shield_stock, cost,
+                          PL_("shield", "shields", cost),
                           turns, PL_("turn", "turns", turns));
             }
           }
@@ -1469,16 +1482,16 @@ void popup_worklist_editor(struct city *pCity, struct global_worklist *gwl)
       } else {
         /* non city mode */
         if (!improvement_has_flag(pImprove, IF_GOLD)) {
+          int cost = impr_build_shield_cost(NULL, pImprove);
+
           if (state) {
             fc_snprintf(cbuf, sizeof(cbuf), _("(%s)\n%d %s"),
-                        state, impr_build_shield_cost(pImprove),
-                        PL_("shield","shields",
-                            impr_build_shield_cost(pImprove)));
+                        state, cost,
+                        PL_("shield", "shields", cost));
           } else {
             fc_snprintf(cbuf, sizeof(cbuf), _("%d %s"),
-                        impr_build_shield_cost(pImprove),
-                        PL_("shield","shields",
-                            impr_build_shield_cost(pImprove)));
+                        cost,
+                        PL_("shield", "shields", cost));
           }
         } else {
           fc_snprintf(cbuf, sizeof(cbuf), _("shields into gold"));
@@ -1535,7 +1548,7 @@ void popup_worklist_editor(struct city *pCity, struct global_worklist *gwl)
   unit_type_iterate(un) {
     can_build = can_player_build_unit_now(client.conn.playing, un);
     can_eventually_build =
-	can_player_build_unit_later(client.conn.playing, un);
+        can_player_build_unit_later(client.conn.playing, un);
 
     /* If there's a city, can the city build the unit? */
     if (pCity) {
@@ -1559,6 +1572,7 @@ void popup_worklist_editor(struct city *pCity, struct global_worklist *gwl)
 
       if (pCity) {
         struct universal univ = cid_production(cid_encode_unit(un));
+        int cost = utype_build_shield_cost(pCity, un);
 
         turns = city_turns_to_build(pCity, &univ, TRUE);
 
@@ -1568,26 +1582,28 @@ void popup_worklist_editor(struct city *pCity, struct global_worklist *gwl)
                       pUnit->attack_strength,
                       pUnit->defense_strength,
                       move_points_text(pUnit->move_rate, TRUE),
-                      pCity->shield_stock, utype_build_shield_cost(un),
-                      PL_("shield","shields", utype_build_shield_cost(un)));
+                      pCity->shield_stock, cost,
+                      PL_("shield", "shields", cost));
         } else {
           fc_snprintf(cbuf, sizeof(cbuf),
                       _("(%d/%d/%s)\n%d/%d %s\n%d %s"),
                       pUnit->attack_strength,
                       pUnit->defense_strength,
                       move_points_text(pUnit->move_rate, TRUE),
-                      pCity->shield_stock, utype_build_shield_cost(un), 
-                      PL_("shield","shields", utype_build_shield_cost(un)),
+                      pCity->shield_stock, cost,
+                      PL_("shield", "shields", cost),
                       turns, PL_("turn", "turns", turns));
         }
       } else {
+        int cost = utype_build_shield_cost_base(un);
+
         fc_snprintf(cbuf, sizeof(cbuf),
                     _("(%d/%d/%s)\n%d %s"),
                     pUnit->attack_strength,
                     pUnit->defense_strength,
                     move_points_text(pUnit->move_rate, TRUE),
-                    utype_build_shield_cost(un),
-                    PL_("shield","shields", utype_build_shield_cost(un)));
+                    cost,
+                    PL_("shield", "shields", cost));
       }
 
       copy_chars_to_utf8_str(pstr, cbuf);
@@ -1749,7 +1765,7 @@ void popup_worklist_editor(struct city *pCity, struct global_worklist *gwl)
 
   /* worklist */
   /* pEditor->pWork->pScroll->count: including production */
-  if (pCity || (worklist_length(&pEditor->worklist_copy) > 0)) {
+  if (len > 0) {
     /* FIXME */
     setup_vertical_widgets_position(1,
                                     area.x + adj_size(2), area.y + adj_size(152)
@@ -1805,7 +1821,7 @@ void popup_worklist_editor(struct city *pCity, struct global_worklist *gwl)
   widget_flush(pWindow);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Close worklist from view.
 **************************************************************************/
 void popdown_worklist_editor(void)

@@ -38,18 +38,7 @@ const char *client_string = "gui-stub";
 const char * const gui_character_encoding = "UTF-8";
 const bool gui_use_transliteration = FALSE;
 
-/****************************************************************************
-  Called by the tileset code to set the font size that should be used to
-  draw the city names and productions.
-****************************************************************************/
-void gui_set_city_names_font_sizes(int my_city_names_font_size,
-                                   int my_city_productions_font_size)
-{
-  log_error("Unimplemented set_city_names_font_sizes.");
-  /* PORTME */
-}
-
-/**************************************************************************
+/**********************************************************************//**
   Do any necessary pre-initialization of the UI, if necessary.
 **************************************************************************/
 void gui_ui_init(void)
@@ -57,7 +46,7 @@ void gui_ui_init(void)
   /* PORTME */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Entry point for whole freeciv client program.
 **************************************************************************/
 int main(int argc, char **argv)
@@ -66,7 +55,7 @@ int main(int argc, char **argv)
   return client_main(argc, argv);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Print extra usage information, including one line help on each option,
   to stderr.
 **************************************************************************/
@@ -81,7 +70,7 @@ static void print_usage(const char *argv0)
   fc_fprintf(stderr, _("Report bugs at %s\n"), BUG_URL);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Parse and enact any client-specific options.
 **************************************************************************/
 static void parse_options(int argc, char **argv)
@@ -101,7 +90,7 @@ static void parse_options(int argc, char **argv)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   The main loop for the UI.  This is called from main(), and when it
   exits the client will exit.
 **************************************************************************/
@@ -117,23 +106,23 @@ void gui_ui_main(int argc, char *argv[])
   start_quitting();
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Extra initializers for client options.
-****************************************************************************/
+**************************************************************************/
 void gui_options_extra_init(void)
 {
   /* Nothing to do. */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Do any necessary UI-specific cleanup
 **************************************************************************/
-void gui_ui_exit()
+void gui_ui_exit(void)
 {
   /* PORTME */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return our GUI type
 **************************************************************************/
 enum gui_type gui_get_gui_type(void)
@@ -141,15 +130,15 @@ enum gui_type gui_get_gui_type(void)
   return GUI_STUB;
 }
 
-/**************************************************************************
- Update the connected users list at pregame state.
+/**********************************************************************//**
+  Update the connected users list at pregame state.
 **************************************************************************/
-void gui_real_conn_list_dialog_update(void)
+void gui_real_conn_list_dialog_update(void *unused)
 {
   /* PORTME */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make a bell noise (beep).  This provides low-level sound alerts even
   if there is no real sound support.
 **************************************************************************/
@@ -158,7 +147,7 @@ void gui_sound_bell(void)
   /* PORTME */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Wait for data on the given socket.  Call input_from_server() when data
   is ready to be read.
 
@@ -170,7 +159,7 @@ void gui_add_net_input(int sock)
   /* PORTME */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Stop waiting for any server network data.  See add_net_input().
 
   This function is called if the client disconnects from the server.
@@ -180,7 +169,7 @@ void gui_remove_net_input(void)
   /* PORTME */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set one of the unit icons (specified by idx) in the information area
   based on punit.
 
@@ -196,7 +185,7 @@ void gui_set_unit_icon(int idx, struct unit *punit)
   /* PORTME */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Most clients use an arrow (e.g., sprites.right_arrow) to indicate when
   the units_below will not fit. This function is called to activate or
   deactivate the arrow.
@@ -208,21 +197,21 @@ void gui_set_unit_icons_more_arrow(bool onoff)
   /* PORTME */
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Called when the set of units in focus (get_units_in_focus()) changes.
   Standard updates like update_unit_info_label() are handled in the platform-
   independent code, so some clients will not need to do anything here.
-****************************************************************************/
+**************************************************************************/
 void gui_real_focus_units_changed(void)
 {
   /* PORTME */
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Enqueue a callback to be called during an idle moment.  The 'callback'
   function should be called sometimes soon, and passed the 'data' pointer
   as its data.
-****************************************************************************/
+**************************************************************************/
 void gui_add_idle_callback(void (callback)(void *), void *data)
 {
   /* PORTME */
@@ -232,43 +221,44 @@ void gui_add_idle_callback(void (callback)(void *), void *data)
   (callback)(data);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Stub for editor function
-****************************************************************************/
+**************************************************************************/
 void gui_editgui_tileset_changed(void)
 {}
 
-/****************************************************************************
+/**********************************************************************//**
   Stub for editor function
-****************************************************************************/
+**************************************************************************/
 void gui_editgui_refresh(void)
 {}
 
-/****************************************************************************
+/**********************************************************************//**
   Stub for editor function
-****************************************************************************/
+**************************************************************************/
 void gui_editgui_popup_properties(const struct tile_list *tiles, int objtype)
 {}
 
-/****************************************************************************
+/**********************************************************************//**
   Stub for editor function
-****************************************************************************/
+**************************************************************************/
 void gui_editgui_popdown_all(void)
 {}
 
-/****************************************************************************
+/**********************************************************************//**
   Stub for editor function
-****************************************************************************/
-void gui_editgui_notify_object_changed(int objtype, int object_id, bool removal)
+**************************************************************************/
+void gui_editgui_notify_object_changed(int objtype, int object_id,
+                                       bool removal)
 {}
 
-/****************************************************************************
+/**********************************************************************//**
   Stub for editor function
-****************************************************************************/
+**************************************************************************/
 void gui_editgui_notify_object_created(int tag, int id)
 {}
 
-/**************************************************************************
+/**********************************************************************//**
   Updates a gui font style.
 **************************************************************************/
 void gui_gui_update_font(const char *font_name, const char *font_value)
@@ -276,18 +266,10 @@ void gui_gui_update_font(const char *font_name, const char *font_value)
   /* PORTME */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Insert build information to help
 **************************************************************************/
 void gui_insert_client_build_info(char *outbuf, size_t outlen)
 {
   /* PORTME */
-}
-
-/**************************************************************************
-  Make dynamic adjustments to first-launch default options.
-**************************************************************************/
-void gui_adjust_default_options(void)
-{
-  /* Nothing in case of this gui */
 }

@@ -30,6 +30,7 @@
 #include "climap.h"
 #include "control.h"
 #include "mapctrl.h"
+#include "themes_common.h"
 #include "tile.h"
 #include "unit.h"
 
@@ -44,27 +45,35 @@ extern void qload_lua_script();
 extern void qreload_lua_script();
 extern "C" int city_buy_production(struct city *pcity);
 
-/**************************************************************************
+/**********************************************************************//**
   Popup a dialog to ask for the name of a new city.  The given string
   should be used as a suggestion.
 **************************************************************************/
 void popup_newcity_dialog(struct unit *punit, const char *suggestname)
 {
-  hud_input_box ask(gui()->central_wdg);
+  hud_input_box *ask = new hud_input_box(gui()->central_wdg);
   int index = tile_index(unit_tile(punit));
-  ask.set_text_title_definput(_("What should we call our new city?"),
-                              _("Build New City"), QString(suggestname));
-  if (ask.exec() == QDialog::Accepted) {
-    finish_city(index_to_tile(&(wld.map), index),
-                ask.input_edit.text().toLocal8Bit().data());
-  } else {
-    cancel_city(index_to_tile(&(wld.map), index));
-  }
+
+  ask->set_text_title_definput(_("What should we call our new city?"),
+                               _("Build New City"), suggestname);
+  ask->setAttribute(Qt::WA_DeleteOnClose);
+  QObject::connect(ask, &hud_input_box::finished, [=](int result) {
+    if (result == QDialog::Accepted) {
+      QByteArray ask_bytes;
+
+      ask_bytes = ask->input_edit.text().toLocal8Bit();
+      finish_city(index_to_tile(&(wld.map), index),
+                  ask_bytes.data());
+    } else {
+      cancel_city(index_to_tile(&(wld.map), index));
+    }
+  });
+  ask->show();
 
   return;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   A turn done button should be provided for the player.  This function
   is called to toggle it between active/inactive.
 **************************************************************************/
@@ -73,7 +82,7 @@ void set_turn_done_button_state(bool state)
   side_disable_endturn(state);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Draw a goto or patrol line at the current mouse position.
 **************************************************************************/
 void create_line_at_mouse_pos(void)
@@ -91,21 +100,20 @@ void create_line_at_mouse_pos(void)
   }
 }
 
-/**************************************************************************
- The Area Selection rectangle. Called by center_tile_mapcanvas() and
- when the mouse pointer moves.
+/**********************************************************************//**
+  The Area Selection rectangle. Called by center_tile_mapcanvas() and
+  when the mouse pointer moves.
 **************************************************************************/
 void update_rect_at_mouse_pos(void)
 {
   /* PLS DONT PORT IT */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Keyboard handler for map_view
 **************************************************************************/
 void map_view::keyPressEvent(QKeyEvent * event)
 {
-  QPoint local_pos;
   Qt::KeyboardModifiers key_mod = QApplication::keyboardModifiers();
   bool is_shift = key_mod.testFlag(Qt::ShiftModifier);
 
@@ -178,13 +186,13 @@ void map_view::keyPressEvent(QKeyEvent * event)
       return;
     case Qt::Key_Escape:
       key_cancel_action();
-      if (gui()->infotab->chat_maximized == true) {
+      if (gui()->infotab->chat_maximized) {
         gui()->infotab->restore_chat();
       }
       return;
     case Qt::Key_Enter:
     case Qt::Key_Return:
-      if (gui()->infotab->chat_maximized == false) {
+      if (!gui()->infotab->chat_maximized) {
         gui()->infotab->maximize_chat();
         gui()->infotab->chtwdg->chat_line->setFocus();
       }
@@ -196,7 +204,7 @@ void map_view::keyPressEvent(QKeyEvent * event)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Pressed mouse or keyboard
 **************************************************************************/
 void map_view::shortcut_pressed(int key)
@@ -222,33 +230,25 @@ void map_view::shortcut_pressed(int key)
   }
 
   /* Trade Generator - skip */
-  if (bt == Qt::LeftButton
-      && gui()->trade_gen.hover_city == true) {
+  sc = fc_shortcuts::sc()->get_shortcut(SC_SELECT_BUTTON);
+  if (bt == sc->mouse && md == sc->mod
+      && gui()->trade_gen.hover_city) {
     ptile = canvas_pos_to_tile(pos.x(), pos.y());
-    gui()->trade_gen.hover_city = false;
     gui()->trade_gen.add_tile(ptile);
     gui()->mapview_wdg->repaint();
     return;
   }
 
   /* Rally point - select city - skip */
-  if (bt == Qt::LeftButton
-      && gui()->rallies.hover_city == true) {
+  if (bt == sc->mouse && md == sc->mod
+      && gui()->rallies.hover_city) {
     char text[1024];
+
     ptile = canvas_pos_to_tile(pos.x(), pos.y());
     if (tile_city(ptile)) {
-      gui()->rallies.hover_city = false;
       gui()->rallies.hover_tile = true;
       gui()->rallies.rally_city = tile_city(ptile);
 
-      if (gui()->rallies.clear(tile_city(ptile))) {
-        fc_snprintf(text, sizeof(text),
-                    _("Rally point cleared for city %s"),
-                    city_link(tile_city(ptile)));
-        output_window_append(ftc_client, text);
-        gui()->rallies.hover_tile = false;
-        return;
-      }
       fc_snprintf(text, sizeof(text),
                   _("Selected city %s. Now choose rally point."),
                   city_link(tile_city(ptile)));
@@ -260,34 +260,42 @@ void map_view::shortcut_pressed(int key)
   }
 
   /* Rally point - select tile  - skip */
-  if (bt == Qt::LeftButton && gui()->rallies.hover_tile == true) {
+  if (bt == Qt::LeftButton && gui()->rallies.hover_tile && ptile != NULL) {
     char text[1024];
-    qfc_rally *rally = new qfc_rally;
-    rally->ptile = canvas_pos_to_tile(pos.x(), pos.y());
-    rally->pcity = gui()->rallies.rally_city;
-    fc_snprintf(text, sizeof(text),
-                _("Tile %s set as rally point from city %s."),
-                tile_link(ptile), city_link(rally->pcity));
+
+    struct city *pcity = gui()->rallies.rally_city;
+    fc_assert_ret(pcity != NULL);
+
+    if (send_rally_tile(pcity, ptile)) {
+      fc_snprintf(text, sizeof(text),
+                  _("Tile %s set as rally point from city %s."),
+                  tile_link(ptile), city_link(pcity));
+      output_window_append(ftc_client, text);
+    } else {
+      fc_snprintf(text, sizeof(text),
+                  _("Could not set rally point for city %s."),
+                  city_link(pcity));
+      output_window_append(ftc_client, text);
+    }
+
+    gui()->rallies.rally_city = NULL;
     gui()->rallies.hover_tile = false;
-    gui()->rallies.add(rally);
-    output_window_append(ftc_client, text);
     return;
   }
 
-  if (bt == Qt::LeftButton && gui()->menu_bar->delayed_order == true) {
+  if (bt == Qt::LeftButton && gui()->menu_bar->delayed_order) {
     ptile = canvas_pos_to_tile(pos.x(), pos.y());
     gui()->menu_bar->set_tile_for_order(ptile);
-    set_hover_state(NULL, HOVER_NONE, ACTIVITY_LAST, NULL,
-                    EXTRA_NONE, ACTION_NONE, ORDER_LAST);
+    clear_hover_state();
     exit_goto_state();
     gui()->menu_bar->delayed_order = false;
     return;
   }
 
-  if (bt == Qt::LeftButton  && gui()->infotab->chat_maximized == true) {
+  if (bt == Qt::LeftButton  && gui()->infotab->chat_maximized) {
     gui()->infotab->restore_chat();
   }
-  if (bt  == Qt::LeftButton && gui()->menu_bar->quick_airlifting == true) {
+  if (bt  == Qt::LeftButton && gui()->menu_bar->quick_airlifting) {
     ptile = canvas_pos_to_tile(pos.x(), pos.y());
     if (tile_city(ptile)) {
       multiairlift(tile_city(ptile), gui()->menu_bar->airlift_type_id);
@@ -298,7 +306,7 @@ void map_view::shortcut_pressed(int key)
     return;
   }
   /* Check configured shortcuts */
-  if (gui()->menu_bar->delayed_order == false) {
+  if (!gui()->menu_bar->delayed_order) {
     sc = fc_shortcuts::sc()->get_shortcut(SC_QUICK_SELECT);
     if (((key && key == sc->key) || bt == sc->mouse) && md == sc->mod
         && pcity != nullptr) {
@@ -337,13 +345,13 @@ void map_view::shortcut_pressed(int key)
 
     sc = fc_shortcuts::sc()->get_shortcut(SC_RELOAD_THEME);
     if (((key && key == sc->key) || bt == sc->mouse) && md == sc->mod) {
-      qtg_gui_load_theme(QString().toLocal8Bit().data(),
-                         gui_options.gui_qt_default_theme_name);
+      load_theme(gui_options.gui_qt_default_theme_name);
       return;
     }
 
     sc = fc_shortcuts::sc()->get_shortcut(SC_RELOAD_TILESET);
     if (((key && key == sc->key) || bt == sc->mouse) && md == sc->mod) {
+      QPixmapCache::clear();
       tilespec_reread(tileset_basename(tileset), true, gui()->map_scale);
       return;
     }
@@ -407,7 +415,7 @@ void map_view::shortcut_pressed(int key)
   }
   sc = fc_shortcuts::sc()->get_shortcut(SC_SELECT_BUTTON);
   if (((key && key == sc->key) || bt == sc->mouse) && md == sc->mod) {
-    if (goto_is_active() == false) {
+    if (!goto_is_active()) {
       stored_autocenter = gui_options.auto_center_on_unit;
       gui_options.auto_center_on_unit = false;
       action_button_pressed(pos.x(), pos.y(), SELECT_FOCUS);
@@ -429,8 +437,8 @@ void map_view::shortcut_pressed(int key)
   }
 }
 
-/**************************************************************************
-  Releasad mouse buttons
+/**********************************************************************//**
+  Released mouse buttons
 **************************************************************************/
 void map_view::shortcut_released(Qt::MouseButton bt)
 {
@@ -448,11 +456,17 @@ void map_view::shortcut_released(Qt::MouseButton bt)
 
   sc = fc_shortcuts::sc()->get_shortcut(SC_SELECT_BUTTON);
   if (bt == sc->mouse && md == sc->mod) {
-    if (menu_click == true) {
+    if (gui()->trade_gen.hover_city
+        || gui()->rallies.hover_city) {
+      gui()->trade_gen.hover_city = false;
+      gui()->rallies.hover_city = false;
+      return;
+    }
+    if (menu_click) {
       menu_click = false;
       return;
     }
-    if (keyboardless_goto_active == false || goto_is_active() == true) {
+    if (!keyboardless_goto_active || goto_is_active()) {
       action_button_pressed(pos.x(), pos.y(), SELECT_POPUP);
       gui_options.auto_center_on_unit = stored_autocenter;
     }
@@ -460,14 +474,16 @@ void map_view::shortcut_released(Qt::MouseButton bt)
     return;
   }
 }
-/**************************************************************************
+
+/**********************************************************************//**
   Mouse buttons handler for map_view
 **************************************************************************/
 void map_view::mousePressEvent(QMouseEvent *event)
 {
   shortcut_pressed(0);
 }
-/**************************************************************************
+
+/**********************************************************************//**
   Mouse release event for map_view
 **************************************************************************/
 void map_view::mouseReleaseEvent(QMouseEvent *event)
@@ -475,7 +491,7 @@ void map_view::mouseReleaseEvent(QMouseEvent *event)
   shortcut_released(event->button());
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Mouse movement handler for map_view
 **************************************************************************/
 void map_view::mouseMoveEvent(QMouseEvent *event)
@@ -488,7 +504,7 @@ void map_view::mouseMoveEvent(QMouseEvent *event)
                                           event->pos().y()));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Popups information label tile
 **************************************************************************/
 void fc_client::popup_tile_info(struct tile *ptile)
@@ -510,7 +526,7 @@ void fc_client::popup_tile_info(struct tile *ptile)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Popdowns information label tile
 **************************************************************************/
 void fc_client::popdown_tile_info()
@@ -523,4 +539,3 @@ void fc_client::popdown_tile_info()
     info_tile_wdg = NULL;
   }
 }
-

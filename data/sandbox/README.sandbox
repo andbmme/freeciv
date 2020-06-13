@@ -14,11 +14,27 @@ the default ruleset earlier. As the default ruleset changed, we felt
 the need to base also the testing ruleset to the new default.
 
 
+Warning
+-------
+
+This ruleset is a playpen for demonstrating new features. There's no
+guarantee that games started with one release will continue to be
+playable with another release (even a minor version), nor that the
+game will be any fun to play. Nor are there guaranteed to be
+appropriate graphics for all the game elements in the supplied
+tilesets, so substitutes may be used.
+
+
 Main features relative to civ2civ3 ruleset
 ------------------------------------------
 
-Nuke Upkeep:
-If nuke upkeep cannot be paid, they explode in place.
+Nukes:
+The Nuclear has lost its Explode Nuclear In Place ability. It can still do
+Nuke Units and Nuke City.
+The new unit type ICBM has been added. It requires Fusion Power.
+ICBM can do Nuke Target Tile - targeting any tile at the map no matter how
+distant.
+If ICBM upkeep cannot be paid, they explode in place.
 
 Airlifting:
 Light weight units can be airlifted once Flight is known. Medium weight
@@ -31,6 +47,10 @@ Airport allows a city to airlift one more unit per turn.
 
 Map Stealing:
 Spies can steal other player's world map
+
+Spy elimination:
+A Spy can eliminate non allied spies and diplomats out in the open without
+also trying to perform any other action.
 
 Border Vision:
 Border Vision is gained mid-game once Electricity is known
@@ -103,3 +123,39 @@ Units inside fort and airstrip can still be seen.
 Buoys visible only once Radio known:
 One can see Buoys only when one knows Radio. The leading player
 may build Buoys that others can't yet see.
+
+Stealing techs on city conquest
+Getting a tech with city conquest is never guaranteed to give techs.
+In early game you have 50% chance to get tech from the player losing the city.
+After University is known, no techs are got from the city conquest.
+
+Nationality conversion on conquest
+When a city is conquered, 25% of its inhabitants convert to the nationality
+of the conqueror.
+
+Combat Rounds
+Each combat lasts 15 rounds at max, even if neither side dies in that time.
+
+Caravel needs supplies
+Caravel needs to spend at least every third turn change next to a land tile
+to load supplies for the crew. Otherwise the unit is lost.
+
+Multiresearch enabled
+When switching research, already accumulated bulbs are not transferred to
+the new technology but are remembered towards previous research.
+
+Tech trading requirement
+Treaties cannot have tech clauses before both sides know Writing.
+
+Plague
+Double probability for a plague spreading along a trade route. Enemy spies
+can release plague samples found in a target city's Research Lab.
+
+Disrupt Supply Lines
+Some units can disrupt the supply lines of enemy units. This removes 1 MP
+from the target unit at the cost of one move fragment for the unit doing the
+disrupting.
+
+Casus belli
+Staring to do Pillage to a tile gives the tile owner (not the extra owner) a
+casus belli against you.

@@ -40,6 +40,7 @@
 #include "client_main.h"
 #include "connectdlg_common.h"
 #include "options.h"
+#include "tilespec.h"
 #include "zoom.h"
 
 #include "update_queue.h"
@@ -97,7 +98,7 @@ static void update_unqueue(void *data);
 static inline void update_queue_push(uq_callback_t callback,
                                      struct update_queue_data *uq_data);
 
-/****************************************************************************
+/************************************************************************//**
   Create a new update queue data.
 ****************************************************************************/
 static inline struct update_queue_data *
@@ -110,7 +111,7 @@ update_queue_data_new(void *data, uq_free_fn_t free_data_func)
   return uq_data;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free a update queue data.
 ****************************************************************************/
 static void update_queue_data_destroy(struct update_queue_data *uq_data)
@@ -122,7 +123,7 @@ static void update_queue_data_destroy(struct update_queue_data *uq_data)
   free(uq_data);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a new waiting queue data.
 ****************************************************************************/
 static inline struct waiting_queue_data *
@@ -136,7 +137,7 @@ waiting_queue_data_new(uq_callback_t callback, void *data,
   return wq_data;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free a waiting queue data.
 ****************************************************************************/
 static void waiting_queue_data_destroy(struct waiting_queue_data *wq_data)
@@ -149,7 +150,7 @@ static void waiting_queue_data_destroy(struct waiting_queue_data *wq_data)
   free(wq_data);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Extract the update_queue_data from the waiting queue data.
 ****************************************************************************/
 static inline struct update_queue_data *
@@ -162,7 +163,7 @@ waiting_queue_data_extract(struct waiting_queue_data *wq_data)
 }
 
 
-/****************************************************************************
+/************************************************************************//**
   Initialize the update queue.
 ****************************************************************************/
 void update_queue_init(void)
@@ -183,7 +184,7 @@ void update_queue_init(void)
   update_queue_has_idle_callback = FALSE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free the update queue.
 ****************************************************************************/
 void update_queue_free(void)
@@ -209,7 +210,7 @@ void update_queue_free(void)
   update_queue_has_idle_callback = FALSE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Freezes the update queue.
 ****************************************************************************/
 void update_queue_freeze(void)
@@ -217,7 +218,7 @@ void update_queue_freeze(void)
   update_queue_frozen_level++;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free the update queue.
 ****************************************************************************/
 void update_queue_thaw(void)
@@ -230,12 +231,12 @@ void update_queue_thaw(void)
     update_queue_has_idle_callback = TRUE;
     add_idle_callback(update_unqueue, NULL);
   } else if (0 > update_queue_frozen_level) {
-    log_error("update_queue_frozen_level < 0, reparing...");
+    log_error("update_queue_frozen_level < 0, repairing...");
     update_queue_frozen_level = 0;
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free the update queue.
 ****************************************************************************/
 void update_queue_force_thaw(void)
@@ -245,7 +246,7 @@ void update_queue_force_thaw(void)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free the update queue.
 ****************************************************************************/
 bool update_queue_is_frozen(void)
@@ -253,7 +254,7 @@ bool update_queue_is_frozen(void)
   return (0 < update_queue_frozen_level);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Moves the instances waiting to the request_id to the callback queue.
 ****************************************************************************/
 static inline void
@@ -272,7 +273,7 @@ waiting_queue_execute_pending_requests(struct waiting_queue_hash *hash,
   waiting_queue_hash_remove(hash, request_id);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Moves the instances waiting to the request_id to the callback queue.
 ****************************************************************************/
 void update_queue_processing_started(int request_id)
@@ -281,7 +282,7 @@ void update_queue_processing_started(int request_id)
                                          request_id);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Moves the instances waiting to the request_id to the callback queue.
 ****************************************************************************/
 void update_queue_processing_finished(int request_id)
@@ -290,7 +291,7 @@ void update_queue_processing_finished(int request_id)
                                          request_id);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Unqueue all updates.
 ****************************************************************************/
 static void update_unqueue(void *data)
@@ -302,7 +303,7 @@ static void update_unqueue(void *data)
     return;
   }
 
-  if (update_queue_is_frozen()) {
+  if (update_queue_is_frozen() || !tileset_is_fully_loaded()) {
     /* Cannot update now, let's add it again. */
     update_queue_has_idle_callback = FALSE;
     return;
@@ -321,7 +322,7 @@ static void update_unqueue(void *data)
   update_queue_hash_destroy(hash);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Add a callback to the update queue. NB: you can only set a callback
   once. Setting a callback twice will overwrite the previous.
 ****************************************************************************/
@@ -337,7 +338,7 @@ static inline void update_queue_push(uq_callback_t callback,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Add a callback to the update queue. NB: you can only set a callback
   once. Setting a callback twice will overwrite the previous.
 ****************************************************************************/
@@ -348,7 +349,7 @@ void update_queue_add(uq_callback_t callback, void *data)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Add a callback to the update queue. NB: you can only set a callback
   once. Setting a callback twice will overwrite the previous.
 ****************************************************************************/
@@ -360,7 +361,7 @@ void update_queue_add_full(uq_callback_t callback, void *data,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns whether this callback is listed in the update queue.
 ****************************************************************************/
 bool update_queue_has_callback(uq_callback_t callback)
@@ -369,7 +370,7 @@ bool update_queue_has_callback(uq_callback_t callback)
           && update_queue_hash_lookup(update_queue, callback, NULL));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns whether this callback is listed in the update queue and
   get the its data and free function. 'data' and 'free_data_func' can
   be NULL.
@@ -394,7 +395,7 @@ bool update_queue_has_callback_full(uq_callback_t callback,
   return FALSE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Connects the callback to a network event.
 ****************************************************************************/
 static inline void
@@ -415,7 +416,7 @@ waiting_queue_add_pending_request(struct waiting_queue_hash *hash,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Connects the callback to the start of the processing (in server side) of
   the request.
 ****************************************************************************/
@@ -427,7 +428,7 @@ void update_queue_connect_processing_started(int request_id,
                                     request_id, callback, data, NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Connects the callback to the start of the processing (in server side) of
   the request.
 ****************************************************************************/
@@ -442,7 +443,7 @@ void update_queue_connect_processing_started_full(int request_id,
                                     free_data_func);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Connects the callback to the end of the processing (in server side) of
   the request.
 ****************************************************************************/
@@ -454,7 +455,7 @@ void update_queue_connect_processing_finished(int request_id,
                                     request_id, callback, data, NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Connects the callback to the end of the processing (in server side) of
   the request.
 ****************************************************************************/
@@ -469,8 +470,7 @@ void update_queue_connect_processing_finished_full(int request_id,
                                     free_data_func);
 }
 
-
-/****************************************************************************
+/************************************************************************//**
   Set the client page.
 ****************************************************************************/
 static void set_client_page_callback(void *data)
@@ -490,7 +490,7 @@ static void set_client_page_callback(void *data)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set the client page.
 ****************************************************************************/
 void set_client_page(enum client_pages page)
@@ -500,7 +500,7 @@ void set_client_page(enum client_pages page)
   update_queue_add(set_client_page_callback, FC_INT_TO_PTR(page));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Start server and then, set the client page.
 ****************************************************************************/
 void client_start_server_and_set_page(enum client_pages page)
@@ -514,7 +514,7 @@ void client_start_server_and_set_page(enum client_pages page)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the next client page.
 ****************************************************************************/
 enum client_pages get_client_page(void)
@@ -529,7 +529,7 @@ enum client_pages get_client_page(void)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns whether there's page switching already in progress.
 ****************************************************************************/
 bool update_queue_is_switching_page(void)
@@ -537,7 +537,7 @@ bool update_queue_is_switching_page(void)
   return update_queue_has_callback(set_client_page_callback);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Update the menus.
 ****************************************************************************/
 static void menus_update_callback(void *data)
@@ -548,7 +548,7 @@ static void menus_update_callback(void *data)
   real_menus_update();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Request the menus to be initialized and updated.
 ****************************************************************************/
 void menus_init(void)
@@ -556,7 +556,7 @@ void menus_init(void)
   update_queue_add(menus_update_callback, FC_INT_TO_PTR(TRUE));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Request the menus to be updated.
 ****************************************************************************/
 void menus_update(void)
@@ -566,15 +566,15 @@ void menus_update(void)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Update multipliers/policy dialog.
 ****************************************************************************/
 void multipliers_dialog_update(void)
 {
-  update_queue_add(UQ_CALLBACK(real_multipliers_dialog_update), NULL);
+  update_queue_add(real_multipliers_dialog_update, NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Update cities gui.
 ****************************************************************************/
 static void cities_update_callback(void *data)
@@ -617,7 +617,7 @@ static void cities_update_callback(void *data)
 #undef NEED_UPDATE
 }
 
-/****************************************************************************
+/************************************************************************//**
   Request the city dialog to be popped up for the city.
 ****************************************************************************/
 void popup_city_dialog(struct city *pcity)
@@ -626,7 +626,7 @@ void popup_city_dialog(struct city *pcity)
   update_queue_add(cities_update_callback, NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Request the city dialog to be updated for the city.
 ****************************************************************************/
 void refresh_city_dialog(struct city *pcity)
@@ -635,7 +635,7 @@ void refresh_city_dialog(struct city *pcity)
   update_queue_add(cities_update_callback, NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Request the city to be updated in the city report.
 ****************************************************************************/
 void city_report_dialog_update_city(struct city *pcity)
@@ -644,60 +644,58 @@ void city_report_dialog_update_city(struct city *pcity)
   update_queue_add(cities_update_callback, NULL);
 }
 
-
-/****************************************************************************
+/************************************************************************//**
   Update the connection list in the start page.
 ****************************************************************************/
 void conn_list_dialog_update(void)
 {
-  update_queue_add(UQ_CALLBACK(real_conn_list_dialog_update), NULL);
+  update_queue_add(real_conn_list_dialog_update, NULL);
 }
 
-
-/****************************************************************************
+/************************************************************************//**
   Update the nation report.
 ****************************************************************************/
 void players_dialog_update(void)
 {
-  update_queue_add(UQ_CALLBACK(real_players_dialog_update), NULL);
+  update_queue_add(real_players_dialog_update, NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Update the city report.
 ****************************************************************************/
 void city_report_dialog_update(void)
 {
-  update_queue_add(UQ_CALLBACK(real_city_report_dialog_update), NULL);
+  update_queue_add(real_city_report_dialog_update, NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Update the science report.
 ****************************************************************************/
 void science_report_dialog_update(void)
 {
-  update_queue_add(UQ_CALLBACK(real_science_report_dialog_update), NULL);
+  update_queue_add(real_science_report_dialog_update, NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Update the economy report.
 ****************************************************************************/
 void economy_report_dialog_update(void)
 {
-  update_queue_add(UQ_CALLBACK(real_economy_report_dialog_update), NULL);
+  update_queue_add(real_economy_report_dialog_update, NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Update the units report.
 ****************************************************************************/
 void units_report_dialog_update(void)
 {
-  update_queue_add(UQ_CALLBACK(real_units_report_dialog_update), NULL);
+  update_queue_add(real_units_report_dialog_update, NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Update the units report.
 ****************************************************************************/
 void unit_select_dialog_update(void)
 {
-  update_queue_add(UQ_CALLBACK(unit_select_dialog_update_real), NULL);
+  update_queue_add(unit_select_dialog_update_real, NULL);
 }

@@ -132,7 +132,9 @@ static struct {
 
 extern const char forced_tileset_name[];
 
-/****************************************************************************
+static int last_turn = 0;
+
+/************************************************************************//**
   Called below, and by client/client_main.c client_game_free()
 ****************************************************************************/
 void packhand_free(void)
@@ -153,7 +155,7 @@ void packhand_free(void)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Called only by handle_map_info() below.
 ****************************************************************************/
 static void packhand_init(void)
@@ -173,7 +175,7 @@ static void packhand_init(void)
   invisible.placeholder->unassigned_ranked = TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Unpackage the unit information into a newly allocated unit structure.
 
   Information for the client must also be processed in
@@ -218,11 +220,12 @@ static struct unit *unpackage_unit(const struct packet_unit_info *packet)
     punit->changed_from_target = extra_by_number(packet->changed_from_tgt);
   }
 
-  punit->ai_controlled = packet->ai;
+  punit->ssa_controller = packet->ssa_controller;
   punit->fuel = packet->fuel;
   punit->goto_tile = index_to_tile(&(wld.map), packet->goto_tile);
   punit->paradropped = packet->paradropped;
   punit->done_moving = packet->done_moving;
+  punit->stay = packet->stay;
 
   /* Transporter / transporting information. */
   punit->client.occupied = packet->occupied;
@@ -246,19 +249,15 @@ static struct unit *unpackage_unit(const struct packet_unit_info *packet)
   if (punit->has_orders) {
     int i;
 
+    for (i = 0; i < packet->orders_length; i++) {
+      /* Just an assert. The client doesn't use the action data. */
+      fc_assert(packet->orders[i].order != ORDER_PERFORM_ACTION
+                || action_id_exists(packet->orders[i].action));
+    }
     punit->orders.list
       = fc_malloc(punit->orders.length * sizeof(*punit->orders.list));
-    for (i = 0; i < punit->orders.length; i++) {
-      punit->orders.list[i].order = packet->orders[i];
-      punit->orders.list[i].dir = packet->orders_dirs[i];
-      punit->orders.list[i].activity = packet->orders_activities[i];
-      punit->orders.list[i].target = packet->orders_targets[i];
-      punit->orders.list[i].action = packet->orders_actions[i];
-
-      /* Just an assert. The client doesn't use the action data. */
-      fc_assert(punit->orders.list[i].order != ORDER_PERFORM_ACTION
-                || action_id_exists(punit->orders.list[i].action));
-    }
+    memcpy(punit->orders.list, packet->orders,
+           punit->orders.length * sizeof(*punit->orders.list));
   }
 
   punit->action_decision_want = packet->action_decision_want;
@@ -270,7 +269,7 @@ static struct unit *unpackage_unit(const struct packet_unit_info *packet)
   return punit;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Unpackage a short_unit_info packet.  This extracts a limited amount of
   information about the unit, and is sent for units we shouldn't know
   everything about (like our enemies' units).
@@ -314,7 +313,7 @@ unpackage_short_unit(const struct packet_unit_short_info *packet)
   return punit;
 }
 
-/****************************************************************************
+/************************************************************************//**
   After we send a join packet to the server we receive a reply.  This
   function handles the reply.
 ****************************************************************************/
@@ -343,6 +342,11 @@ void handle_server_join_reply(bool you_can_join, const char *message,
     }
 
     client_info.gui = get_gui_type();
+#ifdef EMERGENCY_VERSION
+    client_info.emerg_version = EMERGENCY_VERSION;
+#else
+    client_info.emerg_version = 0;
+#endif
     strncpy(client_info.distribution, FREECIV_DISTRIBUTOR,
             sizeof(client_info.distribution));
     send_packet_client_info(&client.conn, &client_info);
@@ -350,7 +354,7 @@ void handle_server_join_reply(bool you_can_join, const char *message,
     /* we could always use hack, verify we're local */
 #ifdef FREECIV_DEBUG
     if (!hackless || is_server_running())
-#endif
+#endif /* FREECIV_DEBUG */
     {
       send_client_wants_hack(challenge_file);
     }
@@ -377,7 +381,7 @@ void handle_server_join_reply(bool you_can_join, const char *message,
                        s_capability);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handles a remove-city packet, used by the server to tell us any time a
   city is no longer there.
 ****************************************************************************/
@@ -400,10 +404,10 @@ void handle_city_remove(int city_id)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle a remove-unit packet, sent by the server to tell us any time a
   unit is no longer there.
-**************************************************************************/
+****************************************************************************/
 void handle_unit_remove(int unit_id)
 {
   struct unit *punit = game_unit_by_number(unit_id);
@@ -455,7 +459,7 @@ void handle_unit_remove(int unit_id)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   The tile (x,y) has been nuked!
 ****************************************************************************/
 void handle_nuke_tile_info(int tile)
@@ -463,7 +467,7 @@ void handle_nuke_tile_info(int tile)
   put_nuke_mushroom_pixmaps(index_to_tile(&(wld.map), tile));
 }
 
-/****************************************************************************
+/************************************************************************//**
   The name of team 'team_id'
 ****************************************************************************/
 void handle_team_name_info(int team_id, const char *team_name)
@@ -475,25 +479,24 @@ void handle_team_name_info(int team_id, const char *team_name)
   conn_list_dialog_update();
 }
 
-/****************************************************************************
+/************************************************************************//**
   A combat packet.  The server tells us the attacker and defender as well
   as both of their hitpoints after the combat is over (in most combat, one
   unit always dies and their HP drops to zero).  If make_winner_veteran is
   set then the surviving unit becomes veteran.
 ****************************************************************************/
-void handle_unit_combat_info(int attacker_unit_id, int defender_unit_id,
-			     int attacker_hp, int defender_hp,
-			     bool make_winner_veteran)
+void handle_unit_combat_info(const struct packet_unit_combat_info *packet)
 {
   bool show_combat = FALSE;
-  struct unit *punit0 = game_unit_by_number(attacker_unit_id);
-  struct unit *punit1 = game_unit_by_number(defender_unit_id);
+  struct unit *punit0 = game_unit_by_number(packet->attacker_unit_id);
+  struct unit *punit1 = game_unit_by_number(packet->defender_unit_id);
 
   if (punit0 && punit1) {
-    popup_combat_info(attacker_unit_id, defender_unit_id, attacker_hp,
-                      defender_hp, make_winner_veteran);
-    if (tile_visible_mapcanvas(unit_tile(punit0)) &&
-	tile_visible_mapcanvas(unit_tile(punit1))) {
+    popup_combat_info(packet->attacker_unit_id, packet->defender_unit_id,
+                      packet->attacker_hp, packet->defender_hp,
+                      packet->make_att_veteran, packet->make_def_veteran);
+    if (tile_visible_mapcanvas(unit_tile(punit0))
+        && tile_visible_mapcanvas(unit_tile(punit1))) {
       show_combat = TRUE;
     } else if (gui_options.auto_center_on_combat) {
       if (unit_owner(punit0) == client.conn.playing) {
@@ -505,39 +508,41 @@ void handle_unit_combat_info(int attacker_unit_id, int defender_unit_id,
     }
 
     if (show_combat) {
-      int hp0 = attacker_hp, hp1 = defender_hp;
+      int hp0 = packet->attacker_hp, hp1 = packet->defender_hp;
 
       audio_play_sound(unit_type_get(punit0)->sound_fight,
-		       unit_type_get(punit0)->sound_fight_alt);
+                       unit_type_get(punit0)->sound_fight_alt);
       audio_play_sound(unit_type_get(punit1)->sound_fight,
-		       unit_type_get(punit1)->sound_fight_alt);
+                       unit_type_get(punit1)->sound_fight_alt);
 
       if (gui_options.smooth_combat_step_msec > 0) {
         decrease_unit_hp_smooth(punit0, hp0, punit1, hp1);
       } else {
-	punit0->hp = hp0;
-	punit1->hp = hp1;
+        punit0->hp = hp0;
+        punit1->hp = hp1;
 
-	set_units_in_combat(NULL, NULL);
-	refresh_unit_mapcanvas(punit0, unit_tile(punit0), TRUE, FALSE);
-	refresh_unit_mapcanvas(punit1, unit_tile(punit1), TRUE, FALSE);
+        set_units_in_combat(NULL, NULL);
+        refresh_unit_mapcanvas(punit0, unit_tile(punit0), TRUE, FALSE);
+        refresh_unit_mapcanvas(punit1, unit_tile(punit1), TRUE, FALSE);
       }
     }
-    if (make_winner_veteran) {
-      struct unit *pwinner = (defender_hp == 0 ? punit0 : punit1);
-
-      pwinner->veteran++;
-      refresh_unit_mapcanvas(pwinner, unit_tile(pwinner), TRUE, FALSE);
+    if (packet->make_att_veteran && punit0) {
+      punit0->veteran++;
+      refresh_unit_mapcanvas(punit0, unit_tile(punit0), TRUE, FALSE);
+    }
+    if (packet->make_def_veteran && punit1) {
+      punit1->veteran++;
+      refresh_unit_mapcanvas(punit1, unit_tile(punit1), TRUE, FALSE);
     }
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Updates a city's list of improvements from packet data.
   "have_impr" specifies whether the improvement should be added (TRUE)
   or removed (FALSE). Returns TRUE if the improvement has been actually
   added or removed.
-**************************************************************************/
+****************************************************************************/
 static bool update_improvement_from_packet(struct city *pcity,
                                            struct impr_type *pimprove,
                                            bool have_impr)
@@ -556,7 +561,7 @@ static bool update_improvement_from_packet(struct city *pcity,
   return FALSE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   A city-info packet contains all information about a city.  If we receive
   this packet then we know everything about the city internals.
 ****************************************************************************/
@@ -709,6 +714,7 @@ void handle_city_info(const struct packet_city_info *packet)
 
   pcity->history = packet->history;
   pcity->client.culture = packet->culture;
+  pcity->client.buy_cost = packet->buy_cost;
 
   pcity->city_radius_sq = packet->city_radius_sq;
 
@@ -822,6 +828,7 @@ void handle_city_info(const struct packet_city_info *packet)
   }
   pcity->style = packet->style;
   pcity->client.city_image = packet->city_image;
+  pcity->steal = packet->steal;
 
   pcity->client.happy = city_happy(pcity);
   pcity->client.unhappy = city_unhappy(pcity);
@@ -880,6 +887,7 @@ void handle_city_info(const struct packet_city_info *packet)
                                   action_selection_actor_unit(),
                                   action_selection_target_unit(),
                                   city_tile(pcity)->index,
+                                  action_selection_target_extra(),
                                   FALSE);
   }
 
@@ -890,17 +898,17 @@ void handle_city_info(const struct packet_city_info *packet)
   }
 }
 
-/****************************************************************************
-  This is packet that only the web-client needs. Regular client has no use
-  for it.
-  TODO: Do not generate code calling this in C-client.
+/************************************************************************//**
+  This is a packet that only the web-client needs. The regular client has no
+  use for it.
+  TODO: Do not generate code calling this in the C-client.
 ****************************************************************************/
 void handle_web_city_info_addition(int id, int granary_size,
-                                   int granary_turns, int buy_gold_cost)
+                                   int granary_turns)
 {
 }
 
-/****************************************************************************
+/************************************************************************//**
   A helper function for handling city-info and city-short-info packets.
   Naturally, both require many of the same operations to be done on the
   data.
@@ -1003,7 +1011,7 @@ static void city_packet_common(struct city *pcity, struct tile *pcenter,
   editgui_notify_object_changed(OBJTYPE_CITY, pcity->id, FALSE);
 }
 
-/****************************************************************************
+/************************************************************************//**
   A traderoute-info packet contains information about one end of a traderoute
 ****************************************************************************/
 void handle_traderoute_info(const struct packet_traderoute_info *packet)
@@ -1036,7 +1044,7 @@ void handle_traderoute_info(const struct packet_traderoute_info *packet)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   A city-short-info packet is sent to tell us about any cities we can't see
   the internals of.  Most of the time this includes any cities owned by
   someone else.
@@ -1171,9 +1179,9 @@ void handle_city_short_info(const struct packet_city_short_info *packet)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle worker task assigned to the city
-**************************************************************************/
+****************************************************************************/
 void handle_worker_task(const struct packet_worker_task *packet)
 {
   struct city *pcity = game_city_by_number(packet->city_id);
@@ -1220,9 +1228,9 @@ void handle_worker_task(const struct packet_worker_task *packet)
   refresh_city_dialog(pcity);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle turn and year advancement.
-**************************************************************************/
+****************************************************************************/
 void handle_new_year(int year, int fragments, int turn)
 {
   game.info.year = year;
@@ -1260,13 +1268,18 @@ void handle_new_year(int year, int fragments, int turn)
   }
 
   agents_new_turn();
+
+  if (last_turn != turn) {
+    start_turn();
+    last_turn = turn;
+  }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Called by the network code when an end-phase packet is received.  This
   signifies the end of our phase (it's not sent for other player's
   phases).
-**************************************************************************/
+****************************************************************************/
 void handle_end_phase(void)
 {
   /* Messagewindow will contain events happened since our own phase ended,
@@ -1274,10 +1287,10 @@ void handle_end_phase(void)
   meswin_clear_older(game.info.turn, game.info.phase);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Called by the network code when an start-phase packet is received.  This
   may be the start of our phase or someone else's phase.
-**************************************************************************/
+****************************************************************************/
 void handle_start_phase(int phase)
 {
   if (!client_has_player() && !client_is_observer()) {
@@ -1333,10 +1346,10 @@ void handle_start_phase(int phase)
   update_info_label();
 }
 
-/**************************************************************************
+/************************************************************************//**
   Called when begin-turn packet is received. Server has finished processing
   turn change.
-**************************************************************************/
+****************************************************************************/
 void handle_begin_turn(void)
 {
   log_debug("handle_begin_turn()");
@@ -1347,10 +1360,10 @@ void handle_begin_turn(void)
   stop_turn_change_wait();
 }
 
-/**************************************************************************
+/************************************************************************//**
   Called when end-turn packet is received. Server starts processing turn
   change.
-**************************************************************************/
+****************************************************************************/
 void handle_end_turn(void)
 {
   log_debug("handle_end_turn()");
@@ -1372,9 +1385,9 @@ void handle_end_turn(void)
   agents_before_new_turn();
 }
 
-/**************************************************************************
+/************************************************************************//**
   Plays sound associated with event
-**************************************************************************/
+****************************************************************************/
 void play_sound_for_event(enum event_type type)
 {
   const char *sound_tag = get_event_tag(type);
@@ -1382,12 +1395,12 @@ void play_sound_for_event(enum event_type type)
   if (sound_tag) {
     audio_play_sound(sound_tag, NULL);
   }
-}  
-  
-/**************************************************************************
+}
+
+/************************************************************************//**
   Handle a message packet.  This includes all messages - both
   in-game messages and chats from other players.
-**************************************************************************/
+****************************************************************************/
 void handle_chat_msg(const struct packet_chat_msg *packet)
 {
   handle_event(packet->message,
@@ -1398,7 +1411,7 @@ void handle_chat_msg(const struct packet_chat_msg *packet)
                packet->conn_id);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle an early message packet. Thease have format like other chat
   messages but server sends them only about events related to establishing
   the connection and other setup in the early phase. They are a separate
@@ -1407,7 +1420,7 @@ void handle_chat_msg(const struct packet_chat_msg *packet)
   sent to all clients, and we might want to still consider ourselves
   "not connected" (not receivers of those messages) until we are fully
   in the game.
-**************************************************************************/
+****************************************************************************/
 void handle_early_chat_msg(const struct packet_early_chat_msg *packet)
 {
   handle_event(packet->message,
@@ -1418,16 +1431,33 @@ void handle_early_chat_msg(const struct packet_early_chat_msg *packet)
                packet->conn_id);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle a connect message packet. Server sends connect message to
   client immediately when client connects.
-**************************************************************************/
+****************************************************************************/
 void handle_connect_msg(const char *message)
 {
   popup_connect_msg(_("Welcome"), message);
 }
 
-/****************************************************************************
+/************************************************************************//**
+  Handle server info packet. Server sends info packet as soon as it knows
+  client to be compatible.
+****************************************************************************/
+void handle_server_info(const char *version_label, int major_version,
+                        int minor_version, int patch_version, int emerg_version)
+{
+  if (emerg_version > 0) {
+    log_verbose("Server has version %d.%d.%d.%d%s",
+                major_version, minor_version, patch_version, emerg_version,
+                version_label);
+  } else {
+    log_verbose("Server has version %d.%d.%d%s",
+                major_version, minor_version, patch_version, version_label);
+  }
+}
+
+/************************************************************************//**
   Page_msg header handler.
 ****************************************************************************/
 void handle_page_msg(const char *caption, const char *headline,
@@ -1458,7 +1488,7 @@ void handle_page_msg(const char *caption, const char *headline,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Page_msg part handler.
 ****************************************************************************/
 void handle_page_msg_part(const char *lines)
@@ -1484,7 +1514,7 @@ void handle_page_msg_part(const char *lines)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet unit_info.
 ****************************************************************************/
 void handle_unit_info(const struct packet_unit_info *packet)
@@ -1498,7 +1528,7 @@ void handle_unit_info(const struct packet_unit_info *packet)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Called to do basic handling for a unit_info or short_unit_info packet.
 
   Both owned and foreign units are handled; you may need to check unit
@@ -1513,7 +1543,7 @@ void handle_unit_info(const struct packet_unit_info *packet)
   Depending on what caused the change, different actions may be taken.
   Therefore, this function is a bit of a jungle, and it is advisable
   to read thoroughly before changing.
-**************************************************************************/
+****************************************************************************/
 static bool handle_unit_packet_common(struct unit *packet_unit)
 {
   struct city *pcity;
@@ -1553,12 +1583,13 @@ static bool handle_unit_packet_common(struct unit *packet_unit)
     ret = TRUE;
     punit->activity_count = packet_unit->activity_count;
     unit_change_battlegroup(punit, packet_unit->battlegroup);
-    if (punit->ai_controlled != packet_unit->ai_controlled) {
-      punit->ai_controlled = packet_unit->ai_controlled;
+    if (punit->ssa_controller != packet_unit->ssa_controller) {
+      punit->ssa_controller = packet_unit->ssa_controller;
       repaint_unit = TRUE;
       /* AI is set:     may change focus */
       /* AI is cleared: keep focus */
-      if (packet_unit->ai_controlled && unit_is_in_focus(punit)) {
+      if (packet_unit->ssa_controller != SSA_NONE
+          && unit_is_in_focus(punit)) {
         check_focus = TRUE;
       }
     }
@@ -1780,6 +1811,7 @@ static bool handle_unit_packet_common(struct unit *packet_unit)
     punit->fuel = packet_unit->fuel;
     punit->goto_tile = packet_unit->goto_tile;
     punit->paradropped = packet_unit->paradropped;
+    punit->stay = packet_unit->stay;
     if (punit->done_moving != packet_unit->done_moving) {
       punit->done_moving = packet_unit->done_moving;
       check_focus = TRUE;
@@ -1910,7 +1942,7 @@ static bool handle_unit_packet_common(struct unit *packet_unit)
   return ret;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Receive a short_unit info packet.
 ****************************************************************************/
 void handle_unit_short_info(const struct packet_unit_short_info *packet)
@@ -1973,16 +2005,16 @@ void handle_unit_short_info(const struct packet_unit_short_info *packet)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Server requested topology change.
 ****************************************************************************/
 void handle_set_topology(int topology_id)
 {
   wld.map.topology_id = topology_id;
 
-  if ((forced_tileset_name[0] == '\0'
-      && tileset_map_topo_compatible(topology_id, tileset) != TOPO_COMPATIBLE)
-      || strcmp(tileset_basename(tileset), game.control.preferred_tileset)) {
+  if (forced_tileset_name[0] == '\0'
+      && (tileset_map_topo_compatible(topology_id, tileset) == TOPO_INCOMP_HARD
+          || strcmp(tileset_basename(tileset), game.control.preferred_tileset))) {
     const char *ts_to_load;
 
     ts_to_load = tileset_name_for_topology(topology_id);
@@ -1993,7 +2025,7 @@ void handle_set_topology(int topology_id)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Receive information about the map size and topology from the server.  We
   initialize some global variables at the same time.
 ****************************************************************************/
@@ -2026,24 +2058,25 @@ void handle_map_info(int xsize, int ysize, int topology_id)
   packhand_init();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet game_info handler.
 ****************************************************************************/
 void handle_game_info(const struct packet_game_info *pinfo)
 {
   bool boot_help;
-  bool update_aifill_button = FALSE;
+  bool update_aifill_button = FALSE, update_ai_skill_level = FALSE;
 
   if (game.info.aifill != pinfo->aifill) {
     update_aifill_button = TRUE;
+  }
+  if (game.info.skill_level != pinfo->skill_level) {
+    update_ai_skill_level = TRUE;
   }
 
   if (game.info.is_edit_mode != pinfo->is_edit_mode) {
     popdown_all_city_dialogs();
     /* Clears the current goto command. */
-    set_hover_state(NULL, HOVER_NONE,
-                    ACTIVITY_LAST, NULL,
-                    EXTRA_NONE, ACTION_NONE, ORDER_LAST);
+    clear_hover_state();
 
     if (pinfo->is_edit_mode && game.scenario.handmade) {
       if (!handmade_scenario_warning()) {
@@ -2083,7 +2116,7 @@ void handle_game_info(const struct packet_game_info *pinfo)
   unit_focus_update();
   menus_update();
   players_dialog_update();
-  if (update_aifill_button) {
+  if (update_aifill_button || update_ai_skill_level) {
     update_start_page();
   }
   
@@ -2094,7 +2127,7 @@ void handle_game_info(const struct packet_game_info *pinfo)
   editgui_notify_object_changed(OBJTYPE_GAME, 1, FALSE);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet calendar_info handler.
 ****************************************************************************/
 void handle_calendar_info(const struct packet_calendar_info *pcalendar)
@@ -2102,9 +2135,9 @@ void handle_calendar_info(const struct packet_calendar_info *pcalendar)
   game.calendar = *pcalendar;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Sets the remaining turn time.
-**************************************************************************/
+****************************************************************************/
 void handle_timeout_info(float seconds_to_phasedone, float last_turn_change_time)
 {
   if (current_turn_timeout() != 0 && seconds_to_phasedone >= 0) {
@@ -2118,10 +2151,10 @@ void handle_timeout_info(float seconds_to_phasedone, float last_turn_change_time
   game.tinfo.last_turn_change_time = last_turn_change_time;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Sets the target government.  This will automatically start a revolution
   if the target government differs from the current one.
-**************************************************************************/
+****************************************************************************/
 void set_government_choice(struct government *government)
 {
   if (NULL != client.conn.playing
@@ -2131,21 +2164,21 @@ void set_government_choice(struct government *government)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Begin a revolution by telling the server to start it.  This also clears
   the current government choice.
-**************************************************************************/
+****************************************************************************/
 void start_revolution(void)
 {
   dsend_packet_player_change_government(&client.conn,
-				    game.info.government_during_revolution_id);
+                                        game.info.government_during_revolution_id);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle a notification that the player slot identified by 'playerno' has
   become unused. If the slot is already unused, then just ignore. Otherwise
   update the total player count and the GUI.
-**************************************************************************/
+****************************************************************************/
 void handle_player_remove(int playerno)
 {
   struct player_slot *pslot;
@@ -2186,7 +2219,7 @@ void handle_player_remove(int playerno)
   editgui_notify_object_changed(OBJTYPE_PLAYER, plr_nbr, TRUE);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle information about a player. If the packet refers to a player slot
   that is not currently used, then this function will set that slot to
   used and update the total player count.
@@ -2210,10 +2243,10 @@ void handle_player_info(const struct packet_player_info *pinfo)
   pplayer = player_new(pslot);
 
   if ((pplayer->rgb == NULL) != !pinfo->color_valid
-      || (pinfo->color_valid &&
-          (pplayer->rgb->r != pinfo->color_red
-           || pplayer->rgb->g != pinfo->color_green
-           || pplayer->rgb->b != pinfo->color_blue))) {
+      || (pinfo->color_valid
+          && (pplayer->rgb->r != pinfo->color_red
+              || pplayer->rgb->g != pinfo->color_green
+              || pplayer->rgb->b != pinfo->color_blue))) {
     struct rgbcolor *prgbcolor;
 
     if (pinfo->color_valid) {
@@ -2297,7 +2330,13 @@ void handle_player_info(const struct packet_player_info *pinfo)
     }
   }
 
-  pplayer->culture = pinfo->culture;
+  pplayer->history = pinfo->history;
+  pplayer->client.culture = pinfo->culture;
+
+  if (pplayer->economic.infra_points != pinfo->infrapoints) {
+    pplayer->economic.infra_points = pinfo->infrapoints;
+    update_infra_dialog();
+  }
 
   /* Don't use player_iterate or player_slot_count here, because we ignore
    * the real number of players and we want to read all the datas. */
@@ -2385,12 +2424,13 @@ void handle_player_info(const struct packet_player_info *pinfo)
     city_report_dialog_update();
     multipliers_dialog_update();
     update_info_label();
+    menus_update();
   }
 
   upgrade_canvas_clipboard();
 
   players_dialog_update();
-  conn_list_dialog_update();
+  update_start_page();
 
   if (is_new_nation) {
     races_toggles_set_sensitive();
@@ -2411,7 +2451,16 @@ void handle_player_info(const struct packet_player_info *pinfo)
                                 FALSE);
 }
 
-/****************************************************************************
+/************************************************************************//**
+  This is a packet that only the web-client needs. The regular client has no
+  use for it.
+  TODO: Do not generate code calling this in the C-client.
+****************************************************************************/
+void handle_web_player_info_addition(int playerno, int expected_income)
+{
+}
+
+/************************************************************************//**
   Receive a research info packet.
 ****************************************************************************/
 void handle_research_info(const struct packet_research_info *packet)
@@ -2469,13 +2518,14 @@ void handle_research_info(const struct packet_research_info *packet)
       }
       science_report_dialog_update();
       if (tech_changed) {
-        /* If we just learned bridge building and focus is on a settler
-         * on a river the road menu item will remain disabled unless we
-         * do this. (applies in other cases as well.) */
-        if (0 < get_num_units_in_focus()) {
-          menus_update();
-        }
-	script_client_signal_emit("new_tech", 0);
+        /* Some ways a new or lost tech can affect menus:
+         *  - If tech is needed for certain governments, the government
+         *    switching menus need updating.
+         *  - If we just learned/lost bridge building and focus is on a
+         *    worker on a river, the road menu item needs updating. */
+        menus_update();
+
+	script_client_signal_emit("new_tech");
 
         /* If we got a new tech the tech tree news an update. */
         science_report_dialog_redraw();
@@ -2494,7 +2544,7 @@ void handle_research_info(const struct packet_research_info *packet)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet player_diplstate handler.
 ****************************************************************************/
 void handle_player_diplstate(const struct packet_player_diplstate *packet)
@@ -2575,7 +2625,10 @@ void handle_player_diplstate(const struct packet_player_diplstate *packet)
       }
     }
 
-    if (tgt_tile) {
+    if (tgt_tile
+        || ((tgt_tile = index_to_tile(&(wld.map),
+                                      action_selection_target_tile()))
+            && tile_owner(tgt_tile) == plr1)) {
       /* The diplomatic relationship to the target in an open action
        * selection dialog have changed. This probably changes
        * the set of available actions. */
@@ -2583,12 +2636,13 @@ void handle_player_diplstate(const struct packet_player_diplstate *packet)
                                     action_selection_actor_unit(),
                                     action_selection_target_unit(),
                                     tgt_tile->index,
+                                    action_selection_target_extra(),
                                     FALSE);
     }
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Remove, add, or update dummy connection struct representing some
   connection to the server, with info from packet_conn_info.
   Updates player and game connection lists.
@@ -2696,10 +2750,10 @@ void handle_conn_info(const struct packet_conn_info *pinfo)
   }
 }
 
-/*************************************************************************
+/************************************************************************//**
   Handles a conn_ping_info packet from the server.  This packet contains
   ping times for each connection.
-**************************************************************************/
+****************************************************************************/
 void handle_conn_ping_info(int connections, const int *conn_id,
                            const float *ping_time)
 {
@@ -2720,9 +2774,9 @@ void handle_conn_ping_info(int connections, const int *conn_id,
   players_dialog_update();
 }
 
-/**************************************************************************
+/************************************************************************//**
   Received package about gaining an achievement.
-**************************************************************************/
+****************************************************************************/
 void handle_achievement_info(int id, bool gained, bool first)
 {
   struct achievement *pach;
@@ -2745,23 +2799,23 @@ void handle_achievement_info(int id, bool gained, bool first)
   }
 }
 
-/**************************************************************************
-Ideally the client should let the player choose which type of
-modules and components to build, and (possibly) where to extend
-structurals.  The protocol now makes this possible, but the
-client is not yet that good (would require GUI improvements)
-so currently the client choices stuff automatically if there
-is anything unplaced.
+/************************************************************************//**
+  Ideally the client should let the player choose which type of
+  modules and components to build, and (possibly) where to extend
+  structurals.  The protocol now makes this possible, but the
+  client is not yet that good (would require GUI improvements)
+  so currently the client choices stuff automatically if there
+  is anything unplaced.
 
-This function makes a choice (sends spaceship_action) and
-returns 1 if we placed something, else 0.
+  This function makes a choice (sends spaceship_action) and
+  returns 1 if we placed something, else 0.
 
-Do things one at a time; the server will send us an updated
-spaceship_info packet, and we'll be back here to do anything
-which is left.
-**************************************************************************/
+  Do things one at a time; the server will send us an updated
+  spaceship_info packet, and we'll be back here to do anything
+  which is left.
+****************************************************************************/
 static bool spaceship_autoplace(struct player *pplayer,
-			       struct player_spaceship *ship)
+                                struct player_spaceship *ship)
 {
   if (can_client_issue_orders()) {
     struct spaceship_component place;
@@ -2776,7 +2830,7 @@ static bool spaceship_autoplace(struct player *pplayer,
   return FALSE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet spaceship_info handler.
 ****************************************************************************/
 void handle_spaceship_info(const struct packet_spaceship_info *p)
@@ -2821,7 +2875,7 @@ void handle_spaceship_info(const struct packet_spaceship_info *p)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet tile_info handler.
 ****************************************************************************/
 void handle_tile_info(const struct packet_tile_info *packet)
@@ -2881,6 +2935,23 @@ void handle_tile_info(const struct packet_tile_info *packet)
     tile_changed = TRUE;
   }
 
+  if (packet->placing < 0) {
+    if (ptile->placing != NULL) {
+      tile_changed = TRUE;
+      ptile->placing = NULL;
+      ptile->infra_turns = 0;
+    }
+  } else {
+    struct extra_type *old = ptile->placing;
+
+    ptile->placing = extra_by_number(packet->placing);
+    if (ptile->placing != old
+        || ptile->infra_turns != packet->place_turn - game.info.turn) {
+      tile_changed = TRUE;
+    }
+    ptile->infra_turns = packet->place_turn - game.info.turn;
+  }
+
   if (NULL == tile_worked(ptile)
       || tile_worked(ptile)->id != packet->worked) {
     if (IDENTITY_NUMBER_ZERO != packet->worked) {
@@ -2889,7 +2960,7 @@ void handle_tile_info(const struct packet_tile_info *packet)
       if (NULL == pwork) {
         char named[MAX_LEN_CITYNAME];
 
-        /* new unseen city, or before city_info */
+        /* new unseen ("invisible") city, or before city_info */
         fc_snprintf(named, sizeof(named), "%06u", packet->worked);
 
         pwork = create_city_virtual(invisible.placeholder, NULL, named);
@@ -2901,13 +2972,15 @@ void handle_tile_info(const struct packet_tile_info *packet)
         log_debug("(%d,%d) invisible city %d, %s",
                   TILE_XY(ptile), pwork->id, city_name_get(pwork));
       } else if (NULL == city_tile(pwork)) {
-        /* old unseen city, or before city_info */
+        /* old unseen ("invisible") city, or before city_info */
         if (NULL != powner && city_owner(pwork) != powner) {
           /* update placeholder with current owner */
           pwork->owner = powner;
           pwork->original = powner;
         }
       } else {
+        /* We have a real (not invisible) city record for this ID, but
+         * perhaps our info about that city is out of date. */
         int dist_sq = sq_map_distance(city_tile(pwork), ptile);
 
         if (dist_sq > city_map_radius_sq_get(pwork)) {
@@ -2916,13 +2989,32 @@ void handle_tile_info(const struct packet_tile_info *packet)
            * that all workers fit in, so set it so. */
           city_map_radius_sq_set(pwork, dist_sq);
         }
+        /* This might be a known city that is open in a dialog.
+         * (And this might be our only prompt to refresh the worked tiles
+         * display in its city map, if a worker rearrangement does not
+         * change anything else about the city such as output.) */
+        {
+          struct city *oldwork = tile_worked(ptile);
+          if (oldwork && NULL != city_tile(oldwork)) {
+            /* Refresh previous city too if it's real and different */
+            refresh_city_dialog(oldwork);
+          }
+          /* Refresh new city working tile (which we already know is real) */
+          refresh_city_dialog(pwork);
+        }
       }
 
-      /* This marks tile worked by invisible city. Other
+      /* This marks tile worked by (possibly invisible) city. Other
        * parts of the code have to handle invisible cities correctly
        * (ptile->worked->tile == NULL) */
       tile_set_worked(ptile, pwork);
     } else {
+      /* Tile is no longer being worked by a city.
+       * (Again, this might be our only prompt to refresh the worked tiles
+       * display for the previous working city.) */
+      if (tile_worked(ptile) && NULL != city_tile(tile_worked(ptile))) {
+        refresh_city_dialog(tile_worked(ptile));
+      }
       tile_set_worked(ptile, NULL);
     }
 
@@ -3031,9 +3123,14 @@ void handle_tile_info(const struct packet_tile_info *packet)
       menus_update();
     }
   }
+
+  /* FIXME: we really ought to call refresh_city_dialog() for any city
+   * whose radii include this tile, to update the city map display.
+   * But that would be expensive. We deal with the (common) special
+   * case of changes in worked tiles above. */
 }
 
-/****************************************************************************
+/************************************************************************//**
   Received packet containing info about current scenario
 ****************************************************************************/
 void handle_scenario_info(const struct packet_scenario_info *packet)
@@ -3054,7 +3151,7 @@ void handle_scenario_info(const struct packet_scenario_info *packet)
   editgui_notify_object_changed(OBJTYPE_GAME, 1, FALSE);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Received packet containing description of current scenario
 ****************************************************************************/
 void handle_scenario_description(const char *description)
@@ -3064,7 +3161,7 @@ void handle_scenario_description(const char *description)
   editgui_notify_object_changed(OBJTYPE_GAME, 1, FALSE);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Take arrival of ruleset control packet to indicate that
   current allocated governments should be free'd, and new
   memory allocated for new size. The same for nations.
@@ -3125,7 +3222,7 @@ void handle_ruleset_control(const struct packet_ruleset_control *packet)
     if (strcmp(packet->preferred_tileset, tileset_basename(tileset))) {
       /* It's not currently in use */
       if (gui_options.autoaccept_tileset_suggestion) {
-        tilespec_reread(game.control.preferred_tileset, FALSE, 1.0f);
+        tilespec_reread(game.control.preferred_tileset, TRUE, 1.0f);
       } else {
         popup_tileset_suggestion_dialog();
       }
@@ -3159,7 +3256,7 @@ void handle_ruleset_control(const struct packet_ruleset_control *packet)
   tileset_ruleset_reset(tileset);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Ruleset summary.
 ****************************************************************************/
 void handle_ruleset_summary(const struct packet_ruleset_summary *packet)
@@ -3177,7 +3274,7 @@ void handle_ruleset_summary(const struct packet_ruleset_summary *packet)
   fc_strlcpy(game.ruleset_summary, packet->text, len + 1);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Next part of ruleset description.
 ****************************************************************************/
 void handle_ruleset_description_part(
@@ -3187,7 +3284,7 @@ void handle_ruleset_description_part(
              game.control.desc_length + 1);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Received packet indicating that all rulesets have now been received.
 ****************************************************************************/
 void handle_rulesets_ready(void)
@@ -3241,7 +3338,7 @@ void handle_rulesets_ready(void)
   game.client.ruleset_ready = TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet ruleset_unit_class handler.
 ****************************************************************************/
 void handle_ruleset_unit_class(const struct packet_ruleset_unit_class *p)
@@ -3260,7 +3357,7 @@ void handle_ruleset_unit_class(const struct packet_ruleset_unit_class *p)
   PACKET_STRVEC_EXTRACT(c->helptext, p->helptext);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet ruleset_unit handler.
 ****************************************************************************/
 void handle_ruleset_unit(const struct packet_ruleset_unit *p)
@@ -3285,8 +3382,9 @@ void handle_ruleset_unit(const struct packet_ruleset_unit *p)
   u->defense_strength   = p->defense_strength;
   u->move_rate          = p->move_rate;
   u->require_advance    = advance_by_number(p->tech_requirement);
-  u->need_improvement   = improvement_by_number(p->impr_requirement);
-  u->need_government    = government_by_number(p->gov_requirement);
+  for (i = 0; i < p->build_reqs_count; i++) {
+    requirement_vector_append(&u->build_reqs, p->build_reqs[i]);
+  }
   u->vision_radius_sq = p->vision_radius_sq;
   u->transport_capacity = p->transport_capacity;
   u->hp                 = p->hp;
@@ -3321,16 +3419,28 @@ void handle_ruleset_unit(const struct packet_ruleset_unit *p)
     for (i = 0; i < p->veteran_levels; i++) {
       veteran_system_definition(u->veteran, i, p->veteran_name[i],
                                 p->power_fact[i], p->move_bonus[i],
-                                p->raise_chance[i], p->work_raise_chance[i]);
+                                p->base_raise_chance[i],
+                                p->work_raise_chance[i]);
     }
   }
 
   PACKET_STRVEC_EXTRACT(u->helptext, p->helptext);
 
+  u->adv.worker = p->worker;
+
   tileset_setup_unit_type(tileset, u);
 }
 
-/****************************************************************************
+/************************************************************************//**
+  This is a packet that only the web-client needs. The regular client has no
+  use for it.
+  TODO: Do not generate code calling this in the C-client.
+****************************************************************************/
+void handle_web_ruleset_unit_addition(int id, bv_actions utype_actions)
+{
+}
+
+/************************************************************************//**
   Packet ruleset_unit_bonus handler.
 ****************************************************************************/
 void handle_ruleset_unit_bonus(const struct packet_ruleset_unit_bonus *p)
@@ -3350,7 +3460,7 @@ void handle_ruleset_unit_bonus(const struct packet_ruleset_unit_bonus *p)
   combat_bonus_list_append(u->bonuses, bonus);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet ruleset_unit_flag handler.
 ****************************************************************************/
 void handle_ruleset_unit_flag(const struct packet_ruleset_unit_flag *p)
@@ -3375,9 +3485,9 @@ void handle_ruleset_unit_flag(const struct packet_ruleset_unit_flag *p)
   set_user_unit_type_flag_name(p->id, flagname, helptxt);
 }
 
-/***************************************************************************
+/************************************************************************//**
   Packet ruleset_unit_class_flag handler.
-***************************************************************************/
+****************************************************************************/
 void handle_ruleset_unit_class_flag(
     const struct packet_ruleset_unit_class_flag *p)
 {
@@ -3402,14 +3512,14 @@ void handle_ruleset_unit_class_flag(
   set_user_unit_class_flag_name(p->id, flagname, helptxt);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Unpack a traditional tech req from a standard requirement vector (that
   still is in the network serialized format rather than a proper
   requirement vector).
 
   Returns the position in the requirement vector after unpacking. It will
   increase if a tech req was extracted.
-**************************************************************************/
+****************************************************************************/
 static int unpack_tech_req(const enum tech_req r_num,
                            const int reqs_size,
                            const struct requirement *reqs,
@@ -3437,7 +3547,7 @@ static int unpack_tech_req(const enum tech_req r_num,
   return i;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet ruleset_tech handler.
 ****************************************************************************/
 void handle_ruleset_tech(const struct packet_ruleset_tech *p)
@@ -3502,7 +3612,7 @@ void handle_ruleset_tech(const struct packet_ruleset_tech *p)
   tileset_setup_tech_type(tileset, a);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet ruleset_tech_class handler.
 ****************************************************************************/
 void handle_ruleset_tech_class(const struct packet_ruleset_tech_class *p)
@@ -3515,7 +3625,7 @@ void handle_ruleset_tech_class(const struct packet_ruleset_tech_class *p)
   ptclass->cost_pct = p->cost_pct;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet ruleset_tech_flag handler.
 ****************************************************************************/
 void handle_ruleset_tech_flag(const struct packet_ruleset_tech_flag *p)
@@ -3540,7 +3650,7 @@ void handle_ruleset_tech_flag(const struct packet_ruleset_tech_flag *p)
   set_user_tech_flag_name(p->id, flagname, helptxt);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet ruleset_building handler.
 ****************************************************************************/
 void handle_ruleset_building(const struct packet_ruleset_building *p)
@@ -3589,12 +3699,13 @@ void handle_ruleset_building(const struct packet_ruleset_building *p)
   tileset_setup_impr_type(tileset, b);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet ruleset_multiplier handler.
 ****************************************************************************/
 void handle_ruleset_multiplier(const struct packet_ruleset_multiplier *p)
 {
   struct multiplier *pmul = multiplier_by_number(p->id);
+  int j;
 
   fc_assert_ret_msg(NULL != pmul, "Bad multiplier %d.", p->id);
 
@@ -3607,10 +3718,15 @@ void handle_ruleset_multiplier(const struct packet_ruleset_multiplier *p)
 
   names_set(&pmul->name, NULL, p->name, p->rule_name);
 
+  for (j = 0; j < p->reqs_count; j++) {
+    requirement_vector_append(&pmul->reqs, p->reqs[j]);
+  }
+  fc_assert(pmul->reqs.size == p->reqs_count);
+
   PACKET_STRVEC_EXTRACT(pmul->helptext, p->helptext);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet ruleset_government handler.
 ****************************************************************************/
 void handle_ruleset_government(const struct packet_ruleset_government *p)
@@ -3636,7 +3752,7 @@ void handle_ruleset_government(const struct packet_ruleset_government *p)
   tileset_setup_government(tileset, gov);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet ruleset_government_ruler_title handler.
 ****************************************************************************/
 void handle_ruleset_government_ruler_title
@@ -3651,7 +3767,7 @@ void handle_ruleset_government_ruler_title
                                     packet->female_title);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet ruleset_terrain handler.
 ****************************************************************************/
 void handle_ruleset_terrain(const struct packet_ruleset_terrain *p)
@@ -3707,6 +3823,7 @@ void handle_ruleset_terrain(const struct packet_ruleset_terrain *p)
   }
   pterrain->transform_result = terrain_by_number(p->transform_result);
   pterrain->transform_time = p->transform_time;
+  pterrain->placing_time = p->placing_time;
   pterrain->pillage_time = p->pillage_time;
   pterrain->clean_pollution_time = p->clean_pollution_time;
   pterrain->clean_fallout_time = p->clean_fallout_time;
@@ -3721,7 +3838,7 @@ void handle_ruleset_terrain(const struct packet_ruleset_terrain *p)
   tileset_setup_tile_type(tileset, pterrain);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet ruleset_terrain_flag handler.
 ****************************************************************************/
 void handle_ruleset_terrain_flag(const struct packet_ruleset_terrain_flag *p)
@@ -3746,7 +3863,7 @@ void handle_ruleset_terrain_flag(const struct packet_ruleset_terrain_flag *p)
   set_user_terrain_flag_name(p->id, flagname, helptxt);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a packet about a particular terrain resource.
 ****************************************************************************/
 void handle_ruleset_resource(const struct packet_ruleset_resource *p)
@@ -3765,7 +3882,7 @@ void handle_ruleset_resource(const struct packet_ruleset_resource *p)
   } output_type_iterate_end;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a packet about a particular extra type.
 ****************************************************************************/
 void handle_ruleset_extra(const struct packet_ruleset_extra *p)
@@ -3781,10 +3898,20 @@ void handle_ruleset_extra(const struct packet_ruleset_extra *p)
   names_set(&pextra->name, NULL, p->name, p->rule_name);
 
   pextra->category = p->category;
-  pextra->causes = p->causes;
-  pextra->rmcauses = p->rmcauses;
 
-  extra_to_category_list(pextra, pextra->category);
+  pextra->causes = 0;
+  for (i = 0; i < EC_COUNT; i++) {
+    if (BV_ISSET(p->causes, i)) {
+      pextra->causes |= (1 << i);
+    }
+  }
+
+  pextra->rmcauses = 0;
+  for (i = 0; i < ERM_COUNT; i++) {
+    if (BV_ISSET(p->rmcauses, i)) {
+      pextra->rmcauses |= (1 << i);
+    }
+  }
 
   if (pextra->causes == 0) {
     extra_to_caused_by_list(pextra, EC_NONE);
@@ -3850,10 +3977,12 @@ void handle_ruleset_extra(const struct packet_ruleset_extra *p)
 
   pextra->visibility_req = p->visibility_req;
   pextra->buildable = p->buildable;
+  pextra->generated = p->generated;
   pextra->build_time = p->build_time;
   pextra->build_time_factor = p->build_time_factor;
   pextra->removal_time = p->removal_time;
   pextra->removal_time_factor = p->removal_time_factor;
+  pextra->infracost = p->infracost;
   pextra->defense_bonus = p->defense_bonus;
 
   if (pextra->defense_bonus != 0) {
@@ -3881,9 +4010,9 @@ void handle_ruleset_extra(const struct packet_ruleset_extra *p)
   tileset_setup_extra(tileset, pextra);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Packet ruleset_extra_flag handler.
-**************************************************************************/
+****************************************************************************/
 void handle_ruleset_extra_flag(const struct packet_ruleset_extra_flag *p)
 {
   const char *flagname;
@@ -3907,7 +4036,7 @@ void handle_ruleset_extra_flag(const struct packet_ruleset_extra_flag *p)
   set_user_extra_flag_name(p->id, flagname, helptxt);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a packet about a particular base type.
 ****************************************************************************/
 void handle_ruleset_base(const struct packet_ruleset_base *p)
@@ -3925,7 +4054,7 @@ void handle_ruleset_base(const struct packet_ruleset_base *p)
   pbase->flags = p->flags;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a packet about a particular road type.
 ****************************************************************************/
 void handle_ruleset_road(const struct packet_ruleset_road *p)
@@ -3954,7 +4083,7 @@ void handle_ruleset_road(const struct packet_ruleset_road *p)
   proad->flags = p->flags;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a packet about a particular goods type.
 ****************************************************************************/
 void handle_ruleset_goods(const struct packet_ruleset_goods *p)
@@ -3979,9 +4108,9 @@ void handle_ruleset_goods(const struct packet_ruleset_goods *p)
   PACKET_STRVEC_EXTRACT(pgood->helptext, p->helptext);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle a packet about a particular action.
-**************************************************************************/
+****************************************************************************/
 void handle_ruleset_action(const struct packet_ruleset_action *p)
 {
   struct action *act;
@@ -3999,15 +4128,19 @@ void handle_ruleset_action(const struct packet_ruleset_action *p)
   sz_strlcpy(act->ui_name, p->ui_name);
   act->quiet = p->quiet;
 
+  act->result = p->result;
+  act->actor_consuming_always = p->actor_consuming_always;
+
   act->actor_kind  = p->act_kind;
   act->target_kind = p->tgt_kind;
+  act->sub_target_kind = p->sub_tgt_kind;
 
   act->min_distance = p->min_distance;
   act->max_distance = p->max_distance;
   act->blocked_by = p->blocked_by;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a packet about a particular action enabler.
 ****************************************************************************/
 void
@@ -4042,9 +4175,9 @@ handle_ruleset_action_enabler(const struct packet_ruleset_action_enabler *p)
   action_enabler_add(enabler);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle a packet about a particular action auto performer rule.
-**************************************************************************/
+****************************************************************************/
 void handle_ruleset_action_auto(const struct packet_ruleset_action_auto *p)
 {
   struct action_auto_perf *auto_perf;
@@ -4064,7 +4197,7 @@ void handle_ruleset_action_auto(const struct packet_ruleset_action_auto *p)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a packet about a particular disaster type.
 ****************************************************************************/
 void handle_ruleset_disaster(const struct packet_ruleset_disaster *p)
@@ -4086,7 +4219,7 @@ void handle_ruleset_disaster(const struct packet_ruleset_disaster *p)
   pdis->effects = p->effects;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a packet about a particular achievement type.
 ****************************************************************************/
 void handle_ruleset_achievement(const struct packet_ruleset_achievement *p)
@@ -4102,7 +4235,7 @@ void handle_ruleset_achievement(const struct packet_ruleset_achievement *p)
   pach->value = p->value;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a packet about a particular trade route type.
 ****************************************************************************/
 void handle_ruleset_trade(const struct packet_ruleset_trade *p)
@@ -4116,7 +4249,7 @@ void handle_ruleset_trade(const struct packet_ruleset_trade *p)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle the terrain control ruleset packet sent by the server.
 ****************************************************************************/
 void handle_ruleset_terrain_control
@@ -4129,7 +4262,7 @@ void handle_ruleset_terrain_control
   init_move_fragments();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle the list of nation sets, sent as part of the ruleset.
 ****************************************************************************/
 void handle_ruleset_nation_sets
@@ -4147,7 +4280,7 @@ void handle_ruleset_nation_sets
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle the list of nation groups, sent as part of the ruleset.
 ****************************************************************************/
 void handle_ruleset_nation_groups
@@ -4165,7 +4298,7 @@ void handle_ruleset_nation_groups
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle initial ruleset nation info.
 ****************************************************************************/
 void handle_ruleset_nation(const struct packet_ruleset_nation *packet)
@@ -4229,19 +4362,32 @@ void handle_ruleset_nation(const struct packet_ruleset_nation *packet)
   /* init_government may be NULL */
   pnation->init_government = government_by_number(packet->init_government_id);
   for (i = 0; i < MAX_NUM_TECH_LIST; i++) {
-    pnation->init_techs[i] = packet->init_techs[i];
+    if (i < packet->init_techs_count) {
+      pnation->init_techs[i] = packet->init_techs[i];
+    } else {
+      pnation->init_techs[i] = A_LAST;
+    }
   }
   for (i = 0; i < MAX_NUM_UNIT_LIST; i++) {
-    pnation->init_units[i] = utype_by_number(packet->init_units[i]);
+    if (i < packet->init_units_count) {
+      pnation->init_units[i] = utype_by_number(packet->init_units[i]);
+    } else {
+      /* TODO: should init_units be initialized in common/nation.c? */
+      pnation->init_units[i] = utype_by_number(U_LAST);
+    }
   }
   for (i = 0; i < MAX_NUM_BUILDING_LIST; i++) {
-    pnation->init_buildings[i] = packet->init_buildings[i];
+    if (i < packet->init_buildings_count) {
+      pnation->init_buildings[i] = packet->init_buildings[i];
+    } else {
+      pnation->init_buildings[i] = B_LAST;
+    }
   }
 
   tileset_setup_nation_flag(tileset, pnation);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle nation availability info.
   This can change during pregame so is separate from ruleset_nation.
 ****************************************************************************/
@@ -4260,7 +4406,7 @@ void handle_nation_availability(int ncount, const bool *is_pickable,
   races_update_pickable(nationset_change);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a packet about a particular style.
 ****************************************************************************/
 void handle_ruleset_style(const struct packet_ruleset_style *p)
@@ -4272,9 +4418,32 @@ void handle_ruleset_style(const struct packet_ruleset_style *p)
   names_set(&pstyle->name, NULL, p->name, p->rule_name);
 }
 
-/**************************************************************************
+/************************************************************************//**
+  Handle a packet about a particular clause.
+****************************************************************************/
+void handle_ruleset_clause(const struct packet_ruleset_clause *p)
+{
+  struct clause_info *info = clause_info_get(p->type);
+  int i;
+
+  fc_assert_ret_msg(NULL != info, "Bad clause %d.", p->type);
+
+  info->enabled = p->enabled;
+
+  for (i = 0; i < p->giver_reqs_count; i++) {
+    requirement_vector_append(&info->giver_reqs, p->giver_reqs[i]);
+  }
+  fc_assert(info->giver_reqs.size == p->giver_reqs_count);
+
+  for (i = 0; i < p->receiver_reqs_count; i++) {
+    requirement_vector_append(&info->receiver_reqs, p->receiver_reqs[i]);
+  }
+  fc_assert(info->receiver_reqs.size == p->receiver_reqs_count);
+}
+
+/************************************************************************//**
   Handle city style packet.
-**************************************************************************/
+****************************************************************************/
 void handle_ruleset_city(const struct packet_ruleset_city *packet)
 {
   int id, j;
@@ -4299,9 +4468,9 @@ void handle_ruleset_city(const struct packet_ruleset_city *packet)
   tileset_setup_city_tiles(tileset, id);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle music style packet.
-**************************************************************************/
+****************************************************************************/
 void handle_ruleset_music(const struct packet_ruleset_music *packet)
 {
   int id, j;
@@ -4322,7 +4491,7 @@ void handle_ruleset_music(const struct packet_ruleset_music *packet)
   sz_strlcpy(pmus->music_combat, packet->music_combat);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet ruleset_game handler.
 ****************************************************************************/
 void handle_ruleset_game(const struct packet_ruleset_game *packet)
@@ -4338,16 +4507,24 @@ void handle_ruleset_game(const struct packet_ruleset_game *packet)
   game.veteran->levels = packet->veteran_levels;
 
   for (i = 0; i < MAX_NUM_TECH_LIST; i++) {
-    game.rgame.global_init_techs[i] = packet->global_init_techs[i];
+    if (i < packet->global_init_techs_count) {
+      game.rgame.global_init_techs[i] = packet->global_init_techs[i];
+    } else {
+      game.rgame.global_init_techs[i] = A_LAST;
+    }
   }
   for (i = 0; i < MAX_NUM_BUILDING_LIST; i++) {
-    game.rgame.global_init_buildings[i] = packet->global_init_buildings[i];
+    if (i < packet->global_init_buildings_count) {
+      game.rgame.global_init_buildings[i] = packet->global_init_buildings[i];
+    } else {
+      game.rgame.global_init_buildings[i] = B_LAST;
+    }
   }
 
   for (i = 0; i < packet->veteran_levels; i++) {
     veteran_system_definition(game.veteran, i, packet->veteran_name[i],
                               packet->power_fact[i], packet->move_bonus[i],
-                              packet->raise_chance[i],
+                              packet->base_raise_chance[i],
                               packet->work_raise_chance[i]);
   }
 
@@ -4359,7 +4536,7 @@ void handle_ruleset_game(const struct packet_ruleset_game *packet)
   tileset_background_init(tileset);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle info about a single specialist.
 ****************************************************************************/
 void handle_ruleset_specialist(const struct packet_ruleset_specialist *p)
@@ -4372,6 +4549,7 @@ void handle_ruleset_specialist(const struct packet_ruleset_specialist *p)
   names_set(&s->name, NULL, p->plural_name, p->rule_name);
   name_set(&s->abbreviation, NULL, p->short_name);
 
+  sz_strlcpy(s->graphic_str, p->graphic_str);
   sz_strlcpy(s->graphic_alt, p->graphic_alt);
 
   for (j = 0; j < p->reqs_count; j++) {
@@ -4384,9 +4562,9 @@ void handle_ruleset_specialist(const struct packet_ruleset_specialist *p)
   tileset_setup_specialist_type(tileset, p->id);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle reply to our city name request.
-**************************************************************************/
+****************************************************************************/
 void handle_city_name_suggestion_info(int unit_id, const char *name)
 {
   struct unit *punit = player_unit_by_number(client_player(), unit_id);
@@ -4417,19 +4595,19 @@ void handle_city_name_suggestion_info(int unit_id, const char *name)
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle the requested follow up question about an action
 
   The action can be a valid action or the special value ACTION_NONE.
   ACTION_NONE indicates that performing the action is impossible.
-**************************************************************************/
-void handle_unit_action_answer(int diplomat_id, int target_id, int cost,
-                               enum gen_action action_type)
+****************************************************************************/
+void handle_unit_action_answer(int actor_id, int target_id, int cost,
+                               action_id action_type,
+                               bool disturb_player)
 {
   struct city *pcity = game_city_by_number(target_id);
   struct unit *punit = game_unit_by_number(target_id);
-  struct unit *pdiplomat = player_unit_by_number(client_player(),
-                                                 diplomat_id);
+  struct unit *pactor = player_unit_by_number(client_player(), actor_id);
   struct action *paction = action_by_number(action_type);
 
   if (ACTION_NONE != action_type
@@ -4438,48 +4616,68 @@ void handle_unit_action_answer(int diplomat_id, int target_id, int cost,
     log_error("handle_unit_action_answer() the action %d doesn't exist.",
               action_type);
 
-    action_selection_no_longer_in_progress(diplomat_id);
-    action_decision_clear_want(diplomat_id);
-    action_selection_next_in_focus(diplomat_id);
+    if (disturb_player) {
+      action_selection_no_longer_in_progress(actor_id);
+      action_decision_clear_want(actor_id);
+      action_selection_next_in_focus(actor_id);
+    }
+
     return;
   }
 
-  if (!pdiplomat) {
-    log_debug("Bad actor %d.", diplomat_id);
+  if (!pactor) {
+    log_debug("Bad actor %d.", actor_id);
 
-    action_selection_no_longer_in_progress(diplomat_id);
-    action_selection_next_in_focus(diplomat_id);
+    if (disturb_player) {
+      action_selection_no_longer_in_progress(actor_id);
+      action_selection_next_in_focus(actor_id);
+    }
+
     return;
   }
 
-  switch (action_type) {
+  switch ((enum gen_action)action_type) {
   case ACTION_SPY_BRIBE_UNIT:
     if (punit && client.conn.playing
         && is_human(client.conn.playing)) {
-      /* Focus on the unit so the player knows where it is */
-      unit_focus_set(pdiplomat);
+      if (disturb_player) {
+        /* Focus on the unit so the player knows where it is */
+        unit_focus_set(pactor);
 
-      popup_bribe_dialog(pdiplomat, punit, cost, paction);
+        popup_bribe_dialog(pactor, punit, cost, paction);
+      } else {
+        /* Not in use (yet). */
+        log_error("Unimplemented: received background unit bribe cost.");
+      }
     } else {
       log_debug("Bad target %d.", target_id);
-      action_selection_no_longer_in_progress(diplomat_id);
-      action_decision_clear_want(diplomat_id);
-      action_selection_next_in_focus(diplomat_id);
+      if (disturb_player) {
+        action_selection_no_longer_in_progress(actor_id);
+        action_decision_clear_want(actor_id);
+        action_selection_next_in_focus(actor_id);
+      }
     }
     break;
   case ACTION_SPY_INCITE_CITY:
   case ACTION_SPY_INCITE_CITY_ESC:
     if (pcity && client.conn.playing
         && is_human(client.conn.playing)) {
-      /* Focus on the unit so the player knows where it is */
-      unit_focus_set(pdiplomat);
+      if (disturb_player) {
+        /* Focus on the unit so the player knows where it is */
+        unit_focus_set(pactor);
 
-      popup_incite_dialog(pdiplomat, pcity, cost, paction);
+        popup_incite_dialog(pactor, pcity, cost, paction);
+      } else {
+        /* Not in use (yet). */
+        log_error("Unimplemented: received background city incite cost.");
+      }
     } else {
       log_debug("Bad target %d.", target_id);
-      action_selection_no_longer_in_progress(diplomat_id);
-      action_decision_clear_want(diplomat_id);
-      action_selection_next_in_focus(diplomat_id);
+      if (disturb_player) {
+        action_selection_no_longer_in_progress(actor_id);
+        action_decision_clear_want(actor_id);
+        action_selection_next_in_focus(actor_id);
+      }
     }
     break;
   case ACTION_UPGRADE_UNIT:
@@ -4497,39 +4695,63 @@ void handle_unit_action_answer(int diplomat_id, int target_id, int cost,
     break;
   case ACTION_NONE:
     log_debug("Server didn't respond to query.");
-    action_selection_no_longer_in_progress(diplomat_id);
-    action_decision_clear_want(diplomat_id);
-    action_selection_next_in_focus(diplomat_id);
+    if (disturb_player) {
+      action_selection_no_longer_in_progress(actor_id);
+      action_decision_clear_want(actor_id);
+      action_selection_next_in_focus(actor_id);
+    }
     break;
   default:
     log_error("handle_unit_action_answer() invalid action_type (%d).",
               action_type);
-    action_selection_no_longer_in_progress(diplomat_id);
-    action_decision_clear_want(diplomat_id);
-    action_selection_next_in_focus(diplomat_id);
+    if (disturb_player) {
+      action_selection_no_longer_in_progress(actor_id);
+      action_decision_clear_want(actor_id);
+      action_selection_next_in_focus(actor_id);
+    }
     break;
   };
 }
 
-/**************************************************************************
+/************************************************************************//**
   Returns a possibly legal attack action iff it is the only interesting
   action that currently is legal.
-**************************************************************************/
-static enum gen_action auto_attack_act(const struct act_prob *act_probs)
+****************************************************************************/
+static action_id auto_attack_act(const struct act_prob *act_probs)
 {
-  enum gen_action attack_action = ACTION_NONE;
+  action_id attack_action = ACTION_NONE;
 
   action_iterate(act) {
     if (action_prob_possible(act_probs[act])) {
       switch ((enum gen_action)act) {
       case ACTION_DISBAND_UNIT:
+      case ACTION_FORTIFY:
+      case ACTION_CONVERT:
+      case ACTION_TRANSPORT_ALIGHT:
+      case ACTION_TRANSPORT_BOARD:
+      case ACTION_TRANSPORT_EMBARK:
+      case ACTION_TRANSPORT_UNLOAD:
+      case ACTION_TRANSPORT_DISEMBARK1:
+      case ACTION_TRANSPORT_DISEMBARK2:
         /* Not interesting. */
+        break;
+      case ACTION_USER_ACTION1:
+      case ACTION_USER_ACTION2:
+      case ACTION_USER_ACTION3:
+        /* No idea. Assume not interesting. */
         break;
       case ACTION_CAPTURE_UNITS:
       case ACTION_BOMBARD:
+      case ACTION_BOMBARD2:
+      case ACTION_BOMBARD3:
       case ACTION_NUKE:
+      case ACTION_NUKE_CITY:
+      case ACTION_NUKE_UNITS:
       case ACTION_ATTACK:
+      case ACTION_SUICIDE_ATTACK:
       case ACTION_CONQUER_CITY:
+      case ACTION_CONQUER_CITY2:
+      case ACTION_STRIKE_PRODUCTION:
         /* An attack. */
         if (attack_action == ACTION_NONE) {
           /* No previous attack action found. */
@@ -4547,10 +4769,13 @@ static enum gen_action auto_attack_act(const struct act_prob *act_probs)
       case ACTION_SPY_POISON_ESC:
       case ACTION_SPY_STEAL_GOLD:
       case ACTION_SPY_STEAL_GOLD_ESC:
+      case ACTION_SPY_SPREAD_PLAGUE:
       case ACTION_SPY_SABOTAGE_CITY:
       case ACTION_SPY_SABOTAGE_CITY_ESC:
       case ACTION_SPY_TARGETED_SABOTAGE_CITY:
       case ACTION_SPY_TARGETED_SABOTAGE_CITY_ESC:
+      case ACTION_SPY_SABOTAGE_CITY_PRODUCTION:
+      case ACTION_SPY_SABOTAGE_CITY_PRODUCTION_ESC:
       case ACTION_SPY_STEAL_TECH:
       case ACTION_SPY_STEAL_TECH_ESC:
       case ACTION_SPY_TARGETED_STEAL_TECH:
@@ -4563,6 +4788,7 @@ static enum gen_action auto_attack_act(const struct act_prob *act_probs)
       case ACTION_SPY_BRIBE_UNIT:
       case ACTION_SPY_SABOTAGE_UNIT:
       case ACTION_SPY_SABOTAGE_UNIT_ESC:
+      case ACTION_SPY_ATTACK:
       case ACTION_FOUND_CITY:
       case ACTION_JOIN_CITY:
       case ACTION_STEAL_MAPS:
@@ -4577,7 +4803,21 @@ static enum gen_action auto_attack_act(const struct act_prob *act_probs)
       case ACTION_PARADROP:
       case ACTION_AIRLIFT:
       case ACTION_HEAL_UNIT:
+      case ACTION_TRANSFORM_TERRAIN:
+      case ACTION_CULTIVATE:
+      case ACTION_PLANT:
+      case ACTION_PILLAGE:
+      case ACTION_CLEAN_POLLUTION:
+      case ACTION_CLEAN_FALLOUT:
+      case ACTION_ROAD:
+      case ACTION_BASE:
+      case ACTION_MINE:
+      case ACTION_IRRIGATE:
         /* An interesting non attack action has been found. */
+        return ACTION_NONE;
+        break;
+      case ACTION_STRIKE_BUILDING:
+        /* Needs a target to be specified. */
         return ACTION_NONE;
         break;
       case ACTION_COUNT:
@@ -4590,17 +4830,19 @@ static enum gen_action auto_attack_act(const struct act_prob *act_probs)
   return attack_action;
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle reply to possible actions.
 
   Note that a reply to a foreground request (a reply where disturb_player
   is true) must result in its clean up.
-**************************************************************************/
+****************************************************************************/
 void handle_unit_actions(const struct packet_unit_actions *packet)
 {
   struct unit *actor_unit = game_unit_by_number(packet->actor_unit_id);
 
   struct tile *target_tile = index_to_tile(&(wld.map), packet->target_tile_id);
+  struct extra_type *target_extra = packet->target_extra_id == EXTRA_NONE ?
+      NULL : extra_by_number(packet->target_extra_id);
   struct city *target_city = game_city_by_number(packet->target_city_id);
   struct unit *target_unit = game_unit_by_number(packet->target_unit_id);
 
@@ -4623,7 +4865,7 @@ void handle_unit_actions(const struct packet_unit_actions *packet)
   if (valid && disturb_player) {
     /* The player can select an action and should be informed. */
 
-    enum gen_action auto_action;
+    action_id auto_action;
 
     if (gui_options.popup_attack_actions) {
       /* Pop up the action selection dialog no matter what. */
@@ -4639,10 +4881,10 @@ void handle_unit_actions(const struct packet_unit_actions *packet)
        * found. The player wants it performed without questions. */
 
       /* The order requests below doesn't send additional details. */
-      fc_assert(!action_requires_details(auto_action));
+      fc_assert(!action_id_requires_details(auto_action));
 
       /* Give the order. */
-      switch(action_id_get_target_kind(auto_action)) {
+      switch (action_id_get_target_kind(auto_action)) {
       case ATK_TILE:
       case ATK_UNITS:
         request_do_action(auto_action,
@@ -4676,7 +4918,8 @@ void handle_unit_actions(const struct packet_unit_actions *packet)
     } else {
       /* Show the client specific action dialog */
       popup_action_selection(actor_unit,
-                             target_city, target_unit, target_tile,
+                             target_city, target_unit,
+                             target_tile, target_extra,
                              act_probs);
     }
   } else if (disturb_player) {
@@ -4690,38 +4933,45 @@ void handle_unit_actions(const struct packet_unit_actions *packet)
     if (action_selection_actor_unit() == actor_unit->id) {
       /* The situation may have changed. */
       action_selection_refresh(actor_unit,
-                               target_city, target_unit, target_tile,
+                               target_city, target_unit,
+                               target_tile, target_extra,
                                act_probs);
     }
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle list of potenttial buildings to sabotage.
-**************************************************************************/
-void handle_city_sabotage_list(int diplomat_id, int city_id,
+****************************************************************************/
+void handle_city_sabotage_list(int actor_id, int city_id,
                                bv_imprs improvements,
-                               enum gen_action action_id)
+                               action_id act_id,
+                               bool disturb_player)
 {
   struct city *pcity = game_city_by_number(city_id);
-  struct unit *pdiplomat = player_unit_by_number(client_player(),
-                                                 diplomat_id);
-  struct action *paction = action_by_number(action_id);
+  struct unit *pactor = player_unit_by_number(client_player(), actor_id);
+  struct action *paction = action_by_number(act_id);
 
-  if (!pdiplomat) {
-    log_debug("Bad diplomat %d.", diplomat_id);
+  if (!pactor) {
+    log_debug("Bad diplomat %d.", actor_id);
 
-    action_selection_no_longer_in_progress(diplomat_id);
-    action_selection_next_in_focus(diplomat_id);
+    if (disturb_player) {
+      action_selection_no_longer_in_progress(actor_id);
+      action_selection_next_in_focus(actor_id);
+    }
+
     return;
   }
 
   if (!pcity) {
     log_debug("Bad city %d.", city_id);
 
-    action_selection_no_longer_in_progress(diplomat_id);
-    action_decision_clear_want(diplomat_id);
-    action_selection_next_in_focus(diplomat_id);
+    if (disturb_player) {
+      action_selection_no_longer_in_progress(actor_id);
+      action_decision_clear_want(actor_id);
+      action_selection_next_in_focus(actor_id);
+    }
+
     return;
   }
 
@@ -4732,18 +4982,25 @@ void handle_city_sabotage_list(int diplomat_id, int city_id,
                                               improvement_index(pimprove)));
     } improvement_iterate_end;
 
-    /* Focus on the unit so the player knows where it is */
-    unit_focus_set(pdiplomat);
+    if (disturb_player) {
+      /* Focus on the unit so the player knows where it is */
+      unit_focus_set(pactor);
 
-    popup_sabotage_dialog(pdiplomat, pcity, paction);
+      popup_sabotage_dialog(pactor, pcity, paction);
+    } else {
+      /* Not in use (yet). */
+      log_error("Unimplemented: received background city building list.");
+    }
   } else {
     log_debug("Can't issue orders");
-    action_selection_no_longer_in_progress(diplomat_id);
-    action_decision_clear_want(diplomat_id);
+    if (disturb_player) {
+      action_selection_no_longer_in_progress(actor_id);
+      action_decision_clear_want(actor_id);
+    }
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Pass the header information about things be displayed in a gui-specific
   endgame dialog.
 ****************************************************************************/
@@ -4753,7 +5010,7 @@ void handle_endgame_report(const struct packet_endgame_report *packet)
   endgame_report_dialog_start(packet);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Pass endgame report about single player.
 ****************************************************************************/
 void handle_endgame_player(const struct packet_endgame_player *packet)
@@ -4769,7 +5026,7 @@ void handle_endgame_player(const struct packet_endgame_player *packet)
   endgame_report_dialog_player(packet);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Packet player_attribute_chunk handler.
 ****************************************************************************/
 void handle_player_attribute_chunk
@@ -4788,9 +5045,9 @@ void handle_player_attribute_chunk
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle request to start processing packet.
-**************************************************************************/
+****************************************************************************/
 void handle_processing_started(void)
 {
   agents_processing_started();
@@ -4806,9 +5063,9 @@ void handle_processing_started(void)
             client.conn.client.request_id_of_currently_handled_packet);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle request to stop processing packet.
-**************************************************************************/
+****************************************************************************/
 void handle_processing_finished(void)
 {
   log_debug("finish processing packet %d",
@@ -4826,9 +5083,9 @@ void handle_processing_finished(void)
   agents_processing_finished();
 }
 
-/**************************************************************************
+/************************************************************************//**
   Notify interested parties about incoming packet.
-**************************************************************************/
+****************************************************************************/
 void notify_about_incoming_packet(struct connection *pc,
                                   int packet_type, int size)
 {
@@ -4836,9 +5093,9 @@ void notify_about_incoming_packet(struct connection *pc,
   log_debug("incoming packet={type=%d, size=%d}", packet_type, size);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Notify interested parties about outgoing packet.
-**************************************************************************/
+****************************************************************************/
 void notify_about_outgoing_packet(struct connection *pc,
                                   int packet_type, int size,
                                   int request_id)
@@ -4850,9 +5107,9 @@ void notify_about_outgoing_packet(struct connection *pc,
   fc_assert(request_id);
 }
 
-/**************************************************************************
+/************************************************************************//**
   We have received PACKET_FREEZE_CLIENT.
-**************************************************************************/
+****************************************************************************/
 void handle_freeze_client(void)
 {
   log_debug("handle_freeze_client");
@@ -4860,9 +5117,9 @@ void handle_freeze_client(void)
   agents_freeze_hint();
 }
 
-/**************************************************************************
+/************************************************************************//**
   We have received PACKET_THAW_CLIENT
-**************************************************************************/
+****************************************************************************/
 void handle_thaw_client(void)
 {
   log_debug("handle_thaw_client");
@@ -4871,23 +5128,23 @@ void handle_thaw_client(void)
   update_turn_done_button_state();
 }
 
-/**************************************************************************
+/************************************************************************//**
   Reply to 'ping' packet with 'pong'
-**************************************************************************/
+****************************************************************************/
 void handle_conn_ping(void)
 {
   send_packet_conn_pong(&client.conn);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle server shutdown.
-**************************************************************************/
+****************************************************************************/
 void handle_server_shutdown(void)
 {
   log_verbose("server shutdown");
 }
 
-/****************************************************************************
+/************************************************************************//**
   Add effect data to ruleset cache.
 ****************************************************************************/
 void handle_ruleset_effect(const struct packet_ruleset_effect *packet)
@@ -4895,18 +5152,18 @@ void handle_ruleset_effect(const struct packet_ruleset_effect *packet)
   recv_ruleset_effect(packet);
 }
 
-/**************************************************************************
+/************************************************************************//**
   Handle a notification from the server that an object was successfully
   created. The 'tag' was previously sent to the server when the client
   requested the creation. The 'id' is the identifier of the newly created
   object.
-**************************************************************************/
+****************************************************************************/
 void handle_edit_object_created(int tag, int id)
 {
   editgui_notify_object_created(tag, id);
 }
 
- /****************************************************************************
+/************************************************************************//**
   Handle start position creation/removal.
 ****************************************************************************/
 void handle_edit_startpos(const struct packet_edit_startpos *packet)
@@ -4944,7 +5201,7 @@ void handle_edit_startpos(const struct packet_edit_startpos *packet)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle start position internal information.
 ****************************************************************************/
 void handle_edit_startpos_full(const struct packet_edit_startpos_full *
@@ -4975,18 +5232,18 @@ void handle_edit_startpos_full(const struct packet_edit_startpos_full *
   }
 }
 
-/**************************************************************************
+/************************************************************************//**
   A vote no longer exists. Remove from queue and update gui.
-**************************************************************************/
+****************************************************************************/
 void handle_vote_remove(int vote_no)
 {
   voteinfo_queue_delayed_remove(vote_no);
   voteinfo_gui_update();
 }
 
-/**************************************************************************
+/************************************************************************//**
   Find and update the corresponding vote and refresh the GUI.
-**************************************************************************/
+****************************************************************************/
 void handle_vote_update(int vote_no, int yes, int no, int abstain,
                         int num_voters)
 {
@@ -5005,7 +5262,7 @@ void handle_vote_update(int vote_no, int yes, int no, int abstain,
   voteinfo_gui_update();
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a new vote and add it to the queue. Refresh the GUI.
 ****************************************************************************/
 void handle_vote_new(const struct packet_vote_new *packet)
@@ -5022,9 +5279,9 @@ void handle_vote_new(const struct packet_vote_new *packet)
   voteinfo_gui_update();
 }
 
-/**************************************************************************
+/************************************************************************//**
   Update the vote's status and refresh the GUI.
-**************************************************************************/
+****************************************************************************/
 void handle_vote_resolve(int vote_no, bool passed)
 {
   struct voteinfo *vi;
@@ -5040,9 +5297,9 @@ void handle_vote_resolve(int vote_no, bool passed)
   voteinfo_gui_update();
 }
 
-/**************************************************************************
+/************************************************************************//**
   Play suitable music
-**************************************************************************/
+****************************************************************************/
 void handle_play_music(const char *tag)
 {
   play_single_track(tag);

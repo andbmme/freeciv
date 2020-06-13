@@ -101,7 +101,7 @@ reqs    =
 
 [effect_corruption_anarchy1]
 type    = "Output_Waste_By_Distance"
-value   = 2
+value   = 200
 reqs    =
     { "type", "name", "range"
       "Gov", "Anarchy", "Player"
@@ -119,7 +119,7 @@ reqs    =
 
 [effect_corruption_despotism1]
 type    = "Output_Waste_By_Distance"
-value   = 4
+value   = 400
 reqs    =
     { "type", "name", "range"
       "Gov", "Despotism", "Player"
@@ -137,7 +137,7 @@ reqs    =
 
 [effect_corruption_monarchy1]
 type    = "Output_Waste_By_Distance"
-value   = 2
+value   = 200
 reqs    =
     { "type", "name", "range"
       "Gov", "Monarchy", "Player"
@@ -164,7 +164,7 @@ reqs    =
 
 [effect_corruption_republic1]
 type    = "Output_Waste_By_Distance"
-value   = 2
+value   = 200
 reqs    =
     { "type", "name", "range"
       "Gov", "Republic", "Player"
@@ -242,6 +242,14 @@ value   = 5
 [effect_trade_routes]
 type    = "Max_Trade_Routes"
 value   = 3
+
+[effect_conquest_tech]
+type    = "Conquest_Tech_Pct"
+value   = 100
+
+[effect_max_rates]
+type    = "Max_Rates"
+value   = 100
 
 [effect_base_unit_upkeep]
 type    = "Upkeep_Factor"
@@ -400,54 +408,6 @@ reqs    =
 [effect_empire_size_step]
 type    = "Empire_Size_Step"
 value   = 10
-
-[effect_max_rates_0]
-type    = "Max_Rates"
-value   = 100
-reqs    =
-    { "type",       "name",      "range"
-      "Gov", "Anarchy",   "Player"
-    }
-
-[effect_max_rates_1]
-type    = "Max_Rates"
-value   = 60
-reqs    =
-    { "type",       "name",      "range"
-      "Gov", "Despotism", "Player"
-    }
-
-[effect_max_rates_2]
-type    = "Max_Rates"
-value   = 70
-reqs    =
-    { "type",       "name",      "range"
-      "Gov", "Monarchy",  "Player"
-    }
-
-[effect_max_rates_3]
-type    = "Max_Rates"
-value   = 80
-reqs    =
-    { "type",       "name",      "range"
-      "Gov", "Communism", "Player"
-    }
-
-[effect_max_rates_4]
-type    = "Max_Rates"
-value   = 80
-reqs    =
-    { "type",       "name",      "range"
-      "Gov", "Republic",  "Player"
-    }
-
-[effect_max_rates_5]
-type    = "Max_Rates"
-value   = 100
-reqs    =
-    { "type",       "name",      "range"
-      "Gov", "Democracy", "Player"
-    }
 
 [effect_martial_law_each_0]
 type    = "Martial_Law_Each"
@@ -626,20 +586,10 @@ reqs	=
 type    = "Defend_Bonus"
 value	= 200
 reqs	=
-    { "type", "name", "range", "present"
-      "Building", "City Walls", "City", TRUE
-      "UnitClass", "Land", "Local", TRUE
-      "Building", "Great Wall", "Player", FALSE
-      "UnitType", "Artillery", "Local", FALSE
-    }
-
-[effect_city_walls_1]
-type    = "Defend_Bonus"
-value	= 200
-reqs	=
-    { "type", "name", "range", "present"
-      "Building", "City Walls", "City", TRUE
-      "UnitClass", "Sea", "Local", TRUE
+    { "type",     "name",       "range",  "present"
+      "Building", "City Walls", "City",   TRUE
+      "UnitType", "Artillery",  "Local",  FALSE
+      "UnitType", "Bomber",     "Local",  FALSE
       "Building", "Great Wall", "Player", FALSE
     }
 
@@ -1031,21 +981,19 @@ reqs	=
 type    = "Defend_Bonus"
 value	= 200
 reqs	=
-    { "type", "name", "range", "present"
+    { "type",     "name",       "range", "present"
       "Building", "Great Wall", "Player", TRUE
-      "UnitClass", "Land", "Local", TRUE
-      "CityTile", "Center", "Local", TRUE
-      "UnitType", "Artillery", "Local", FALSE
+      "CityTile", "Center",     "Local",  TRUE
+      "UnitType", "Artillery",  "Local",  FALSE
+      "UnitType", "Bomber",     "Local",  FALSE
     }
 
-[effect_great_wall_1]
-type    = "Defend_Bonus"
-value	= 200
+[effect_great_wall_protect_pop]
+type    = "Unit_No_Lose_Pop"
+value	= 1
 reqs	=
     { "type", "name", "range"
-      "Building", "Great Wall", "Player"
-      "UnitClass", "Sea", "Local"
-      "CityTile", "Center", "Local"
+      "Building", "Great Wall", "City"
     }
 
 [effect_great_wall_visible]
@@ -1251,32 +1199,12 @@ reqs	=
 type	= "Trade_Revenue_Bonus"
 value	= 1585
 
-; FIXME: Calendar effects are copied from default rulesets and are
-; probably wrong for civ1 ruleset.
 [effect_calendar_base]
 type    = "Turn_Years"
-value   = 50
-
-; 50 - 25 = 25
-[effect_calendar_1]
-type    = "Turn_Years"
-value   = -25
-reqs    =
-    { "type", "name", "range"
-      "MinYear", "-1000", "World"
-    }
-
-; 25 - 5 = 20
-[effect_calendar_2]
-type    = "Turn_Years"
-value   = -5
-reqs    =
-    { "type", "name", "range"
-      "MinYear", "0", "World"
-    }
+value   = 20
 
 ; 20 - 10 = 10
-[effect_calendar_3]
+[effect_calendar_1]
 type    = "Turn_Years"
 value   = -10
 reqs    =
@@ -1285,7 +1213,7 @@ reqs    =
     }
 
 ; 10 - 5 = 5
-[effect_calendar_4]
+[effect_calendar_2]
 type    = "Turn_Years"
 value   = -5
 reqs    =
@@ -1294,7 +1222,7 @@ reqs    =
     }
 
 ; 5 - 3 = 2
-[effect_calendar_5]
+[effect_calendar_3]
 type    = "Turn_Years"
 value   = -3
 reqs    =
@@ -1303,12 +1231,12 @@ reqs    =
     }
 
 ; 2 - 1 = 1
-[effect_calendar_6]
+[effect_calendar_4]
 type    = "Turn_Years"
 value   = -1
 reqs    =
     { "type", "name", "range"
-      "MinYear", "1900", "World"
+      "MinYear", "1850", "World"
     }
 
 [effect_tech_cost_base]
@@ -1377,56 +1305,20 @@ reqs    =
 type    = "Irrigation_Pct"
 value   = 100
 reqs    =
-    { "type", "name", "range", "present"
-      "Extra", "Irrigation", "Local", TRUE
-      "CityTile", "Center", "Local", FALSE
+    { "type", "name", "range"
+      "Extra", "Irrigation", "Local"
     }
 
-[effect_irrigation_2]
+[effect_irrigation_center]
 type    = "Irrigation_Pct"
 value	= 100
 reqs	=
     { "type", "name", "range", "present"
       "CityTile", "Center", "Local", TRUE
+      "Extra", "Irrigation", "Local", FALSE
       "TerrainAlter", "CanIrrigate", "Local", TRUE
       "Extra", "Mine", "Local", FALSE
     }
-
-[effect_irrigate_src_ocean]
-type    = "Irrig_Possible"
-value   = 1
-reqs    =
-    { "type", "name", "range"
-      "TerrainClass", "Oceanic", "CAdjacent"
-    }
-
-[effect_irrigate_src_river]
-type    = "Irrig_Possible"
-value   = 1
-reqs    =
-    { "type", "name", "range"
-      "Extra", "River", "CAdjacent"
-    }
-
-[effect_irrigate_src_irrigation]
-type    = "Irrig_Possible"
-value   = 1
-reqs    =
-    { "type", "name", "range"
-      "Extra", "Irrigation", "CAdjacent"
-    }
-
-[effect_mining]
-type    = "Mining_Possible"
-value   = 1
-
-[effect_irrig_tf]
-type    = "Irrig_TF_Possible"
-value   = 1
-
-[effect_mining_tf]
-type    = "Mining_TF_Possible"
-value   = 1
 
 [effect_pollution]
 type	= "Output_Tile_Punish_Pct"
@@ -1442,6 +1334,25 @@ value   = 25
 reqs    =
     { "type",  "name",     "range"
       "Extra", "Fortress", "Local"
+    }
+
+[effect_fortified]
+type    = "Fortify_Defense_Bonus"
+value   = 50
+reqs    =
+    { "type", "name", "range"
+      "Activity", "Fortified", "Local"
+    }
+
+[effect_city_fortified]
+type    = "Fortify_Defense_Bonus"
+value   = 50
+reqs    =
+    { "type",          "name",         "range", "present"
+      "CityTile",      "Center",       "Local", TRUE
+      "Activity",      "Fortified",    "Local", FALSE
+      "UnitClassFlag", "CanFortify",   "Local", TRUE
+      "UnitFlag",      "Cant_Fortify", "Local", FALSE
     }
 
 [effect_incite_cost_empty]
@@ -1467,6 +1378,10 @@ reqs	=
     { "type", "name", "range", "present"
       "Action", "Found City", "Local", FALSE
       "Action", "Join City", "Local", FALSE
+      "Action", "Transport Board", "Local", FALSE
+      "Action", "Transport Alight", "Local", FALSE
+      "Action", "Transport Disembark", "Local", FALSE
+      "Action", "Transport Disembark 2", "Local", FALSE
     }
 
 [effect_incident_success_steal_tech]
@@ -1520,4 +1435,63 @@ value	= 1
 reqs	=
     { "type", "name", "range", "present"
       "Action", "Explode Nuclear", "Local", TRUE
+    }
+
+[effect_incident_success_explode_nuke_city]
+type	= "Casus_Belli_Success"
+value	= 1
+reqs	=
+    { "type", "name", "range", "present"
+      "Action", "Nuke City", "Local", TRUE
+    }
+
+[effect_incident_success_explode_nuke_units]
+type	= "Casus_Belli_Success"
+value	= 1
+reqs	=
+    { "type", "name", "range", "present"
+      "Action", "Nuke Units", "Local", TRUE
+    }
+
+; Double (+100%) buy cost for Great Wonders
+[effect_great_wonder_buy_cost]
+type    = "Building_Buy_Cost_Pct"
+value   = 100
+reqs    =
+    { "type", "name", "range"
+      "BuildingGenus", "GreatWonder", "Local"
+    }
+
+; Civilization I took all remaining move fragments when a land unit
+; disembarked from a ship. It didn't take all remaining more fragments when
+; the same land unit alighted a ship in the city it was in.
+; Correct this rule if I'm wrong.
+[effect_action_success_move_cost_disembark]
+type    = "Action_Success_Actor_Move_Cost"
+value   = 65535
+reqs    =
+    { "type", "name", "range", "present"
+      "Action", "Transport Disembark", "Local", TRUE
+    }
+
+; Civilization 1 took all remaining move fragments when a land unit
+; embarked to a ship. It didn't take all remaining more fragments when the
+; same land unit boarded a ship in the city it was in.
+; Correct this rule if I'm wrong.
+; TODO: was transferring from a transport to a transport on an adjacent tile
+; legal? What was it's move cost?
+[effect_action_success_move_cost_embark]
+type    = "Action_Success_Actor_Move_Cost"
+value   = 65535
+reqs    =
+    { "type", "name", "range", "present"
+      "Action", "Transport Embark", "Local", TRUE
+    }
+
+[effect_unit_shield_value_recycle]
+type    = "Unit_Shield_Value_Pct"
+value   = -50
+reqs    =
+    { "type",   "name",         "range", "present"
+      "Action", "Recycle Unit", "Local", TRUE
     }

@@ -65,7 +65,7 @@ static struct inputline_toolkit {
 
 static void inputline_make_tag(GtkEntry *entry, enum text_tag_type type);
 
-/**************************************************************************
+/**********************************************************************//**
   Returns TRUE iff the input line has focus.
 **************************************************************************/
 bool inputline_has_focus(void)
@@ -73,7 +73,7 @@ bool inputline_has_focus(void)
   return gtk_widget_has_focus(toolkit.entry);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Gives the focus to the intput line.
 **************************************************************************/
 void inputline_grab_focus(void)
@@ -81,7 +81,7 @@ void inputline_grab_focus(void)
   gtk_widget_grab_focus(toolkit.entry);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns TRUE iff the input line is currently visible.
 **************************************************************************/
 bool inputline_is_visible(void)
@@ -89,7 +89,7 @@ bool inputline_is_visible(void)
   return gtk_widget_get_mapped(toolkit.entry);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Helper function to determine if a given client input line is intended as
   a "plain" public message. Note that messages prefixed with : are a
   special case (explicit public messages), and will return FALSE.
@@ -134,15 +134,16 @@ static bool is_plain_public_message(const char *s)
 }
 
 
-/**************************************************************************
+/**********************************************************************//**
   Called when the return key is pressed.
 **************************************************************************/
 static void inputline_return(GtkEntry *w, gpointer data)
 {
   const char *theinput;
+  GtkEntryBuffer *buffer = gtk_entry_get_buffer(w);
 
-  theinput = gtk_entry_get_text(w);
-  
+  theinput = gtk_entry_buffer_get_text(buffer);
+
   if (*theinput) {
     if (client_state() == C_S_RUNNING
         && GUI_GTK_OPTION(allied_chat_only)
@@ -167,10 +168,10 @@ static void inputline_return(GtkEntry *w, gpointer data)
     history_pos=-1;
   }
 
-  gtk_entry_set_text(w, "");
+  gtk_entry_buffer_set_text(buffer, "", -1);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns the name of player or user, set in the same list.
 **************************************************************************/
 static const char *get_player_or_user_name(int id)
@@ -191,7 +192,7 @@ static const char *get_player_or_user_name(int id)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Find a player or a user by prefix.
 
   prefix - The prefix.
@@ -246,7 +247,7 @@ static int check_player_or_user_name(const char *prefix,
   return 0;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Find the larger common prefix.
 
   prefixes - A list of prefixes.
@@ -279,7 +280,7 @@ static size_t get_common_prefix(const char *const *prefixes,
  return g_utf8_strlen(buf, -1);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Autocompletes the input line with a player or user name.
   Returns FALSE if there is no string to complete.
 **************************************************************************/
@@ -341,14 +342,20 @@ static bool chatline_autocomplete(GtkEditable *editable)
   return TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Called when a key is pressed.
 **************************************************************************/
-static gboolean inputline_handler(GtkWidget *w, GdkEventKey *ev)
+static gboolean inputline_handler(GtkWidget *w, GdkEvent *ev)
 {
-  if ((ev->state & GDK_CONTROL_MASK)) {
+  GdkModifierType state;
+
+  gdk_event_get_state(ev, &state);
+  if ((state & GDK_CONTROL_MASK)) {
     /* Chatline featured text support. */
-    switch (ev->keyval) {
+    guint keyval;
+
+    gdk_event_get_keyval(ev, &keyval);
+    switch (keyval) {
     case GDK_KEY_b:
       inputline_make_tag(GTK_ENTRY(w), TTT_BOLD);
       return TRUE;
@@ -375,11 +382,16 @@ static gboolean inputline_handler(GtkWidget *w, GdkEventKey *ev)
 
   } else {
     /* Chatline history controls. */
-    switch (ev->keyval) {
+    guint keyval;
+    GtkEntryBuffer *buffer = gtk_entry_get_buffer(GTK_ENTRY(w));
+
+    gdk_event_get_keyval(ev, &keyval);
+    switch (keyval) {
     case GDK_KEY_Up:
       if (history_pos < genlist_size(history_list) - 1) {
-        gtk_entry_set_text(GTK_ENTRY(w),
-                           genlist_get(history_list, ++history_pos));
+        gtk_entry_buffer_set_text(buffer,
+                                  genlist_get(history_list, ++history_pos),
+                                  -1);
         gtk_editable_set_position(GTK_EDITABLE(w), -1);
       }
       return TRUE;
@@ -390,10 +402,11 @@ static gboolean inputline_handler(GtkWidget *w, GdkEventKey *ev)
       }
 
       if (history_pos >= 0) {
-        gtk_entry_set_text(GTK_ENTRY(w),
-                           genlist_get(history_list, history_pos));
+        gtk_entry_buffer_set_text(buffer,
+                                  genlist_get(history_list, history_pos),
+                                  -1);
       } else {
-        gtk_entry_set_text(GTK_ENTRY(w), "");
+        gtk_entry_buffer_set_text(buffer, "", -1);
       }
       gtk_editable_set_position(GTK_EDITABLE(w), -1);
       return TRUE;
@@ -411,7 +424,7 @@ static gboolean inputline_handler(GtkWidget *w, GdkEventKey *ev)
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make a text tag for the selected text.
 **************************************************************************/
 void inputline_make_tag(GtkEntry *entry, enum text_tag_type type)
@@ -468,7 +481,7 @@ CLEAN_UP:
   g_free(bg_color_text);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make a chat link at the current position or make the current selection
   clickable.
 **************************************************************************/
@@ -549,7 +562,7 @@ void inputline_make_chat_link(struct tile *ptile, bool unit)
   g_free(chars);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Scroll a textview so that the given mark is visible, but only if the
   scroll window containing the textview is very close to the bottom. The
   text mark 'scroll_target' should probably be the first character of the
@@ -579,18 +592,25 @@ void scroll_if_necessary(GtkTextView *textview, GtkTextMark *scroll_target)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Click a link.
 **************************************************************************/
-static gboolean event_after(GtkWidget *text_view, GdkEventButton *event)
+static gboolean event_after(GtkWidget *text_view, GdkEvent *event)
 {
   GtkTextIter start, end, iter;
   GtkTextBuffer *buffer;
   GSList *tags, *tagp;
   gint x, y;
   struct tile *ptile = NULL;
+  guint button;
+  gdouble e_x, e_y;
 
-  if (event->type != GDK_BUTTON_RELEASE || event->button != 1) {
+  if (gdk_event_get_event_type(event) != GDK_BUTTON_RELEASE) {
+    return FALSE;
+  }
+
+  gdk_event_get_button(event, &button);
+  if (button != 1) {
     return FALSE;
   }
 
@@ -602,9 +622,10 @@ static gboolean event_after(GtkWidget *text_view, GdkEventButton *event)
     return FALSE;
   }
 
+  gdk_event_get_coords(event, &e_x, &e_y);
   gtk_text_view_window_to_buffer_coords(GTK_TEXT_VIEW (text_view), 
                                         GTK_TEXT_WINDOW_WIDGET,
-                                        event->x, event->y, &x, &y);
+                                        e_x, e_y, &x, &y);
 
   gtk_text_view_get_iter_at_location(GTK_TEXT_VIEW(text_view), &iter, x, y);
 
@@ -669,7 +690,7 @@ static gboolean event_after(GtkWidget *text_view, GdkEventButton *event)
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set the "hand" cursor when moving over a link.
 **************************************************************************/
 static void set_cursor_if_appropriate(GtkTextView *text_view, gint x, gint y)
@@ -683,12 +704,10 @@ static void set_cursor_if_appropriate(GtkTextView *text_view, gint x, gint y)
 
   /* Initialize the cursors. */
   if (!hand_cursor) {
-    hand_cursor = gdk_cursor_new_for_display(
-        gtk_widget_get_display(GTK_WIDGET(text_view)), GDK_HAND2);
+    hand_cursor = gdk_cursor_new_from_name("pointer", NULL);
   }
   if (!regular_cursor) {
-    regular_cursor = gdk_cursor_new_for_display(
-        gtk_widget_get_display(GTK_WIDGET(text_view)), GDK_XTERM);
+    regular_cursor = gdk_cursor_new_from_name("text", NULL);
   }
 
   gtk_text_view_get_iter_at_location(text_view, &iter, x, y);
@@ -708,13 +727,9 @@ static void set_cursor_if_appropriate(GtkTextView *text_view, gint x, gint y)
     hovering_over_link = hovering;
 
     if (hovering_over_link) {
-      gdk_window_set_cursor(gtk_text_view_get_window(text_view,
-                                                     GTK_TEXT_WINDOW_TEXT),
-                            hand_cursor);
+      gtk_widget_set_cursor(GTK_WIDGET(text_view), hand_cursor);
     } else {
-      gdk_window_set_cursor(gtk_text_view_get_window(text_view,
-                                                     GTK_TEXT_WINDOW_TEXT),
-                            regular_cursor);
+      gtk_widget_set_cursor(GTK_WIDGET(text_view), regular_cursor);
     }
   }
 
@@ -723,23 +738,25 @@ static void set_cursor_if_appropriate(GtkTextView *text_view, gint x, gint y)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Maybe are the mouse is moving over a link.
 **************************************************************************/
 static gboolean motion_notify_event(GtkWidget *text_view,
-                                    GdkEventMotion *event)
+                                    GdkEvent *event)
 {
   gint x, y;
+  gdouble e_x, e_y;
 
+  gdk_event_get_coords(event, &e_x, &e_y);
   gtk_text_view_window_to_buffer_coords(GTK_TEXT_VIEW(text_view), 
                                         GTK_TEXT_WINDOW_WIDGET,
-                                        event->x, event->y, &x, &y);
+                                        e_x, e_y, &x, &y);
   set_cursor_if_appropriate(GTK_TEXT_VIEW(text_view), x, y);
 
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set the appropriate callbacks for the message buffer.
 **************************************************************************/
 void set_message_buffer_view_link_handlers(GtkWidget *view)
@@ -750,7 +767,7 @@ void set_message_buffer_view_link_handlers(GtkWidget *view)
 		   G_CALLBACK(motion_notify_event), NULL);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Convert a struct text_tag to a GtkTextTag.
 **************************************************************************/
 void apply_text_tag(const struct text_tag *ptag, GtkTextBuffer *buf,
@@ -870,7 +887,7 @@ void apply_text_tag(const struct text_tag *ptag, GtkTextBuffer *buf,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Appends the string to the chat output window.  The string should be
   inserted on its own line, although it will have no newline.
 **************************************************************************/
@@ -923,10 +940,10 @@ void real_output_window_append(const char *astring,
   append_network_statusbar(astring, FALSE);
 }
 
-/**************************************************************************
- I have no idea what module this belongs in -- Syela
- I've decided to put output_window routines in chatline.c, because
- the are somewhat related and output_window_* is already here.  --dwp
+/**********************************************************************//**
+  I have no idea what module this belongs in -- Syela
+  I've decided to put output_window routines in chatline.c, because
+  the are somewhat related and output_window_* is already here.  --dwp
 **************************************************************************/
 void log_output_window(void)
 {
@@ -940,7 +957,7 @@ void log_output_window(void)
   g_free(txt);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Clear output window. This does *not* destroy it, or free its resources
 **************************************************************************/
 void clear_output_window(void)
@@ -948,7 +965,7 @@ void clear_output_window(void)
   set_output_window_text(_("Cleared output window."));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set given text to output window
 **************************************************************************/
 void set_output_window_text(const char *text)
@@ -956,7 +973,7 @@ void set_output_window_text(const char *text)
   gtk_text_buffer_set_text(message_buffer, text, -1);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns whether the chatline is scrolled to the bottom.
 **************************************************************************/
 bool chatline_is_scrolled_to_bottom(void)
@@ -986,7 +1003,7 @@ bool chatline_is_scrolled_to_bottom(void)
   return max - val < 0.00000001;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Scrolls the pregame and in-game chat windows all the way to the bottom.
 
   Why do we do it in such a convuluted fasion rather than calling
@@ -1002,7 +1019,7 @@ static gboolean chatline_scroll_callback(gpointer data)
   return FALSE;         /* Remove this idle function. */
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Scrolls the pregame and in-game chat windows all the way to the bottom.
   If delayed is TRUE, it will be done in a idle_callback.
 **************************************************************************/
@@ -1030,7 +1047,7 @@ void chatline_scroll_to_bottom(bool delayed)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Tool button clicked.
 **************************************************************************/
 static void make_tag_callback(GtkToolButton *button, gpointer data)
@@ -1040,7 +1057,7 @@ static void make_tag_callback(GtkToolButton *button, gpointer data)
                                                        "text_tag_type")));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set the color for an object.  Update the button if not NULL.
 **************************************************************************/
 static void color_set(GObject *object, const gchar *color_target,
@@ -1091,7 +1108,7 @@ static void color_set(GObject *object, const gchar *color_target,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Color selection dialog response.
 **************************************************************************/
 static void color_selected(GtkDialog *dialog, gint res, gpointer data)
@@ -1117,7 +1134,7 @@ static void color_selected(GtkDialog *dialog, gint res, gpointer data)
   gtk_widget_destroy(GTK_WIDGET(dialog));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Color selection tool button clicked.
 **************************************************************************/
 static void select_color_callback(GtkToolButton *button, gpointer data)
@@ -1133,16 +1150,16 @@ static void select_color_callback(GtkToolButton *button, gpointer data)
               (const char *) g_object_get_data(G_OBJECT(button),
                                                "color_info"));
   dialog = gtk_dialog_new_with_buttons(buf, NULL, GTK_DIALOG_MODAL,
-                                       _("Cancel"), GTK_RESPONSE_CANCEL,
-                                       _("Clear"), GTK_RESPONSE_REJECT,
-                                       _("OK"), GTK_RESPONSE_OK, NULL);
+                                       _("_Cancel"), GTK_RESPONSE_CANCEL,
+                                       _("C_lear"), GTK_RESPONSE_REJECT,
+                                       _("_OK"), GTK_RESPONSE_OK, NULL);
   setup_dialog(dialog, toplevel);
   g_object_set_data(G_OBJECT(dialog), "button", button);
   g_signal_connect(dialog, "response", G_CALLBACK(color_selected), data);
 
   chooser = gtk_color_chooser_widget_new();
   gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
-                     chooser, FALSE, FALSE);
+                     chooser);
   g_object_set_data(G_OBJECT(dialog), "chooser", chooser);
   if (current_color) {
     gtk_color_chooser_set_rgba(GTK_COLOR_CHOOSER(chooser), current_color);
@@ -1152,7 +1169,7 @@ static void select_color_callback(GtkToolButton *button, gpointer data)
   g_free(buf);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Moves the tool kit to the toolkit view.
 **************************************************************************/
 static gboolean move_toolkit(GtkWidget *toolkit_view,
@@ -1213,7 +1230,7 @@ static gboolean move_toolkit(GtkWidget *toolkit_view,
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Show/Hide the toolbar.
 **************************************************************************/
 static gboolean set_toolbar_visibility(GtkWidget *w,
@@ -1243,7 +1260,7 @@ static gboolean set_toolbar_visibility(GtkWidget *w,
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Show/Hide the toolbar.
 **************************************************************************/
 static void button_toggled(GtkToggleButton *button, gpointer data)
@@ -1263,7 +1280,7 @@ static void button_toggled(GtkToggleButton *button, gpointer data)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Returns a new inputline toolkit view widget that can contain the
   inputline.
 
@@ -1289,7 +1306,7 @@ GtkWidget *inputline_toolkit_view_new(void)
   return toolkit_view;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Appends a button to the inputline toolkit view widget.
 **************************************************************************/
 void inputline_toolkit_view_append_button(GtkWidget *toolkit_view,
@@ -1299,7 +1316,7 @@ void inputline_toolkit_view_append_button(GtkWidget *toolkit_view,
                     "button_box")), button);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Initializes the chatline stuff.
 **************************************************************************/
 void chatline_init(void)
@@ -1333,7 +1350,6 @@ void chatline_init(void)
   /* First line: toolbar */
   toolbar = gtk_toolbar_new();
   gtk_container_add(GTK_CONTAINER(vbox), toolbar);
-  gtk_toolbar_set_icon_size(GTK_TOOLBAR(toolbar), GTK_ICON_SIZE_MENU);
   gtk_toolbar_set_show_arrow(GTK_TOOLBAR(toolbar), FALSE);
   gtk_toolbar_set_style(GTK_TOOLBAR(toolbar), GTK_TOOLBAR_BOTH_HORIZ);
   gtk_orientable_set_orientation(GTK_ORIENTABLE(toolbar),
@@ -1341,7 +1357,7 @@ void chatline_init(void)
   toolkit.toolbar = toolbar;
 
   /* Bold button. */
-  item = gtk_tool_button_new(gtk_image_new_from_icon_name("format-text-bold", 0),
+  item = gtk_tool_button_new(gtk_image_new_from_icon_name("format-text-bold"),
                              _("Bold"));
 
   gtk_toolbar_insert(GTK_TOOLBAR(toolbar), item, -1);
@@ -1351,7 +1367,7 @@ void chatline_init(void)
   gtk_widget_set_tooltip_text(GTK_WIDGET(item), _("Bold (Ctrl-B)"));
 
   /* Italic button. */
-  item = gtk_tool_button_new(gtk_image_new_from_icon_name("format-text-italic", 0),
+  item = gtk_tool_button_new(gtk_image_new_from_icon_name("format-text-italic"),
                              _("Italic"));
   gtk_toolbar_insert(GTK_TOOLBAR(toolbar), item, -1);
   g_object_set_data(G_OBJECT(item), "text_tag_type",
@@ -1360,7 +1376,7 @@ void chatline_init(void)
   gtk_widget_set_tooltip_text(GTK_WIDGET(item), _("Italic (Ctrl-I)"));
 
   /* Strike button. */
-  item = gtk_tool_button_new(gtk_image_new_from_icon_name("format-text-strikethrough", 0),
+  item = gtk_tool_button_new(gtk_image_new_from_icon_name("format-text-strikethrough"),
                              _("Strikethrough"));
   gtk_toolbar_insert(GTK_TOOLBAR(toolbar), item, -1);
   g_object_set_data(G_OBJECT(item), "text_tag_type",
@@ -1369,7 +1385,7 @@ void chatline_init(void)
   gtk_widget_set_tooltip_text(GTK_WIDGET(item), _("Strikethrough (Ctrl-S)"));
 
   /* Underline button. */
-  item = gtk_tool_button_new(gtk_image_new_from_icon_name("format-text-underline", 0),
+  item = gtk_tool_button_new(gtk_image_new_from_icon_name("format-text-underline"),
                              _("Underline"));
   gtk_toolbar_insert(GTK_TOOLBAR(toolbar), item, -1);
   g_object_set_data(G_OBJECT(item), "text_tag_type",
@@ -1459,7 +1475,7 @@ void chatline_init(void)
   toolkit.button_box = bbox;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Main thread side callback to print version message
 **************************************************************************/
 static gboolean version_message_main_thread(gpointer user_data)
@@ -1473,7 +1489,7 @@ static gboolean version_message_main_thread(gpointer user_data)
   return G_SOURCE_REMOVE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Got version message from metaserver thread.
 **************************************************************************/
 void version_message(const char *vertext)
@@ -1483,5 +1499,5 @@ void version_message(const char *vertext)
 
   strncpy(persistent, vertext, len);
 
-  gdk_threads_add_idle(version_message_main_thread, persistent);
+  g_idle_add(version_message_main_thread, persistent);
 }

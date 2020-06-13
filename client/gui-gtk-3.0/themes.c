@@ -37,7 +37,7 @@
 
 #include "themes_g.h"
 
-/*****************************************************************************
+/*************************************************************************//**
   Loads a gtk theme directory/theme_name
 *****************************************************************************/
 void gui_load_theme(const char *directory, const char *theme_name)
@@ -66,7 +66,7 @@ void gui_load_theme(const char *directory, const char *theme_name)
   gtk_style_context_invalidate(gtk_widget_get_style_context(toplevel));
 }
 
-/*****************************************************************************
+/*************************************************************************//**
   Clears a theme (sets default system theme)
 *****************************************************************************/
 void gui_clear_theme(void)
@@ -86,14 +86,19 @@ void gui_clear_theme(void)
 
   /* still no theme loaded -> load system default theme */
   if (!theme_loaded) {
+    static GtkCssProvider *default_provider = NULL;
+
+    if (default_provider == NULL) {
+      default_provider = gtk_css_provider_new();
+    }
     gtk_style_context_add_provider_for_screen(
         gtk_widget_get_screen(toplevel),
-        GTK_STYLE_PROVIDER(gtk_css_provider_get_default()),
+        GTK_STYLE_PROVIDER(default_provider),
         GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
   }
 }
 
-/*****************************************************************************
+/*************************************************************************//**
   Each gui has its own themes directories.
   For gtk3 these are:
   - /usr/share/themes
@@ -113,9 +118,9 @@ char **get_gui_specific_themes_directories(int *count)
 
   /* Freeciv-specific GTK3 themes directories */
   strvec_iterate(data_dirs, dir_name) {
-    char buf[strlen(dir_name) + strlen("/themes/gui-gtk-3.0") + 1];
+    char buf[strlen(dir_name) + strlen("/themes/gtk3") + 1];
 
-    fc_snprintf(buf, sizeof(buf), "%s/themes/gui-gtk-3.0", dir_name);
+    fc_snprintf(buf, sizeof(buf), "%s/themes/gtk3", dir_name);
 
     directories[(*count)++] = fc_strdup(buf);
   } strvec_iterate_end;
@@ -132,7 +137,7 @@ char **get_gui_specific_themes_directories(int *count)
   home_dir = user_home_dir();
   if (home_dir) {
     char buf[strlen(home_dir) + 16];
-    
+
     fc_snprintf(buf, sizeof(buf), "%s/.themes/", home_dir);
     directories[(*count)++] = fc_strdup(buf);
   }
@@ -140,7 +145,7 @@ char **get_gui_specific_themes_directories(int *count)
   return directories;
 }
 
-/*****************************************************************************
+/*************************************************************************//**
   Return an array of names of usable themes in the given directory.
   Array size is stored in count.
   Useable theme for gtk+ is a directory which contains file gtk-3.0/gtk.css.
@@ -174,14 +179,14 @@ char **get_useable_themes_in_directory(const char *directory, int *count)
       /* File doesn't exist */
       continue;
     }
-    
+
     if (!S_ISREG(stat_result.st_mode)) {
       /* Not a regular file */
       continue;
     }
-    
+
     /* Otherwise it's ok */
-    
+
     /* Increase array size if needed */
     if (*count == t_size) {
       theme_names = fc_realloc(theme_names, t_size * 2 * sizeof(char *));

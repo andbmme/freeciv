@@ -271,8 +271,6 @@ struct tile *rand_map_pos_filtered(const struct civ_map *nmap, void *data,
                                    bool (*filter)(const struct tile *ptile,
                                                   const void *data));
 
-bool can_be_irrigated(const struct tile *ptile,
-                      const struct unit *punit);
 bool is_tiles_adjacent(const struct tile *ptile0, const struct tile *ptile1);
 bool is_move_cardinal(const struct civ_map *nmap,
                       const struct tile *src_tile,
@@ -555,7 +553,7 @@ BV_DEFINE(dir_vector, 8);
 
 enum direction8 dir_cw(enum direction8 dir);
 enum direction8 dir_ccw(enum direction8 dir);
-const char* dir_get_name(enum direction8 dir);
+const char *dir_get_name(enum direction8 dir);
 bool map_untrusted_dir_is_valid(enum direction8 dir);
 bool is_valid_dir(enum direction8 dir);
 bool is_cardinal_dir(enum direction8 dir);
@@ -582,7 +580,7 @@ extern const int DIR_DY[8];
 #ifdef FREECIV_WEB
 #define MAP_DEFAULT_SIZE         3
 #define MAP_MIN_SIZE             0
-#define MAP_MAX_SIZE             18
+#define MAP_MAX_SIZE             38
 #else  /* FREECIV_WEB */
 #define MAP_DEFAULT_SIZE         4
 #define MAP_MIN_SIZE             0

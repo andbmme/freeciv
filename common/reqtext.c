@@ -44,7 +44,7 @@
 *****************************************************************/
 bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
                      const struct requirement *preq,
-                     enum rt_verbosity verb)
+                     enum rt_verbosity verb, const char *prefix)
 {
   if (preq->quiet && verb != VERB_ACTUAL) {
     return FALSE;
@@ -57,6 +57,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_ADVANCE:
     switch (preq->range) {
     case REQ_RANGE_PLAYER:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      _("Requires knowledge of the technology %s."),
@@ -68,6 +69,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_TEAM:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      _("Requires that a player on your team knows the "
@@ -81,6 +83,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_ALLIANCE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      _("Requires that a player allied to you knows the "
@@ -94,6 +97,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_WORLD:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->survives) {
         if (preq->present) {
           cat_snprintf(buf, bufsz,
@@ -135,6 +139,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_TECHFLAG:
     switch (preq->range) {
     case REQ_RANGE_PLAYER:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) tech flag. */
@@ -150,6 +155,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_TEAM:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) tech flag. */
@@ -165,6 +171,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_ALLIANCE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) tech flag. */
@@ -180,6 +187,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_WORLD:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) tech flag. */
@@ -210,6 +218,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
     if (preq->range != REQ_RANGE_PLAYER) {
       break;
     }
+    fc_strlcat(buf, prefix, bufsz);
     if (preq->present) {
       cat_snprintf(buf, bufsz, _("Requires the %s government."),
                    government_name_translation(preq->source.value.govern));
@@ -222,6 +231,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_ACHIEVEMENT:
     switch (preq->range) {
     case REQ_RANGE_PLAYER:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz, _("Requires you to have achieved \"%s\"."),
                      achievement_name_translation(preq->source.value.achievement));
@@ -232,6 +242,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_TEAM:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz, _("Requires that at least one of your "
                                    "team-mates has achieved \"%s\"."),
@@ -243,6 +254,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_ALLIANCE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz, _("Requires that at least one of your allies "
                                    "has achieved \"%s\"."),
@@ -254,6 +266,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_WORLD:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz, _("Requires that at least one player "
                                    "has achieved \"%s\"."),
@@ -279,6 +292,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_ACTION:
     switch (preq->range) {
     case REQ_RANGE_LOCAL:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz, _("Applies to the \"%s\" action."),
                      action_name_translation(preq->source.value.action));
@@ -297,6 +311,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_IMPR_GENUS:
     switch (preq->range) {
     case REQ_RANGE_LOCAL:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz, _("Applies to \"%s\" buildings."),
                      impr_genus_id_translated_name(
@@ -317,6 +332,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
     switch (preq->range) {
     case REQ_RANGE_WORLD:
       if (is_great_wonder(preq->source.value.building)) {
+        fc_strlcat(buf, prefix, bufsz);
         if (preq->survives) {
           if (preq->present) {
             if (can_improvement_go_obsolete(preq->source.value.building)) {
@@ -391,6 +407,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       break;
     case REQ_RANGE_ALLIANCE:
       if (is_wonder(preq->source.value.building)) {
+        fc_strlcat(buf, prefix, bufsz);
         if (preq->survives) {
           if (preq->present) {
             if (can_improvement_go_obsolete(preq->source.value.building)) {
@@ -468,6 +485,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       break;
     case REQ_RANGE_TEAM:
       if (is_wonder(preq->source.value.building)) {
+        fc_strlcat(buf, prefix, bufsz);
         if (preq->survives) {
           if (preq->present) {
             if (can_improvement_go_obsolete(preq->source.value.building)) {
@@ -544,6 +562,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       break;
     case REQ_RANGE_PLAYER:
       if (is_wonder(preq->source.value.building)) {
+        fc_strlcat(buf, prefix, bufsz);
         if (preq->survives) {
           if (preq->present) {
             if (can_improvement_go_obsolete(preq->source.value.building)) {
@@ -617,6 +636,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       break;
     case REQ_RANGE_CONTINENT:
       if (is_wonder(preq->source.value.building)) {
+        fc_strlcat(buf, prefix, bufsz);
         if (preq->present) {
           if (can_improvement_go_obsolete(preq->source.value.building)) {
             cat_snprintf(buf, bufsz,
@@ -655,6 +675,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       /* surviving or non-wonder continent-ranged requirements not supported */
       break;
     case REQ_RANGE_TRADEROUTE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         if (can_improvement_go_obsolete(preq->source.value.building)) {
           /* Should only apply to wonders */
@@ -690,6 +711,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CITY:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         if (can_improvement_go_obsolete(preq->source.value.building)) {
           /* Should only apply to wonders */
@@ -724,6 +746,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_LOCAL:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      _("Only applies to \"%s\" buildings."),
@@ -747,6 +770,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_EXTRA:
     switch (preq->range) {
     case REQ_RANGE_LOCAL:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      Q_("?extra:Requires %s on the tile."),
@@ -758,6 +782,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      Q_("?extra:Requires %s on the tile or a cardinally "
@@ -771,6 +796,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
         }
       return TRUE;
     case REQ_RANGE_ADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      Q_("?extra:Requires %s on the tile or an adjacent "
@@ -784,6 +810,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CITY:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      Q_("?extra:Requires %s on a tile within the city "
@@ -797,6 +824,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_TRADEROUTE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      Q_("?extra:Requires %s on a tile within the city "
@@ -823,6 +851,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_GOOD:
     switch (preq->range) {
     case REQ_RANGE_CITY:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz, Q_("?good:Requires import of %s ."),
                      goods_name_translation(preq->source.value.good));
@@ -849,6 +878,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_TERRAIN:
     switch (preq->range) {
     case REQ_RANGE_LOCAL:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz, Q_("?terrain:Requires %s on the tile."),
                      terrain_name_translation(preq->source.value.terrain));
@@ -858,6 +888,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      Q_("?terrain:Requires %s on the tile or a cardinally "
@@ -871,6 +902,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_ADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      Q_("?terrain:Requires %s on the tile or an adjacent "
@@ -884,6 +916,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CITY:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      Q_("?terrain:Requires %s on a tile within the city "
@@ -897,6 +930,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_TRADEROUTE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      Q_("?terrain:Requires %s on a tile within the city "
@@ -923,6 +957,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_NATION:
     switch (preq->range) {
     case REQ_RANGE_PLAYER:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: "... playing as the Swedes." */
@@ -936,6 +971,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_TEAM:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: "... same team as the Indonesians." */
@@ -951,6 +987,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_ALLIANCE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: "... allied with the Koreans." */
@@ -964,6 +1001,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_WORLD:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->survives) {
         if (preq->present) {
           cat_snprintf(buf, bufsz,
@@ -1006,6 +1044,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_NATIONGROUP:
     switch (preq->range) {
     case REQ_RANGE_PLAYER:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: nation group: "... playing African nation." */
@@ -1019,6 +1058,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_TEAM:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: nation group: "Requires Medieval nation ..." */
@@ -1032,6 +1072,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_ALLIANCE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: nation group: "Requires Modern nation ..." */
@@ -1045,6 +1086,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_WORLD:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: nation group: "Requires Asian nation ..." */
@@ -1073,6 +1115,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
     if (preq->range != REQ_RANGE_PLAYER) {
       break;
     }
+    fc_strlcat(buf, prefix, bufsz);
     if (preq->present) {
       cat_snprintf(buf, bufsz,
                    /* TRANS: "Requires that you are playing Asian style 
@@ -1091,6 +1134,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_NATIONALITY:
     switch (preq->range) {
     case REQ_RANGE_TRADEROUTE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: "Requires at least one Barbarian citizen ..." */
@@ -1106,6 +1150,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CITY:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: "Requires at least one Barbarian citizen ..." */
@@ -1136,6 +1181,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_DIPLREL:
     switch (preq->range) {
     case REQ_RANGE_PLAYER:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: in this and following strings, '%s' can be one
@@ -1153,6 +1199,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_TEAM:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      _("Requires that somebody on your team has the "
@@ -1167,6 +1214,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_ALLIANCE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      _("Requires that somebody in your alliance has the "
@@ -1181,6 +1229,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_WORLD:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      _("Requires the relationship '%s' between two living "
@@ -1194,6 +1243,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_LOCAL:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      _("Requires that you have the relationship '%s' with the "
@@ -1220,6 +1270,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_UTYPE:
     switch (preq->range) {
     case REQ_RANGE_LOCAL:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         /* TRANS: %s is a single kind of unit (e.g., "Settlers"). */
         cat_snprintf(buf, bufsz, Q_("?unit:Requires %s."),
@@ -1255,6 +1306,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
          * types with those flags. */
         if (role_units_translations(&astr, preq->source.value.unitflag,
                                     TRUE)) {
+          fc_strlcat(buf, prefix, bufsz);
           if (preq->present) {
             /* TRANS: %s is a list of unit types separated by "or". */
             cat_snprintf(buf, bufsz, Q_("?ulist:Requires %s."),
@@ -1287,6 +1339,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_UCLASS:
     switch (preq->range) {
     case REQ_RANGE_LOCAL:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         /* TRANS: %s is a single unit class (e.g., "Air"). */
         cat_snprintf(buf, bufsz, Q_("?uclass:Requires %s units."),
@@ -1328,6 +1381,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
 
       switch (preq->range) {
       case REQ_RANGE_LOCAL:
+        fc_strlcat(buf, prefix, bufsz);
         if (preq->present) {
           /* TRANS: %s is a list of unit classes separated by "or". */
           cat_snprintf(buf, bufsz, Q_("?uclasslist:Requires %s units."),
@@ -1366,6 +1420,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       case REQ_RANGE_LOCAL:
         switch (preq->source.value.unit_state) {
         case USP_TRANSPORTED:
+          fc_strlcat(buf, prefix, bufsz);
           if (preq->present) {
             cat_snprintf(buf, bufsz,
                          _("Requires that the unit is transported."));
@@ -1375,6 +1430,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
           }
           return TRUE;
         case USP_LIVABLE_TILE:
+          fc_strlcat(buf, prefix, bufsz);
           if (preq->present) {
             cat_snprintf(buf, bufsz,
                          _("Requires that the unit is on livable tile."));
@@ -1384,6 +1440,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
           }
           return TRUE;
         case USP_DOMESTIC_TILE:
+          fc_strlcat(buf, prefix, bufsz);
           if (preq->present) {
             cat_snprintf(buf, bufsz,
                          _("Requires that the unit is on a domestic "
@@ -1395,6 +1452,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
           }
           return TRUE;
         case USP_TRANSPORTING:
+          fc_strlcat(buf, prefix, bufsz);
           if (preq->present) {
             cat_snprintf(buf, bufsz,
                          _("Requires that the unit does transport one or "
@@ -1406,6 +1464,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
           }
           return TRUE;
         case USP_HAS_HOME_CITY:
+          fc_strlcat(buf, prefix, bufsz);
           if (preq->present) {
             cat_snprintf(buf, bufsz,
                          _("Requires that the unit has a home city."));
@@ -1415,12 +1474,33 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
           }
           return TRUE;
         case USP_NATIVE_TILE:
+          fc_strlcat(buf, prefix, bufsz);
           if (preq->present) {
             cat_snprintf(buf, bufsz,
                          _("Requires that the unit is on native tile."));
           } else {
             cat_snprintf(buf, bufsz,
                          _("Requires that the unit isn't on native tile."));
+          }
+          return TRUE;
+        case USP_NATIVE_EXTRA:
+          fc_strlcat(buf, prefix, bufsz);
+          if (preq->present) {
+            cat_snprintf(buf, bufsz,
+                         _("Requires that the unit is in a native extra."));
+          } else {
+            cat_snprintf(buf, bufsz,
+                         _("Requires that the unit isn't in a native extra."));
+          }
+          return TRUE;
+        case USP_MOVED_THIS_TURN:
+          fc_strlcat(buf, prefix, bufsz);
+          if (preq->present) {
+            cat_snprintf(buf, bufsz,
+                         _("Requires that the unit has moved this turn."));
+          } else {
+            cat_snprintf(buf, bufsz,
+                         _("Requires that the unit hasn't moved this turn."));
           }
           return TRUE;
         case USP_COUNT:
@@ -1444,10 +1524,42 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
     }
     break;
 
+  case VUT_ACTIVITY:
+    {
+      switch (preq->range) {
+      case REQ_RANGE_LOCAL:
+        fc_strlcat(buf, prefix, bufsz);
+        if (preq->present) {
+          cat_snprintf(buf, bufsz,
+                       _("Requires that the unit is performing activity %s."),
+                       _(unit_activity_name(preq->source.value.activity)));
+        } else {
+          cat_snprintf(buf, bufsz,
+                       _("Requires that the unit is not performing activity %s."),
+                       _(unit_activity_name(preq->source.value.activity)));
+        }
+        return TRUE;
+      case REQ_RANGE_CADJACENT:
+      case REQ_RANGE_ADJACENT:
+      case REQ_RANGE_CITY:
+      case REQ_RANGE_TRADEROUTE:
+      case REQ_RANGE_CONTINENT:
+      case REQ_RANGE_PLAYER:
+      case REQ_RANGE_TEAM:
+      case REQ_RANGE_ALLIANCE:
+      case REQ_RANGE_WORLD:
+      case REQ_RANGE_COUNT:
+        /* Not supported. */
+        break;
+      }
+    }
+    break;
+
   case VUT_MINMOVES:
     {
       switch (preq->range) {
       case REQ_RANGE_LOCAL:
+        fc_strlcat(buf, prefix, bufsz);
         if (preq->present) {
           cat_snprintf(buf, bufsz,
                        /* %s is numeric move points; it may have a
@@ -1484,6 +1596,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
     }
     /* FIXME: this would be better with veteran level names, but that's
      * potentially unit type dependent. */
+    fc_strlcat(buf, prefix, bufsz);
     if (preq->present) {
       cat_snprintf(buf, bufsz,
                    PL_("Requires a unit with at least %d veteran level.",
@@ -1504,6 +1617,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
         break;
       }
 
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      PL_("Requires a unit with at least %d hit point left.",
@@ -1525,6 +1639,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
     if (preq->range != REQ_RANGE_LOCAL) {
       break;
     }
+    fc_strlcat(buf, prefix, bufsz);
     if (preq->present) {
       /* TRANS: "Applies only to Food." */
       cat_snprintf(buf, bufsz, Q_("?output:Applies only to %s."),
@@ -1540,6 +1655,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
     if (preq->range != REQ_RANGE_LOCAL) {
       break;
     }
+    fc_strlcat(buf, prefix, bufsz);
     if (preq->present) {
       /* TRANS: "Applies only to Scientists." */
       cat_snprintf(buf, bufsz, Q_("?specialist:Applies only to %s."),
@@ -1554,6 +1670,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_MINSIZE:
     switch (preq->range) {
     case REQ_RANGE_TRADEROUTE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      PL_("Requires a minimum city size of %d for this "
@@ -1573,6 +1690,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CITY:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      PL_("Requires a minimum city size of %d.",
@@ -1599,10 +1717,12 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       /* Not supported. */
       break;
     }
+    break;
 
   case VUT_MINCULTURE:
     switch (preq->range) {
     case REQ_RANGE_CITY:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      PL_("Requires a minimum culture of %d in the city.",
@@ -1620,6 +1740,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_TRADEROUTE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      PL_("Requires a minimum culture of %d in this city or "
@@ -1639,6 +1760,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_PLAYER:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      PL_("Requires your nation to have culture "
@@ -1658,6 +1780,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_TEAM:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      PL_("Requires someone on your team to have culture of "
@@ -1677,6 +1800,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_ALLIANCE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      PL_("Requires someone in your current alliance to "
@@ -1696,6 +1820,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_WORLD:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      PL_("Requires that some player has culture of at "
@@ -1723,9 +1848,53 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
     }
     break;
 
+  case VUT_MINFOREIGNPCT:
+    switch (preq->range) {
+    case REQ_RANGE_CITY:
+      fc_strlcat(buf, prefix, bufsz);
+      if (preq->present) {
+        cat_snprintf(buf, bufsz,
+                     _("At least %d%% of the citizens of the city "
+                       "must be foreign."),
+                     preq->source.value.minforeignpct);
+      } else {
+        cat_snprintf(buf, bufsz,
+                     _("Less than %d%% of the citizens of the city "
+                       "must be foreign."),
+                     preq->source.value.minforeignpct);
+      }
+      return TRUE;
+    case REQ_RANGE_TRADEROUTE:
+      fc_strlcat(buf, prefix, bufsz);
+      if (preq->present) {
+        cat_snprintf(buf, bufsz,
+                     _("At least %d%% of the citizens of the city "
+                       "or some trade partner must be foreign."),
+                     preq->source.value.minforeignpct);
+      } else {
+        cat_snprintf(buf, bufsz,
+                     _("Less than %d%% of the citizens of the city "
+                       "and each trade partner must be foreign."),
+                      preq->source.value.minforeignpct);
+      }
+      return TRUE;
+    case REQ_RANGE_PLAYER:
+    case REQ_RANGE_TEAM:
+    case REQ_RANGE_ALLIANCE:
+    case REQ_RANGE_WORLD:
+    case REQ_RANGE_LOCAL:
+    case REQ_RANGE_CADJACENT:
+    case REQ_RANGE_ADJACENT:
+    case REQ_RANGE_CONTINENT:
+    case REQ_RANGE_COUNT:
+      break;
+    }
+    break;
+
   case VUT_MAXTILEUNITS:
     switch (preq->range) {
     case REQ_RANGE_LOCAL:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      PL_("At most %d unit may be present on the tile.",
@@ -1743,6 +1912,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      PL_("The tile or at least one cardinally adjacent tile "
@@ -1762,6 +1932,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_ADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      PL_("The tile or at least one adjacent tile must have "
@@ -1791,11 +1962,13 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       /* Not supported. */
       break;
     }
+    break;
 
   case VUT_AI_LEVEL:
     if (preq->range != REQ_RANGE_PLAYER) {
       break;
     }
+    fc_strlcat(buf, prefix, bufsz);
     if (preq->present) {
       cat_snprintf(buf, bufsz,
                    /* TRANS: AI level (e.g., "Handicapped") */
@@ -1812,6 +1985,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_TERRAINCLASS:
     switch (preq->range) {
     case REQ_RANGE_LOCAL:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a terrain class */
@@ -1827,6 +2001,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a terrain class */
@@ -1844,6 +2019,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_ADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a terrain class */
@@ -1861,6 +2037,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CITY:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a terrain class */
@@ -1878,6 +2055,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_TRADEROUTE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a terrain class */
@@ -1910,6 +2088,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_TERRFLAG:
     switch (preq->range) {
     case REQ_RANGE_LOCAL:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) terrain flag. */
@@ -1924,6 +2103,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) terrain flag. */
@@ -1939,6 +2119,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_ADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) terrain flag. */
@@ -1954,6 +2135,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CITY:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) terrain flag. */
@@ -1969,6 +2151,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_TRADEROUTE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) terrain flag. */
@@ -1999,6 +2182,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_BASEFLAG:
     switch (preq->range) {
     case REQ_RANGE_LOCAL:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) base flag. */
@@ -2013,6 +2197,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) base flag. */
@@ -2028,6 +2213,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_ADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) base flag. */
@@ -2043,6 +2229,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CITY:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) base flag. */
@@ -2058,6 +2245,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_TRADEROUTE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) base flag. */
@@ -2088,6 +2276,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_ROADFLAG:
     switch (preq->range) {
     case REQ_RANGE_LOCAL:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) road flag. */
@@ -2102,6 +2291,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) road flag. */
@@ -2117,6 +2307,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_ADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) road flag. */
@@ -2132,6 +2323,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CITY:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) road flag. */
@@ -2147,6 +2339,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_TRADEROUTE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) road flag. */
@@ -2177,6 +2370,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_EXTRAFLAG:
     switch (preq->range) {
     case REQ_RANGE_LOCAL:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) extra flag. */
@@ -2191,6 +2385,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) extra flag. */
@@ -2206,6 +2401,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_ADJACENT:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) extra flag. */
@@ -2221,6 +2417,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_CITY:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) extra flag. */
@@ -2236,6 +2433,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_TRADEROUTE:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      /* TRANS: %s is a (translatable) extra flag. */
@@ -2267,6 +2465,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
     if (preq->range != REQ_RANGE_WORLD) {
       break;
     }
+    fc_strlcat(buf, prefix, bufsz);
     if (preq->present) {
       cat_snprintf(buf, bufsz,
                    _("Requires the game to have reached the year %s."),
@@ -2283,6 +2482,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
     if (preq->range != REQ_RANGE_WORLD) {
       break;
     }
+    fc_strlcat(buf, prefix, bufsz);
     if (preq->present) {
       cat_snprintf(buf, bufsz,
                    /* TRANS: %s is a representation of a calendar fragment,
@@ -2302,12 +2502,15 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
     if (preq->range != REQ_RANGE_WORLD) {
       break;
     }
+    fc_strlcat(buf, prefix, bufsz);
     if (preq->present) {
       cat_snprintf(buf, bufsz,
+                   /* TRANS: topology flag name ("WrapX", "ISO", etc) */
                    _("Requires %s map."),
                    _(topo_flag_name(preq->source.value.topo_property)));
     } else {
       cat_snprintf(buf, bufsz,
+                   /* TRANS: topology flag name ("WrapX", "ISO", etc) */
                    _("Prevented on %s map."),
                    _(topo_flag_name(preq->source.value.topo_property)));
     }
@@ -2317,6 +2520,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
     if (preq->range != REQ_RANGE_WORLD) {
       break;
     }
+    fc_strlcat(buf, prefix, bufsz);
     cat_snprintf(buf, bufsz,
                  /* TRANS: %s is a server setting, its value and if it is
                   * required to be present or absent. The string's format
@@ -2328,6 +2532,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
     return TRUE;
 
   case VUT_AGE:
+    fc_strlcat(buf, prefix, bufsz);
     if (preq->present) {
       cat_snprintf(buf, bufsz,
                    _("Requires age of %d turns."),
@@ -2342,6 +2547,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_MINTECHS:
     switch (preq->range) {
     case REQ_RANGE_WORLD:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      _("Requires %d techs to be known in the world."),
@@ -2353,6 +2559,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
       }
       return TRUE;
     case REQ_RANGE_PLAYER:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      _("Requires player to know %d techs."),
@@ -2380,6 +2587,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
   case VUT_TERRAINALTER:
     switch (preq->range) {
     case REQ_RANGE_LOCAL:
+      fc_strlcat(buf, prefix, bufsz);
       if (preq->present) {
         cat_snprintf(buf, bufsz,
                      _("Requires terrain on which alteration %s is "
@@ -2427,6 +2635,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
 
       switch (preq->range) {
       case REQ_RANGE_LOCAL:
+        fc_strlcat(buf, prefix, bufsz);
         if (preq->present) {
           cat_snprintf(buf, bufsz,
                        /* TRANS: tile property ("city centers", etc) */
@@ -2438,6 +2647,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
         }
         return TRUE;
       case REQ_RANGE_CADJACENT:
+        fc_strlcat(buf, prefix, bufsz);
         if (preq->present) {
           /* TRANS: tile property ("city centers", etc) */
           cat_snprintf(buf, bufsz, Q_("?tileprop:Applies only to %s and "
@@ -2451,6 +2661,7 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
         }
         return TRUE;
       case REQ_RANGE_ADJACENT:
+        fc_strlcat(buf, prefix, bufsz);
         if (preq->present) {
           /* TRANS: tile property ("city centers", etc) */
           cat_snprintf(buf, bufsz, Q_("?tileprop:Applies only to %s and "
@@ -2463,6 +2674,60 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
         return TRUE;
       case REQ_RANGE_CITY:
       case REQ_RANGE_TRADEROUTE:
+      case REQ_RANGE_CONTINENT:
+      case REQ_RANGE_PLAYER:
+      case REQ_RANGE_TEAM:
+      case REQ_RANGE_ALLIANCE:
+      case REQ_RANGE_WORLD:
+      case REQ_RANGE_COUNT:
+        /* Not supported. */
+        break;
+      }
+    }
+
+  case VUT_CITYSTATUS:
+    if (preq->source.value.citystatus == CITYS_LAST) {
+      break;
+    } else {
+      static char *city_property = NULL;
+
+      switch (preq->source.value.citystatus) {
+      case CITYS_OWNED_BY_ORIGINAL:
+        city_property = "owned by original";
+        break;
+      case CITYS_LAST:
+        fc_assert(preq->source.value.citystatus != CITYS_LAST);
+        break;
+      }
+
+      switch (preq->range) {
+      case REQ_RANGE_CITY:
+        fc_strlcat(buf, prefix, bufsz);
+        if (preq->present) {
+          /* TRANS: city property ("owned by original", etc) */
+          cat_snprintf(buf, bufsz, Q_("?cityprop:Applies only to %s cities"),
+                       city_property);
+        } else {
+          /* TRANS: city property ("owned by original", etc) */
+          cat_snprintf(buf, bufsz, Q_("?cityprop:Does not apply to %s cities"),
+                       city_property);
+        }
+        return TRUE;
+      case REQ_RANGE_TRADEROUTE:
+        fc_strlcat(buf, prefix, bufsz);
+        if (preq->present) {
+          /* TRANS: city property ("owned by original", etc) */
+          cat_snprintf(buf, bufsz, Q_("?cityprop:Applies only to %s cities or "
+                                      "their trade partners."), city_property);
+        } else {
+          /* TRANS: city property ("owned by original", etc) */
+          cat_snprintf(buf, bufsz, Q_("?cityprop:Does not apply to %s cities or "
+                                      "their trade partners."), city_property);
+        }
+        return TRUE;
+      case REQ_RANGE_LOCAL:
+      case REQ_RANGE_ADJACENT:
+      case REQ_RANGE_CADJACENT:
       case REQ_RANGE_CONTINENT:
       case REQ_RANGE_PLAYER:
       case REQ_RANGE_TEAM:
@@ -2495,9 +2760,9 @@ bool req_text_insert(char *buf, size_t bufsz, struct player *pplayer,
 *****************************************************************/
 bool req_text_insert_nl(char *buf, size_t bufsz, struct player *pplayer,
                         const struct requirement *preq,
-                        enum rt_verbosity verb)
+                        enum rt_verbosity verb, const char *prefix)
 {
-  if (req_text_insert(buf, bufsz, pplayer, preq, verb)) {
+  if (req_text_insert(buf, bufsz, pplayer, preq, verb, prefix)) {
     fc_strlcat(buf, "\n", bufsz);
 
     return TRUE;

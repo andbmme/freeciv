@@ -45,7 +45,7 @@ static void messageopt_response(struct gui_dialog *dlg, int response,
 static void item_toggled(GtkCellRendererToggle *cell,
                          gchar *spath, gpointer data);
 
-/**************************************************************************
+/**********************************************************************//**
   Open messageoptions dialog
 **************************************************************************/
 void popup_messageopt_dialog(void)
@@ -56,21 +56,21 @@ void popup_messageopt_dialog(void)
   gui_dialog_raise(shell);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create messageoptions dialog
 **************************************************************************/
 static void create_messageopt_dialog(void)
 {
   GtkWidget *form, *explanation;
   int n, i = 0, j;
-  
+
   gui_dialog_new(&shell, GTK_NOTEBOOK(top_notebook), NULL, TRUE);
   gui_dialog_set_title(shell, _("Message Options"));
 
   gui_dialog_set_default_size(shell, -1, 450);
 
-  gui_dialog_add_button(shell, NULL, _("OK"), GTK_RESPONSE_OK);
-  gui_dialog_add_button(shell, NULL, _("Cancel"), GTK_RESPONSE_CANCEL);
+  gui_dialog_add_button(shell, NULL, _("_OK"), GTK_RESPONSE_OK);
+  gui_dialog_add_button(shell, NULL, _("_Cancel"), GTK_RESPONSE_CANCEL);
 
   explanation = gtk_label_new(NULL);
   g_object_set(explanation, "margin", 4, NULL);
@@ -167,7 +167,7 @@ static void create_messageopt_dialog(void)
   gui_dialog_show_all(shell);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Use responded to messageoptions dialog
 **************************************************************************/
 static void messageopt_response(struct gui_dialog *dlg, int response,
@@ -199,7 +199,7 @@ static void messageopt_response(struct gui_dialog *dlg, int response,
   gui_dialog_destroy(dlg);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User toggled item
 **************************************************************************/
 static void item_toggled(GtkCellRendererToggle *cell,

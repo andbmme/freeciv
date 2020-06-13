@@ -36,7 +36,6 @@
 /* gui-sdl2 */
 #include "colors.h"
 #include "graphics.h"
-#include "gui_iconv.h"
 #include "gui_id.h"
 #include "gui_main.h"
 #include "gui_tilespec.h"
@@ -58,7 +57,7 @@ static struct widget *pBeginMainWidgetList;
 
 static SDL_Surface *info_label = NULL;
 
-/**************************************************************************
+/**********************************************************************//**
   Correct backgroud size ( set min size ). Used in create widget
   functions.
 **************************************************************************/
@@ -69,7 +68,7 @@ void correct_size_bcgnd_surf(SDL_Surface *ptheme,
   *height = MAX(*height, 2 * (ptheme->h / adj_size(16)));
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Create background image for buttons, iconbuttons and edit fields
   then return  pointer to this image.
 
@@ -222,7 +221,7 @@ SDL_Surface *create_bcgnd_surf(SDL_Surface *ptheme, Uint8 state,
 /* ===================== WIDGET LIST ==================== */
 /* =================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Find the next visible widget in the widget list starting with
   pStartWidget that is drawn at position (x, y). If pStartWidget is NULL,
   the search starts with the first entry of the main widget list. 
@@ -250,7 +249,7 @@ struct widget *find_next_widget_at_pos(struct widget *pStartWidget,
   return NULL;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Find the next enabled and visible widget in the widget list starting
   with pStartWidget that handles the given key. If pStartWidget is NULL,
   the search starts with the first entry of the main widget list.
@@ -280,7 +279,7 @@ struct widget *find_next_widget_for_key(struct widget *pStartWidget,
   return NULL;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Do default Widget action when pressed, and then call widget callback
   function.
 
@@ -320,9 +319,7 @@ Uint16 widget_pressed_action(struct widget *pWidget)
     case WT_I_BUTTON:
     case WT_ICON:
     case WT_ICON2:
-      if (Main.event.type == SDL_KEYDOWN
-          || (Main.event.type == SDL_MOUSEBUTTONDOWN
-              && Main.event.button.button == SDL_BUTTON_LEFT)) {
+      if (PRESSED_EVENT(Main.event)) {
         set_wstate(pWidget, FC_WS_PRESSED);
         widget_redraw(pWidget);
         widget_mark_dirty(pWidget);
@@ -340,9 +337,7 @@ Uint16 widget_pressed_action(struct widget *pWidget)
 
     case WT_EDIT:
     {
-      if (Main.event.type == SDL_KEYDOWN
-          || (Main.event.type == SDL_MOUSEBUTTONDOWN
-              && Main.event.button.button == SDL_BUTTON_LEFT)) {
+      if (PRESSED_EVENT(Main.event)) {
         bool ret, loop = (get_wflags(pWidget) & WF_EDIT_LOOP);
         enum Edit_Return_Codes change;
 
@@ -369,9 +364,7 @@ Uint16 widget_pressed_action(struct widget *pWidget)
     }
     case WT_VSCROLLBAR:
     case WT_HSCROLLBAR:
-      if (Main.event.type == SDL_KEYDOWN
-          || (Main.event.type == SDL_MOUSEBUTTONDOWN
-              && Main.event.button.button == SDL_BUTTON_LEFT)) {
+      if (PRESSED_EVENT(Main.event)) {
         set_wstate(pWidget, FC_WS_PRESSED);
         widget_redraw(pWidget);
         widget_mark_dirty(pWidget);
@@ -386,9 +379,7 @@ Uint16 widget_pressed_action(struct widget *pWidget)
       break;
     case WT_CHECKBOX:
     case WT_TCHECKBOX:
-      if (Main.event.type == SDL_KEYDOWN
-          || (Main.event.type == SDL_MOUSEBUTTONDOWN
-              && Main.event.button.button == SDL_BUTTON_LEFT)) {
+      if (PRESSED_EVENT(Main.event)) {
         set_wstate(pWidget, FC_WS_PRESSED);
         widget_redraw(pWidget);
         widget_mark_dirty(pWidget);
@@ -405,9 +396,7 @@ Uint16 widget_pressed_action(struct widget *pWidget)
       }
       break;
     case WT_COMBO:
-      if (Main.event.type == SDL_KEYDOWN
-          || (Main.event.type == SDL_MOUSEBUTTONDOWN
-              && Main.event.button.button == SDL_BUTTON_LEFT)) {
+      if (PRESSED_EVENT(Main.event)) {
         set_wstate(pWidget, FC_WS_PRESSED);
         combo_popup(pWidget);
       } else {
@@ -427,7 +416,7 @@ Uint16 widget_pressed_action(struct widget *pWidget)
   return ID;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Unselect (selected) widget and redraw this widget;
 **************************************************************************/
 void unselect_widget_action(void)
@@ -452,7 +441,7 @@ void unselect_widget_action(void)
   selected_widget = NULL;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Select widget.  Redraw this widget;
 **************************************************************************/
 void widget_selected_action(struct widget *pWidget)
@@ -476,7 +465,7 @@ void widget_selected_action(struct widget *pWidget)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Draw or redraw info label to screen.
 **************************************************************************/
 void redraw_widget_info_label(SDL_Rect *rect)
@@ -559,7 +548,7 @@ void redraw_widget_info_label(SDL_Rect *rect)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Find ID in Widget's List ('pGUI_List') and return pointer to this
   Widget.
 **************************************************************************/
@@ -580,7 +569,7 @@ struct widget *get_widget_pointer_form_ID(const struct widget *pGUI_List,
   return NULL;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Find ID in MAIN Widget's List ( pBeginWidgetList ) and return pointer to
   this Widgets.
 **************************************************************************/
@@ -589,7 +578,7 @@ struct widget *get_widget_pointer_form_main_list(Uint16 ID)
   return get_widget_pointer_form_ID(pBeginMainWidgetList, ID, SCAN_FORWARD);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Add Widget to Main Widget's List ( pBeginWidgetList )
 **************************************************************************/
 void add_to_gui_list(Uint16 ID, struct widget *pGUI)
@@ -605,7 +594,7 @@ void add_to_gui_list(Uint16 ID, struct widget *pGUI)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Add Widget to Widget's List at pAdd_Dock position on 'prev' slot.
 **************************************************************************/
 void DownAdd(struct widget *pNew_Widget, struct widget *pAdd_Dock)
@@ -621,7 +610,7 @@ void DownAdd(struct widget *pNew_Widget, struct widget *pAdd_Dock)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Delete Widget from Main Widget's List ( pBeginWidgetList )
 
   NOTE: This function does not destroy Widget, only remove his pointer from
@@ -657,7 +646,7 @@ void del_widget_pointer_from_gui_list(struct widget *pGUI)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Determinate if 'pGui' is first on WidgetList
 
   NOTE: This is used by My (move) GUI Window mechanism.  Return TRUE if is
@@ -668,7 +657,7 @@ bool is_this_widget_first_on_list(struct widget *pGUI)
   return (pBeginMainWidgetList == pGUI);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Move pointer to Widget to list begin.
 
   NOTE: This is used by My GUI Window mechanism.
@@ -694,7 +683,7 @@ void move_widget_to_front_of_gui_list(struct widget *pGUI)
   pGUI->prev = NULL;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Delete Main Widget's List.
 **************************************************************************/
 void del_main_list(void)
@@ -702,7 +691,7 @@ void del_main_list(void)
   del_gui_list(pBeginMainWidgetList);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Delete Wideget's List ('pGUI_List').
 **************************************************************************/
 void del_gui_list(struct widget *pGUI_List)
@@ -721,7 +710,7 @@ void del_gui_list(struct widget *pGUI_List)
 /* ================================ Universal ========================== */
 /* ===================================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Universal redraw Group of Widget function.  Function is optimized to
   WindowGroup: start draw from 'pEnd' and stop on 'pBegin', in theory
   'pEnd' is window widget;
@@ -757,7 +746,7 @@ Uint16 redraw_group(const struct widget *pBeginGroupWidgetList,
   return count;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Undraw all widgets in the group.
 **************************************************************************/
 void undraw_group(struct widget *pBeginGroupWidgetList,
@@ -777,7 +766,7 @@ void undraw_group(struct widget *pBeginGroupWidgetList,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Move all widgets in the group by the given amounts.
 **************************************************************************/
 void set_new_group_start_pos(const struct widget *pBeginGroupWidgetList,
@@ -813,7 +802,7 @@ void set_new_group_start_pos(const struct widget *pBeginGroupWidgetList,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Move group of Widget's pointers to begin of main list.
   Move group destination buffer to end of buffer array.
   NOTE: This is used by My GUI Window(group) mechanism.
@@ -864,7 +853,7 @@ void move_group_to_front_of_gui_list(struct widget *pBeginGroupWidgetList,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Remove all widgets of the group from the list of displayed widgets.
   Does not free widget memory.
 **************************************************************************/
@@ -900,7 +889,7 @@ void del_group_of_widgets_from_gui_list(struct widget *pBeginGroupWidgetList,
 
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set state for all the widgets in the group.
 **************************************************************************/
 void set_group_state(struct widget *pBeginGroupWidgetList,
@@ -917,7 +906,7 @@ void set_group_state(struct widget *pBeginGroupWidgetList,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Hide all widgets in the group.
 **************************************************************************/
 void hide_group(struct widget *pBeginGroupWidgetList,
@@ -936,7 +925,7 @@ void hide_group(struct widget *pBeginGroupWidgetList,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Show all widgets in the group.
 **************************************************************************/
 void show_group(struct widget *pBeginGroupWidgetList,
@@ -955,7 +944,7 @@ void show_group(struct widget *pBeginGroupWidgetList,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Set area for all widgets in the group.
 **************************************************************************/
 void group_set_area(struct widget *pBeginGroupWidgetList,
@@ -984,7 +973,7 @@ void group_set_area(struct widget *pBeginGroupWidgetList,
  *	windowed type widget is last on list ( 'pEnd' ).
  */
 
-/**************************************************************************
+/**********************************************************************//**
   Undraw and destroy Window Group  The Trick is simple. We undraw only
   last member of group: the window.
 **************************************************************************/
@@ -999,7 +988,7 @@ void popdown_window_group_dialog(struct widget *pBeginGroupWidgetList,
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Select Window Group. (move widget group up the widgets list)
   Function return TRUE when group was selected.
 **************************************************************************/
@@ -1015,7 +1004,7 @@ bool select_window_group_dialog(struct widget *pBeginWidgetList,
   return FALSE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Move Window Group.  The Trick is simple.  We move only last member of
   group: the window , and then set new position to all members of group.
 
@@ -1038,7 +1027,7 @@ bool move_window_group_dialog(struct widget *pBeginGroupWidgetList,
   return ret;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Standart Window Group Widget Callback (window)
   When Pressed check mouse move;
   if move then move window and redraw else
@@ -1053,7 +1042,7 @@ void move_window_group(struct widget *pBeginWidgetList, struct widget *pWindow)
   move_window_group_dialog(pBeginWidgetList, pWindow);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Setup widgets vertically.
 **************************************************************************/
 int setup_vertical_widgets_position(int step,
@@ -1116,7 +1105,7 @@ int setup_vertical_widgets_position(int step,
 /* ======================== MISC ===================== */
 /* =================================================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Draw Themed Frame.
 **************************************************************************/
 void draw_frame(SDL_Surface *pDest, Sint16 start_x, Sint16 start_y,
@@ -1153,7 +1142,7 @@ void draw_frame(SDL_Surface *pDest, Sint16 start_x, Sint16 start_y,
   FREESURFACE(pTmpBottom);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Redraw background of the widget.
 **************************************************************************/
 void refresh_widget_background(struct widget *pWidget)

@@ -55,23 +55,28 @@
 
 static Tech_type_id
 pick_random_tech_to_lose(const struct research *presearch);
+static Tech_type_id pick_random_tech(const struct research *presearch);
+static Tech_type_id pick_cheapest_tech(const struct research *presearch);
 static void research_tech_lost(struct research *presearch,
                                Tech_type_id tech);
 static void forget_tech_transfered(struct player *pplayer, Tech_type_id tech);
 
-/****************************************************************************
+/************************************************************************//**
   Apply a penalty to the research.
 ****************************************************************************/
 void research_apply_penalty(struct research *presearch, Tech_type_id tech,
                             int penalty_percent)
 {
+  if (game.server.multiresearch) {
+    return;
+  }
   presearch->bulbs_researched -=
       (research_total_bulbs_required(presearch, tech, FALSE)
        * penalty_percent) / 100;
   presearch->researching_saved = A_UNKNOWN;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Emit script signal(s) for player/team learning new tech.
   originating_plr is the player whose action caused this; may be NULL, and
   is only used to order the emission of the signals.
@@ -84,24 +89,19 @@ void script_tech_learned(struct research *presearch,
    * tech first */
   if (originating_plr) {
     fc_assert(research_get(originating_plr) == presearch);
-    script_server_signal_emit("tech_researched", 3,
-                              API_TYPE_TECH_TYPE, tech,
-                              API_TYPE_PLAYER, originating_plr,
-                              API_TYPE_STRING, reason);
+    script_server_signal_emit("tech_researched", tech, originating_plr,
+                              reason);
   }
 
   /* Emit signal to remaining research teammates, if any */
   research_players_iterate(presearch, member) {
     if (member != originating_plr) {
-      script_server_signal_emit("tech_researched", 3,
-                                API_TYPE_TECH_TYPE, tech,
-                                API_TYPE_PLAYER, member,
-                                API_TYPE_STRING, reason);
+      script_server_signal_emit("tech_researched", tech, member, reason);
     }
   } research_players_iterate_end;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Players have researched a new technology.
 ****************************************************************************/
 static void tech_researched(struct research *research)
@@ -122,6 +122,13 @@ static void tech_researched(struct research *research)
   /* Deduct tech cost. */
   research->bulbs_researched -= research_total_bulbs_required(research, tech,
                                                               FALSE);
+  advance_index_iterate(A_FIRST, j) {
+    if (j == research->researching) {
+      research->inventions[j].bulbs_researched_saved
+                  = research_total_bulbs_required(research, tech, FALSE);
+    }
+  } advance_index_iterate_end;
+
 
   /* Do all the updates needed after finding new tech. */
   found_new_tech(research, tech, TRUE, TRUE);
@@ -129,7 +136,7 @@ static void tech_researched(struct research *research)
   script_tech_learned(research, NULL, advance_by_number(tech), "researched");
 }
 
-/****************************************************************************
+/************************************************************************//**
   Give technologies to players with EFT_TECH_PARASITE (traditionally from
   the Great Library).
 ****************************************************************************/
@@ -137,14 +144,13 @@ void do_tech_parasite_effect(struct player *pplayer)
 {
   struct effect_list *plist = effect_list_new();
   struct astring effects;
-  struct research *presearch;
+  struct research *plr_research;
   char research_name[MAX_LEN_NAME * 2];
   const char *advance_name;
   Tech_type_id tech;
   /* Note that two EFT_TECH_PARASITE effects will combine into a single,
    * much worse effect. */
   int mod = get_player_bonus_effects(plist, pplayer, EFT_TECH_PARASITE);
-  int num_players;
   int num_techs;
 
   if (mod <= 0) {
@@ -156,25 +162,27 @@ void do_tech_parasite_effect(struct player *pplayer)
   /* Pick a random technology. */
   tech = A_UNSET;
   num_techs = 0;
-  presearch = research_get(pplayer);
+  plr_research = research_get(pplayer);
   advance_index_iterate(A_FIRST, i) {
-    if (!research_invention_gettable(presearch, i,
+    int num_teams;
+
+    if (!research_invention_gettable(plr_research, i,
                                      game.info.tech_parasite_allow_holes)
-        || TECH_KNOWN == research_invention_state(presearch, i)) {
+        || TECH_KNOWN == research_invention_state(plr_research, i)) {
       continue;
     }
 
-    num_players = 0;
-    players_iterate(aplayer) {
-      if (TECH_KNOWN == research_invention_state(research_get(aplayer), i)) {
-        if (mod <= ++num_players) {
+    num_teams = 0;
+    researches_iterate(other_research) {
+      if (TECH_KNOWN == research_invention_state(other_research, i)) {
+        if (mod <= ++num_teams) {
           if (0 == fc_rand(++num_techs)) {
             tech = i;
           }
           break;
         }
       }
-    } players_iterate_end;
+    } researches_iterate_end;
   } advance_index_iterate_end;
 
   if (A_UNSET == tech) {
@@ -184,8 +192,8 @@ void do_tech_parasite_effect(struct player *pplayer)
   }
 
   /* Notify. */
-  research_pretty_name(presearch, research_name, sizeof(research_name));
-  advance_name = research_advance_name_translation(presearch, tech);
+  research_pretty_name(plr_research, research_name, sizeof(research_name));
+  advance_name = research_advance_name_translation(plr_research, tech);
   astr_init(&effects);
   get_effect_list_req_text(plist, &effects);
 
@@ -195,14 +203,14 @@ void do_tech_parasite_effect(struct player *pplayer)
                 Q_("?fromeffect:%s acquired from %s!"),
                 advance_name,
                 astr_str(&effects));
-  notify_research(presearch, pplayer, E_TECH_GAIN, ftc_server,
+  notify_research(plr_research, pplayer, E_TECH_GAIN, ftc_server,
                   /* TRANS: Tech from source of an effect
                    * (Great Library) */
                   Q_("?fromeffect:%s acquired from %s's %s!"),
                   advance_name,
                   player_name(pplayer),
                   astr_str(&effects));
-  notify_research_embassies(presearch, NULL, E_TECH_EMBASSY, ftc_server,
+  notify_research_embassies(plr_research, NULL, E_TECH_EMBASSY, ftc_server,
                             /* TRANS: Tech from source of an effect
                              * (Great Library) */
                             Q_("?fromeffect:The %s have acquired %s from %s."),
@@ -214,18 +222,16 @@ void do_tech_parasite_effect(struct player *pplayer)
   astr_free(&effects);
 
   /* Really get tech. */
-  research_apply_penalty(presearch, tech, game.server.freecost);
-  found_new_tech(presearch, tech, FALSE, TRUE);
+  research_apply_penalty(plr_research, tech, game.server.freecost);
+  found_new_tech(plr_research, tech, FALSE, TRUE);
 
-  research_players_iterate(presearch, member) {
-    script_server_signal_emit("tech_researched", 3,
-                              API_TYPE_TECH_TYPE, advance_by_number(tech),
-                              API_TYPE_PLAYER, member,
-                              API_TYPE_STRING, "stolen");
+  research_players_iterate(plr_research, member) {
+    script_server_signal_emit("tech_researched", advance_by_number(tech),
+                              member, "stolen");
   } research_players_iterate_end;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Fill packet fields. Helper for following functions.
 ****************************************************************************/
 static inline void
@@ -260,7 +266,7 @@ package_research_info(struct packet_research_info *packet,
 #endif /* FREECIV_DEBUG */
 }
 
-/****************************************************************************
+/************************************************************************//**
   Send research info for 'presearch' to 'dest'. 'dest' can be NULL to send
   to all established connections.
 ****************************************************************************/
@@ -303,7 +309,7 @@ void send_research_info(const struct research *presearch,
   } conn_list_iterate_end;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Players sharing the research have got a new technology (from somewhere).
   'was_discovery' is passed on to upgrade_city_extras. Logging and
   notification is not done here as it depends on how the tech came.
@@ -384,6 +390,7 @@ void found_new_tech(struct research *presearch, Tech_type_id tech_found,
    * (without losing bulbs) */
   if (tech_found == presearch->researching) {
     presearch->got_tech = TRUE;
+    presearch->got_tech_multi = TRUE;
   }
   presearch->researching_saved = A_UNKNOWN;
   presearch->techs_researched++;
@@ -538,10 +545,11 @@ void found_new_tech(struct research *presearch, Tech_type_id tech_found,
 
     research_pretty_name(presearch, research_name, sizeof(research_name));
 
-    additional_tech = give_immediate_free_tech(presearch);
+    additional_tech = pick_free_tech(presearch);
 
     radv_name = research_advance_name_translation(presearch, additional_tech);
 
+    give_immediate_free_tech(presearch, additional_tech);
     if (advance_by_number(tech_found)->bonus_message != NULL
         && additional_tech != A_UNSET) {
       notify_research(presearch, NULL, E_TECH_GAIN, ftc_server,
@@ -562,12 +570,12 @@ void found_new_tech(struct research *presearch, Tech_type_id tech_found,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Is player about to lose tech?
 ****************************************************************************/
 static bool lose_tech(struct research *research)
 {
-  if (game.server.techloss_forgiveness < 0) {
+  if (game.info.techloss_forgiveness < 0) {
     /* Tech loss disabled */
     return FALSE;
   }
@@ -584,14 +592,14 @@ static bool lose_tech(struct research *research)
   if (research->bulbs_researched < 0
       && research->bulbs_researched <
          (-research_total_bulbs_required(research, research->researching, FALSE)
-          * game.server.techloss_forgiveness / 100)) {
+          * game.info.techloss_forgiveness / 100)) {
     return TRUE;
   }
 
   return FALSE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Adds the given number of bulbs into the player's tech and (if necessary and
   'check_tech' is TRUE) completes the research. If the total number of bulbs
   is negative due to tech upkeep, one (randomly chosen) tech is lost.
@@ -613,6 +621,12 @@ void update_bulbs(struct player *pplayer, int bulbs, bool check_tech)
   /* count our research contribution this turn */
   pplayer->server.bulbs_last_turn += bulbs;
   research->bulbs_researched += bulbs;
+  advance_index_iterate(A_FIRST, j) {
+    if (j == research->researching) {
+      research->inventions[j].bulbs_researched_saved = research->bulbs_researched;
+    }
+  } advance_index_iterate_end;
+
 
   do {
     /* If we have a negative number of bulbs we do try to:
@@ -660,7 +674,7 @@ void update_bulbs(struct player *pplayer, int bulbs, bool check_tech)
   } while (research->researching != A_UNSET);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Choose a random tech for player to lose.
 ****************************************************************************/
 static Tech_type_id
@@ -728,7 +742,7 @@ pick_random_tech_to_lose(const struct research *presearch)
   return A_NONE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Helper for research_tech_lost().
 ****************************************************************************/
 static inline struct government *
@@ -746,7 +760,7 @@ pick_random_government(struct player *pplayer)
   return picked;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Remove one tech from the research.
 ****************************************************************************/
 static void research_tech_lost(struct research *presearch, Tech_type_id tech)
@@ -871,10 +885,10 @@ static void research_tech_lost(struct research *presearch, Tech_type_id tech)
   } research_players_iterate_end;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns random researchable tech or A_FUTURE. No side effects.
 ****************************************************************************/
-Tech_type_id pick_random_tech(const struct research *presearch)
+static Tech_type_id pick_random_tech(const struct research *presearch)
 {
   Tech_type_id tech = A_FUTURE;
   int num_techs = 0;
@@ -889,10 +903,10 @@ Tech_type_id pick_random_tech(const struct research *presearch)
   return tech;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns cheapest researchable tech, random among equal cost ones.
 ****************************************************************************/
-Tech_type_id pick_cheapest_tech(const struct research *presearch)
+static Tech_type_id pick_cheapest_tech(const struct research *presearch)
 {
   int cheapest_cost = -1;
   int cheapest_amount = 0;
@@ -915,7 +929,7 @@ Tech_type_id pick_cheapest_tech(const struct research *presearch)
   return cheapest;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Finds and chooses (sets) a random research target from among all those
   available until presearch->researching != A_UNSET.
   Players may research more than one tech in this function.
@@ -931,7 +945,7 @@ void choose_random_tech(struct research *research)
   } while (research->researching == A_UNSET);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Called when a player chooses the tech he wants to research (or when
   the server chooses it for him automatically).
 
@@ -941,6 +955,8 @@ void choose_random_tech(struct research *research)
 ****************************************************************************/
 void choose_tech(struct research *research, Tech_type_id tech)
 {
+  int bulbs_res = 0;
+
   if (is_future_tech(tech)) {
     if (is_future_tech(research->researching)
         && (research->bulbs_researched
@@ -956,6 +972,31 @@ void choose_tech(struct research *research, Tech_type_id tech)
       return;
     }
   }
+
+  if (game.server.multiresearch) {
+    advance_index_iterate(A_FIRST, j) {
+      /* Save old tech research */
+      if (j == research->researching) {
+        research->inventions[j].bulbs_researched_saved = research->bulbs_researched;
+      }
+      /* New tech*/
+      if (j == tech) {
+        bulbs_res = research->inventions[j].bulbs_researched_saved;
+      }
+    } advance_index_iterate_end;
+    research->researching = tech;
+    if (research->got_tech_multi == FALSE) {
+      research->bulbs_researched = 0;
+    }
+    research->bulbs_researched = research->bulbs_researched + bulbs_res;
+    research->got_tech_multi = FALSE;
+    if (research->bulbs_researched
+        >= research_total_bulbs_required(research, tech, FALSE)) {
+      tech_researched(research);
+    }
+    return;
+  }
+
   if (!research->got_tech && research->researching_saved == A_UNKNOWN) {
     research->bulbs_researching_saved = research->bulbs_researched;
     research->researching_saved = research->researching;
@@ -976,7 +1017,7 @@ void choose_tech(struct research *research, Tech_type_id tech)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Called when a player chooses the tech goal he wants to research (or when
   the server chooses it for him automatically).
 ****************************************************************************/
@@ -996,7 +1037,7 @@ void choose_tech_goal(struct research *presearch, Tech_type_id tech)
                   research_advance_name_translation(presearch, tech));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Initializes tech data for the research.
 ****************************************************************************/
 void init_tech(struct research *research, bool update)
@@ -1085,7 +1126,7 @@ void init_tech(struct research *research, bool update)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Gives global (read from the game ruleset file) and nation (read from the
   nation ruleset files) initial techs as specified in the ruleset, and
   random free technologies thanks to the techlevel setting.
@@ -1129,7 +1170,7 @@ void give_initial_techs(struct research *presearch, int num_random_techs)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   If victim has a tech which pplayer doesn't have, pplayer will get it.
   The clients will both be notified and the conquer cost
   penalty applied. Used for diplomats and city conquest.
@@ -1153,6 +1194,7 @@ Tech_type_id steal_a_tech(struct player *pplayer, struct player *victim,
 
   if (preferred == A_UNSET) {
     int j = 0;
+
     advance_index_iterate(A_FIRST, i) {
       if (research_invention_gettable(presearch, i,
                                       game.info.tech_steal_allow_holes)
@@ -1165,7 +1207,6 @@ Tech_type_id steal_a_tech(struct player *pplayer, struct player *victim,
     if (j == 0)  {
       /* we've moved on to future tech */
       if (vresearch->future_tech > presearch->future_tech) {
-        found_new_tech(presearch, A_FUTURE, FALSE, TRUE);
         stolen_tech = A_FUTURE;
       } else {
         return A_NONE;
@@ -1233,7 +1274,7 @@ Tech_type_id steal_a_tech(struct player *pplayer, struct player *victim,
   return A_NONE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle incoming research packet. Need to check correctness
   Set the player to be researching the given tech.
 
@@ -1259,7 +1300,7 @@ void handle_player_research(struct player *pplayer, int tech)
   send_research_info(research, NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle incoming player_tech_goal packet
   Called from the network or AI code to set the player's tech goal.
 ****************************************************************************/
@@ -1286,10 +1327,10 @@ void handle_player_tech_goal(struct player *pplayer, int tech_goal)
   send_research_info(research, NULL);
 }
 
-/****************************************************************************
-  Gives an immediate free tech. Applies freecost. Returns the tech.
+/************************************************************************//**
+  Choose a free tech.
 ****************************************************************************/
-Tech_type_id give_immediate_free_tech(struct research *presearch)
+Tech_type_id pick_free_tech(struct research *presearch)
 {
   Tech_type_id tech;
 
@@ -1301,12 +1342,20 @@ Tech_type_id give_immediate_free_tech(struct research *presearch)
   } else {
     tech = presearch->researching;
   }
-  research_apply_penalty(presearch, tech, game.server.freecost);
-  found_new_tech(presearch, tech, FALSE, TRUE);
   return tech;
 }
 
-/****************************************************************************
+/************************************************************************//**
+  Give an immediate free tech (probably chosen with pick_free_tech()).
+  Applies freecost.
+****************************************************************************/
+void give_immediate_free_tech(struct research *presearch, Tech_type_id tech)
+{
+  research_apply_penalty(presearch, tech, game.server.freecost);
+  found_new_tech(presearch, tech, FALSE, TRUE);
+}
+
+/************************************************************************//**
   Let the player forget one tech.
 ****************************************************************************/
 static void forget_tech_transfered(struct player *pplayer, Tech_type_id tech)
@@ -1327,7 +1376,7 @@ static void forget_tech_transfered(struct player *pplayer, Tech_type_id tech)
                 research_advance_name_translation(presearch, tech));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Check if the tech is lost by the donor or receiver. Returns if the
   receiver gets a new tech.
 ****************************************************************************/

@@ -53,19 +53,19 @@
 #include "handicaps.h"
 
 /* ai/default */
-#include "aicity.h"
 #include "aidata.h"
 #include "ailog.h"
 #include "aiplayer.h"
 #include "aitech.h"
 #include "aitools.h"
 #include "aiunit.h"
+#include "daicity.h"
 #include "daimilitary.h"
 
 #include "daidomestic.h"
 
 
-/***************************************************************************
+/***********************************************************************//**
   Evaluate the need for units (like caravans) that aid wonder construction.
   If another city is building wonder and needs help but pplayer is not
   advanced enough to build caravans, the corresponding tech will be 
@@ -135,8 +135,8 @@ static void dai_choose_help_wonder(struct ai_type *ait,
 
   /* Check if wonder needs a little help. */
   if (build_points_left(wonder_city)
-      > utype_build_shield_cost(unit_type) * caravans) {
-    struct impr_type *wonder = wonder_city->production.value.building;
+      > utype_build_shield_cost_base(unit_type) * caravans) {
+    const struct impr_type *wonder = wonder_city->production.value.building;
     adv_want want = wonder_city->server.adv->building_want[improvement_index(wonder)];
     int dist = city_data->distance_to_wonder_city /
                unit_type->move_rate;
@@ -167,11 +167,11 @@ static void dai_choose_help_wonder(struct ai_type *ait,
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Evaluate the need for units (like caravans) that create trade routes.
   If pplayer is not advanced enough to build caravans, the corresponding
   tech will be stimulated.
-****************************************************************************/
+***************************************************************************/
 static void dai_choose_trade_route(struct ai_type *ait, struct city *pcity,
                                    struct adv_choice *choice,
                                    struct adv_data *ai)
@@ -410,7 +410,7 @@ static void dai_choose_trade_route(struct ai_type *ait, struct city *pcity,
     want += trader_trait / 4;
   }
 
-  want -= utype_build_shield_cost(unit_type) * SHIELD_WEIGHTING / 150;
+  want -= utype_build_shield_cost(pcity, unit_type) * SHIELD_WEIGHTING / 150;
 
   /* Don't pile too many of them */
   if (unassigned_caravans * 10 > want && want > 0.0) {
@@ -449,7 +449,7 @@ static void dai_choose_trade_route(struct ai_type *ait, struct city *pcity,
   }
 }
 
-/************************************************************************** 
+/***********************************************************************//**
   This function should fill the supplied choice structure.
 
   If want is 0, this advisor doesn't want anything.
@@ -581,6 +581,8 @@ struct adv_choice *domestic_advisor_choose_build(struct ai_type *ait, struct pla
     cur = adv_new_choice();
     adv_choice_set_use(cur, "improvement");
     building_advisor_choose(pcity, cur);
+    cur->want = cur->want * (0.5 + (ai_trait_get_value(TRAIT_BUILDER, pplayer)
+                                    / TRAIT_DEFAULT_VALUE / 2));
     choice = adv_better_choice_free(choice, cur);
 
     /* Consider building caravan-type units for trade route */
@@ -599,9 +601,9 @@ struct adv_choice *domestic_advisor_choose_build(struct ai_type *ait, struct pla
   return choice;
 }
 
-/**************************************************************************
+/***********************************************************************//**
   Calculate walking distances to wonder city from nearby cities.
-**************************************************************************/
+***************************************************************************/
 void dai_wonder_city_distance(struct ai_type *ait, struct player *pplayer, 
                               struct adv_data *adv)
 {

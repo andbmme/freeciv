@@ -235,7 +235,7 @@ union propval_data {
   struct nation_type *v_nation;
   struct nation_hash *v_nation_hash;
   struct government *v_gov;
-  bool *v_inventions;
+  bv_techs v_bv_inventions;
   struct tile_vision_data *v_tile_vision;
 };
 
@@ -339,6 +339,7 @@ enum object_property_ids {
   OPID_UNIT_DONE_MOVING,
   OPID_UNIT_HP,
   OPID_UNIT_VETERAN,
+  OPID_UNIT_STAY,
 
   OPID_CITY_IMAGE,
   OPID_CITY_NAME,
@@ -365,7 +366,6 @@ enum object_property_ids {
   OPID_PLAYER_SCIENCE,
   OPID_PLAYER_GOLD,
 
-  OPID_GAME_YEAR,
   OPID_GAME_SCENARIO,
   OPID_GAME_SCENARIO_NAME,
   OPID_GAME_SCENARIO_AUTHORS,
@@ -658,7 +658,7 @@ property_editor_get_page(struct property_editor *pe,
 static struct property_editor *the_property_editor;
 
 
-/****************************************************************************
+/************************************************************************//**
   Returns the translated name for the given object type.
 ****************************************************************************/
 static const char *objtype_get_name(enum editor_object_type objtype)
@@ -685,7 +685,7 @@ static const char *objtype_get_name(enum editor_object_type objtype)
   return "Unknown";
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the unique identifier value from the given object, assuming it
   is of the 'objtype' object type. Valid IDs are always greater than or
   equal to zero.
@@ -716,7 +716,7 @@ static int objtype_get_id_from_object(enum editor_object_type objtype,
   return -1;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get the object of type 'objtype' uniquely identified by 'id'.
 ****************************************************************************/
 static gpointer objtype_get_object_from_id(enum editor_object_type objtype,
@@ -745,7 +745,7 @@ static gpointer objtype_get_object_from_id(enum editor_object_type objtype,
   return NULL;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns TRUE if it does not make sense for the object of the given type to
   be created and destroyed (e.g. tiles, game), as opposed to those that can
   be (e.g. units, cities, players, etc.).
@@ -770,7 +770,7 @@ static bool objtype_is_conserved(enum editor_object_type objtype)
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the untranslated name for the given value type.
 ****************************************************************************/
 static const char *valtype_get_name(enum value_types valtype)
@@ -810,7 +810,7 @@ static const char *valtype_get_name(enum value_types valtype)
   return "void";
 }
 
-/****************************************************************************
+/************************************************************************//**
   Convenience function to add a column to a GtkTreeView. Used for the
   view widget creation in extviewer_new().
 ****************************************************************************/
@@ -852,7 +852,7 @@ static void add_column(GtkWidget *view,
   gtk_tree_view_append_column(GTK_TREE_VIEW(view), col);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Fill the supplied buffer with a short string representation of the given
   value. Returned value is g_strdup'd and must be g_free'd.
 ****************************************************************************/
@@ -905,7 +905,7 @@ static gchar *propval_as_string(struct propval *pv)
 
   case VALTYPE_INVENTIONS_ARRAY:
     advance_index_iterate(A_FIRST, tech) {
-      if (pv->data.v_inventions[tech]) {
+      if (BV_ISSET(pv->data.v_bv_inventions, tech)) {
         count++;
       }
     } advance_index_iterate_end;
@@ -967,7 +967,7 @@ static gchar *propval_as_string(struct propval *pv)
   return g_strdup("");
 }
 
-/****************************************************************************
+/************************************************************************//**
   Convert the built_status information to a user viewable string.
   Returned value is g_strdup'd and must be g_free'd.
 ****************************************************************************/
@@ -988,7 +988,7 @@ static gchar *built_status_to_string(struct built_status *bs)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns TRUE if a unit can be created at the given tile based on the
   state of the editor (see editor_unit_virtual_create).
 ****************************************************************************/
@@ -1021,7 +1021,7 @@ static bool can_create_unit_at_tile(struct tile *ptile)
   return ret;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the next tag number in the sequence.
 ****************************************************************************/
 static int get_next_unique_tag(void)
@@ -1032,7 +1032,7 @@ static int get_next_unique_tag(void)
   return tag_series;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return a newly allocated deep copy of the given value.
 ****************************************************************************/
 static struct propval *propval_copy(struct propval *pv)
@@ -1092,10 +1092,7 @@ static struct propval *propval_copy(struct propval *pv)
     pv_copy->must_free = TRUE;
     return pv_copy;
   case VALTYPE_INVENTIONS_ARRAY:
-    size = A_LAST * sizeof(bool);
-    pv_copy->data.v_pointer = fc_malloc(size);
-    memcpy(pv_copy->data.v_pointer, pv->data.v_pointer, size);
-    pv_copy->must_free = TRUE;
+    pv_copy->data.v_bv_inventions = pv->data.v_bv_inventions;
     return pv_copy;
   case VALTYPE_TILE_VISION_DATA:
     size = sizeof(struct tile_vision_data);
@@ -1116,7 +1113,7 @@ static struct propval *propval_copy(struct propval *pv)
   return pv_copy;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free all allocated memory used by this property value, including calling
   the appropriate free function on the internal data according to its type.
 ****************************************************************************/
@@ -1130,7 +1127,7 @@ static void propval_free(struct propval *pv)
   free(pv);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Frees the internal data held by the propval, without freeing the propval
   struct itself.
 ****************************************************************************/
@@ -1168,7 +1165,7 @@ static void propval_free_data(struct propval *pv)
             __FUNCTION__, pv->data.v_pointer, valtype_get_name(pv->valtype));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns TRUE if the two values are equal, in a deep sense.
 ****************************************************************************/
 static bool propval_equal(struct propval *pva,
@@ -1218,18 +1215,7 @@ static bool propval_equal(struct propval *pva,
     } improvement_iterate_end;
     return TRUE;
   case VALTYPE_INVENTIONS_ARRAY:
-    if (pva->data.v_pointer == pvb->data.v_pointer) {
-      return TRUE;
-    } else if (!pva->data.v_pointer || !pvb->data.v_pointer) {
-      return FALSE;
-    }
-
-    advance_index_iterate(A_FIRST, tech) {
-      if (pva->data.v_inventions[tech] != pvb->data.v_inventions[tech]) {
-        return FALSE;
-      }
-    } advance_index_iterate_end;
-    return TRUE;
+    return BV_ARE_EQUAL(pva->data.v_bv_inventions, pvb->data.v_bv_inventions);
   case VALTYPE_BV_SPECIAL:
     return BV_ARE_EQUAL(pva->data.v_bv_special, pvb->data.v_bv_special);
   case VALTYPE_BV_ROADS:
@@ -1262,7 +1248,7 @@ static bool propval_equal(struct propval *pva,
   return pva->data.v_pointer == pvb->data.v_pointer;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a new "property state" record. It keeps track of the modified value
   of a property bound to an object.
 
@@ -1284,7 +1270,7 @@ static struct propstate *propstate_new(struct objprop *op,
   return ps;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Removes the stored value, freeing it if needed.
 ****************************************************************************/
 static void propstate_clear_value(struct propstate *ps)
@@ -1297,7 +1283,7 @@ static void propstate_clear_value(struct propstate *ps)
   ps->property_value = NULL;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free a property state and any associated resources.
 ****************************************************************************/
 static void propstate_destroy(struct propstate *ps)
@@ -1309,10 +1295,10 @@ static void propstate_destroy(struct propstate *ps)
   free(ps);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Replace the stored property value with a new one. The old value will
   be freed if needed.
-  
+
   NB: Does NOT make a copy of 'pv'.
 ****************************************************************************/
 static void propstate_set_value(struct propstate *ps,
@@ -1325,7 +1311,7 @@ static void propstate_set_value(struct propstate *ps,
   ps->property_value = pv;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the stored value.
 
   NB: NOT a copy of the value.
@@ -1338,7 +1324,7 @@ static struct propval *propstate_get_value(struct propstate *ps)
   return ps->property_value;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a new object "bind". It serves to bind a set of object properties
   to an object instance.
 ****************************************************************************/
@@ -1365,12 +1351,13 @@ static struct objbind *objbind_new(enum editor_object_type objtype,
   return ob;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the bound object, if it still "exists". Returns NULL on error.
 ****************************************************************************/
 static gpointer objbind_get_object(struct objbind *ob)
 {
   int id;
+
   if (!ob) {
     return NULL;
   }
@@ -1380,7 +1367,7 @@ static gpointer objbind_get_object(struct objbind *ob)
   return objtype_get_object_from_id(ob->objtype, id);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the ID of the bound object, or -1 if invalid.
 ****************************************************************************/
 static int objbind_get_object_id(struct objbind *ob)
@@ -1391,7 +1378,7 @@ static int objbind_get_object_id(struct objbind *ob)
   return ob->object_id;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Sends a request to the server to have the bound object erased from
   existence. Only makes sense for object types for which the function
   objtype_is_conserved() returns FALSE.
@@ -1437,7 +1424,7 @@ static void objbind_request_destroy_object(struct objbind *ob)
             objtype_get_name(objtype));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns a newly allocated property value for the given object property
   on the object referenced by the given object bind, or NULL on failure.
 
@@ -1686,6 +1673,9 @@ static struct propval *objbind_get_value_from_object(struct objbind *ob,
       case OPID_UNIT_VETERAN:
         pv->data.v_int = punit->veteran;
         break;
+      case OPID_UNIT_STAY:
+        pv->data.v_bool = punit->stay;
+        break;
       default:
         log_error("%s(): Unhandled request for value of property %d "
                   "(%s) from object of type \"%s\".", __FUNCTION__,
@@ -1784,12 +1774,12 @@ static struct propval *objbind_get_value_from_object(struct objbind *ob,
 #endif /* FREECIV_DEBUG */
       case OPID_PLAYER_INVENTIONS:
         presearch = research_get(pplayer);
-        pv->data.v_inventions = fc_calloc(A_LAST, sizeof(bool));
+        BV_CLR_ALL(pv->data.v_bv_inventions);
         advance_index_iterate(A_FIRST, tech) {
-          pv->data.v_inventions[tech]
-              = TECH_KNOWN == research_invention_state(presearch, tech);
+          if (TECH_KNOWN == research_invention_state(presearch, tech)) {
+            BV_SET(pv->data.v_bv_inventions, tech);
+          }
         } advance_index_iterate_end;
-        pv->must_free = TRUE;
         break;
       case OPID_PLAYER_SCENARIO_RESERVED:
         pv->data.v_bool = player_has_flag(pplayer, PLRF_SCENARIO_RESERVED);
@@ -1819,9 +1809,6 @@ static struct propval *objbind_get_value_from_object(struct objbind *ob,
       }
 
       switch (propid) {
-      case OPID_GAME_YEAR:
-        pv->data.v_int = pgame->info.year;
-        break;
       case OPID_GAME_SCENARIO:
         pv->data.v_bool = pgame->scenario.is_scenario;
         break;
@@ -1875,7 +1862,7 @@ FAILED:
   return NULL;
 }
 
-/****************************************************************************
+/************************************************************************//**
   If applicable, sets the allowed range values of the given object property
   as applied to the bound object. Returns TRUE if values were set.
 ****************************************************************************/
@@ -1941,7 +1928,7 @@ static bool objbind_get_allowed_value_span(struct objbind *ob,
       switch (propid) {
       case OPID_UNIT_MOVES_LEFT:
         *pmin = 0;
-        *pmax = 65535; /* packets.def MOVEFRAGS */
+        *pmax = MAX_MOVE_FRAGS;
         *pstep = 1;
         *pbig_step = 5;
         return TRUE;
@@ -2037,16 +2024,6 @@ static bool objbind_get_allowed_value_span(struct objbind *ob,
     return FALSE;
 
   case OBJTYPE_GAME:
-    switch (propid) {
-    case OPID_GAME_YEAR:
-      *pmin = -30000;
-      *pmax = 30000;
-      *pstep = 1;
-      *pbig_step = 25;
-      return TRUE;
-    default:
-      break;
-    }
     log_error("%s(): Unhandled request for value range of property %d (%s) "
               "from object of type \"%s\".", __FUNCTION__,
               propid, objprop_get_name(op), objtype_get_name(objtype));
@@ -2061,7 +2038,7 @@ static bool objbind_get_allowed_value_span(struct objbind *ob,
   return FALSE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Remove a stored modified value, if it exists.
 ****************************************************************************/
 static void objbind_clear_modified_value(struct objbind *ob,
@@ -2074,7 +2051,7 @@ static void objbind_clear_modified_value(struct objbind *ob,
   propstate_hash_remove(ob->propstate_table, objprop_get_id(op));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns TRUE if a stored modified property value exists for this bound
   object for the given property.
 ****************************************************************************/
@@ -2093,7 +2070,7 @@ static bool objbind_property_is_modified(struct objbind *ob,
                                objprop_get_id(op), NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns TRUE if there are any stored modified values of any of the
   properties of the bound object.
 ****************************************************************************/
@@ -2106,7 +2083,7 @@ static bool objbind_has_modified_properties(struct objbind *ob)
   return (0 < propstate_hash_size(ob->propstate_table));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Deletes all stored modified property values.
 ****************************************************************************/
 static void objbind_clear_all_modified_values(struct objbind *ob)
@@ -2117,7 +2094,7 @@ static void objbind_clear_all_modified_values(struct objbind *ob)
   propstate_hash_clear(ob->propstate_table);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Store a modified property value, but only if it is different from the
   current value. Always makes a copy of the given value when storing.
 ****************************************************************************/
@@ -2159,7 +2136,7 @@ static void objbind_set_modified_value(struct objbind *ob,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Retrieve the stored property value for the bound object, or NULL if none
   exists.
 
@@ -2181,7 +2158,7 @@ static struct propval *objbind_get_modified_value(struct objbind *ob,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Destroy the object bind and free any resources it might have been using.
 ****************************************************************************/
 static void objbind_destroy(struct objbind *ob)
@@ -2200,7 +2177,7 @@ static void objbind_destroy(struct objbind *ob)
   free(ob);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the object type of the bound object.
 ****************************************************************************/
 static enum editor_object_type objbind_get_objtype(const struct objbind *ob)
@@ -2211,7 +2188,7 @@ static enum editor_object_type objbind_get_objtype(const struct objbind *ob)
   return ob->objtype;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Bind the object in the given objbind to the properties in the page.
 ****************************************************************************/
 static void objbind_bind_properties(struct objbind *ob,
@@ -2223,7 +2200,7 @@ static void objbind_bind_properties(struct objbind *ob,
   ob->parent_property_page = pp;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Fill the packet with the bound object's current state.
 
   NB: This must be updated if the packet_edit_<object> definitions change.
@@ -2282,6 +2259,7 @@ static void objbind_pack_current_values(struct objbind *ob,
       packet->done_moving = punit->done_moving;
       packet->hp = punit->hp;
       packet->veteran = punit->veteran;
+      packet->stay = punit->stay;
       /* TODO: Set more packet fields. */
     }
     return;
@@ -2344,7 +2322,6 @@ static void objbind_pack_current_values(struct objbind *ob,
         return;
       }
 
-      packet->year = pgame->info.year;
       packet->scenario = pgame->scenario.is_scenario;
       sz_strlcpy(packet->scenario_name, pgame->scenario.name);
       sz_strlcpy(packet->scenario_authors, pgame->scenario.authors);
@@ -2365,7 +2342,7 @@ static void objbind_pack_current_values(struct objbind *ob,
             objtype_get_name(objtype), objtype);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Package the modified property value into the supplied packet.
 ****************************************************************************/
 static void objbind_pack_modified_value(struct objbind *ob,
@@ -2491,6 +2468,9 @@ static void objbind_pack_modified_value(struct objbind *ob,
       case OPID_UNIT_VETERAN:
         packet->veteran = pv->data.v_int;
         return;
+      case OPID_UNIT_STAY:
+        packet->stay = pv->data.v_bool;
+        return;
       default:
         break;
       }
@@ -2554,7 +2534,7 @@ static void objbind_pack_modified_value(struct objbind *ob,
         return;
       case OPID_PLAYER_INVENTIONS:
         advance_index_iterate(A_FIRST, tech) {
-          packet->inventions[tech] = pv->data.v_inventions[tech];
+          packet->inventions[tech] = BV_ISSET(pv->data.v_bv_inventions, tech);
         } advance_index_iterate_end;
         return;
       case OPID_PLAYER_SCENARIO_RESERVED:
@@ -2580,9 +2560,6 @@ static void objbind_pack_modified_value(struct objbind *ob,
       struct packet_edit_game *packet = pd.game.game;
 
       switch (propid) {
-      case OPID_GAME_YEAR:
-        packet->year = pv->data.v_int;
-        return;
       case OPID_GAME_SCENARIO:
         packet->scenario = pv->data.v_bool;
         return;
@@ -2631,7 +2608,7 @@ static void objbind_pack_modified_value(struct objbind *ob,
 
 }
 
-/****************************************************************************
+/************************************************************************//**
   Sets the row reference in a GtkTreeModel of this objbind.
 ****************************************************************************/
 static void objbind_set_rowref(struct objbind *ob,
@@ -2643,7 +2620,7 @@ static void objbind_set_rowref(struct objbind *ob,
   ob->rowref = rr;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the row reference of this objbind, or NULL if not applicable.
 ****************************************************************************/
 static GtkTreeRowReference *objbind_get_rowref(struct objbind *ob)
@@ -2654,7 +2631,7 @@ static GtkTreeRowReference *objbind_get_rowref(struct objbind *ob)
   return ob->rowref;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the unique property identifier for this object property.
 ****************************************************************************/
 static int objprop_get_id(const struct objprop *op)
@@ -2665,7 +2642,7 @@ static int objprop_get_id(const struct objprop *op)
   return op->id;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the GType that this object property renders as in a GtkTreeView.
   Returning G_TYPE_NONE indicates that this property cannot be viewed
   in a list.
@@ -2702,7 +2679,7 @@ static GType objprop_get_gtype(const struct objprop *op)
   return G_TYPE_NONE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the value type of this property value (one of enum value_types).
 ****************************************************************************/
 static enum value_types objprop_get_valtype(const struct objprop *op)
@@ -2713,7 +2690,7 @@ static enum value_types objprop_get_valtype(const struct objprop *op)
   return op->valtype;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns TRUE if this object property can be viewed in a GtkTreeView.
 ****************************************************************************/
 static bool objprop_show_in_listview(const struct objprop *op)
@@ -2724,7 +2701,7 @@ static bool objprop_show_in_listview(const struct objprop *op)
   return op->flags & OPF_IN_LISTVIEW;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns TRUE if this object property can create and use a property widget.
 ****************************************************************************/
 static bool objprop_has_widget(const struct objprop *op)
@@ -2735,7 +2712,7 @@ static bool objprop_has_widget(const struct objprop *op)
   return op->flags & OPF_HAS_WIDGET;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns a the string corresponding to the attribute type name required
   for gtk_tree_view_column_new_with_attributes according to this objprop's
   GType value. May return NULL if it does not make sense for this
@@ -2760,7 +2737,7 @@ static const char *objprop_get_attribute_type_string(const struct objprop *op)
   return NULL;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Store the column id of the list store that this object property can be
   viewed in. This should generally only be changed set once, when the
   object property's associated list view is created.
@@ -2774,7 +2751,7 @@ static void objprop_set_column_id(struct objprop *op, int col_id)
   op->column_id = col_id;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the column id in the list store for this object property.
   May return -1 if not applicable or if not yet set.
   NB: This is the column id in the model, not the view.
@@ -2787,7 +2764,7 @@ static int objprop_get_column_id(const struct objprop *op)
   return op->column_id;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Sets the view column reference for later convenience.
 ****************************************************************************/
 static void objprop_set_treeview_column(struct objprop *op,
@@ -2799,7 +2776,7 @@ static void objprop_set_treeview_column(struct objprop *op,
   op->view_column = col;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the previously stored tree view column reference, or NULL if none
   exists.
 ****************************************************************************/
@@ -2811,7 +2788,7 @@ static GtkTreeViewColumn *objprop_get_treeview_column(const struct objprop *op)
   return op->view_column;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the string name of this object property.
 ****************************************************************************/
 static const char *objprop_get_name(const struct objprop *op)
@@ -2822,7 +2799,7 @@ static const char *objprop_get_name(const struct objprop *op)
   return op->name;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return a description (translated) of the property.
 ****************************************************************************/
 static const char *objprop_get_tooltip(const struct objprop *op)
@@ -2833,7 +2810,7 @@ static const char *objprop_get_tooltip(const struct objprop *op)
   return op->tooltip;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create and return a cell renderer corresponding to this object property,
   suitable to be used with a tree view. May return NULL if this object
   property cannot exist in a list store.
@@ -2855,7 +2832,7 @@ static GtkCellRenderer *objprop_create_cell_renderer(const struct objprop *op)
   return cell;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return TRUE if the given object property can be sorted (i.e. in the list
   view).
 ****************************************************************************/
@@ -2869,7 +2846,7 @@ static bool objprop_is_sortable(const struct objprop *op)
   return gtype == G_TYPE_INT || gtype == G_TYPE_STRING;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return TRUE if the given object property cannot be edited (i.e. it is
   displayed information only).
 ****************************************************************************/
@@ -2881,7 +2858,7 @@ static bool objprop_is_readonly(const struct objprop *op)
   return !(op->flags & OPF_EDITABLE);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Callback for entry widget 'changed' signal.
 ****************************************************************************/
 static void objprop_widget_entry_changed(GtkEntry *entry, gpointer userdata)
@@ -2892,12 +2869,12 @@ static void objprop_widget_entry_changed(GtkEntry *entry, gpointer userdata)
 
   op = userdata;
   pp = objprop_get_property_page(op);
-  value.data.v_const_string = gtk_entry_get_text(entry);
+  value.data.v_const_string = gtk_entry_buffer_get_text(gtk_entry_get_buffer(entry));
 
   property_page_change_value(pp, op, &value);  
 }
 
-/****************************************************************************
+/************************************************************************//**
   Callback for spin button widget 'value-changed' signal.
 ****************************************************************************/
 static void objprop_widget_spin_button_changed(GtkSpinButton *spin,
@@ -2914,7 +2891,7 @@ static void objprop_widget_spin_button_changed(GtkSpinButton *spin,
   property_page_change_value(pp, op, &value);  
 }
 
-/****************************************************************************
+/************************************************************************//**
   Callback for toggle type button widget 'toggled' signal.
 ****************************************************************************/
 static void objprop_widget_toggle_button_changed(GtkToggleButton *button,
@@ -2931,12 +2908,12 @@ static void objprop_widget_toggle_button_changed(GtkToggleButton *button,
   property_page_change_value(pp, op, &value);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create the gtk widget used to edit or display this object property.
 ****************************************************************************/
 static void objprop_setup_widget(struct objprop *op)
 {
-  GtkWidget *ebox, *hbox, *hbox2, *label, *image, *entry, *spin, *button;
+  GtkWidget *hbox, *hbox2, *label, *image, *entry, *spin, *button;
   struct extviewer *ev = NULL;
   enum object_property_ids propid;
 
@@ -2948,13 +2925,10 @@ static void objprop_setup_widget(struct objprop *op)
     return;
   }
 
-  ebox = gtk_event_box_new();
-  op->widget = ebox;
-
   hbox = gtk_grid_new();
-  gtk_grid_set_column_spacing(GTK_GRID(hbox), 4);
+  op->widget = hbox;
 
-  gtk_container_add(GTK_CONTAINER(ebox), hbox);
+  gtk_grid_set_column_spacing(GTK_GRID(hbox), 4);
 
   label = gtk_label_new(objprop_get_name(op));
   gtk_widget_set_halign(label, GTK_ALIGN_START);
@@ -3027,7 +3001,6 @@ static void objprop_setup_widget(struct objprop *op)
   case OPID_CITY_SHIELD_STOCK:
   case OPID_PLAYER_SCIENCE:
   case OPID_PLAYER_GOLD:
-  case OPID_GAME_YEAR:
     spin = gtk_spin_button_new_with_range(0.0, 100.0, 1.0);
     gtk_widget_set_hexpand(spin, TRUE);
     gtk_widget_set_halign(spin, GTK_ALIGN_END);
@@ -3080,6 +3053,7 @@ static void objprop_setup_widget(struct objprop *op)
   case OPID_STARTPOS_EXCLUDE:
   case OPID_UNIT_MOVED:
   case OPID_UNIT_DONE_MOVING:
+  case OPID_UNIT_STAY:
   case OPID_GAME_SCENARIO:
   case OPID_GAME_SCENARIO_RANDSTATE:
   case OPID_GAME_SCENARIO_PLAYERS:
@@ -3102,7 +3076,7 @@ static void objprop_setup_widget(struct objprop *op)
             __FUNCTION__, propid, objprop_get_name(op));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Refresh the display/edit widget corresponding to this object property
   according to the value of the bound object. If a stored modified value
   exists, then check it against the object's current value and remove it
@@ -3217,9 +3191,10 @@ static void objprop_refresh_widget(struct objprop *op,
   case OPID_TILE_LABEL:
     entry = objprop_get_child_widget(op, "entry");
     if (pv) {
-      gtk_entry_set_text(GTK_ENTRY(entry), pv->data.v_string);
+      gtk_entry_buffer_set_text(gtk_entry_get_buffer(GTK_ENTRY(entry)),
+                                pv->data.v_string, -1);
     } else {
-      gtk_entry_set_text(GTK_ENTRY(entry), "");
+      gtk_entry_buffer_set_text(gtk_entry_get_buffer(GTK_ENTRY(entry)), "", -1);
     }
     gtk_widget_set_sensitive(entry, pv != NULL);
     break;
@@ -3230,7 +3205,6 @@ static void objprop_refresh_widget(struct objprop *op,
   case OPID_CITY_SHIELD_STOCK:
   case OPID_PLAYER_SCIENCE:
   case OPID_PLAYER_GOLD:
-  case OPID_GAME_YEAR:
     spin = objprop_get_child_widget(op, "spin");
     if (pv) {
       disable_gobject_callback(G_OBJECT(spin),
@@ -3298,6 +3272,7 @@ static void objprop_refresh_widget(struct objprop *op,
   case OPID_STARTPOS_EXCLUDE:
   case OPID_UNIT_MOVED:
   case OPID_UNIT_DONE_MOVING:
+  case OPID_UNIT_STAY:
   case OPID_GAME_SCENARIO:
   case OPID_GAME_SCENARIO_RANDSTATE:
   case OPID_GAME_SCENARIO_PLAYERS:
@@ -3340,7 +3315,7 @@ static void objprop_refresh_widget(struct objprop *op,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the gtk widget used to display or edit this property, or NULL
   if not applicable.
 ****************************************************************************/
@@ -3355,7 +3330,7 @@ static GtkWidget *objprop_get_widget(struct objprop *op)
   return op->widget;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Stores the given widget under the given name. This function will have no
   effect if objprop_get_widget does not return a valid GtkWidget instance.
 ****************************************************************************/
@@ -3382,7 +3357,7 @@ static void objprop_set_child_widget(struct objprop *op,
   g_object_set_data(G_OBJECT(w), widget_name, widget);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Retrieves the widget stored under the given name, or returns NULL and
   logs an error message if not found.
 ****************************************************************************/
@@ -3416,7 +3391,7 @@ static GtkWidget *objprop_get_child_widget(struct objprop *op,
   return child;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Store the extviewer struct for later retrieval.
 ****************************************************************************/
 static void objprop_set_extviewer(struct objprop *op,
@@ -3428,7 +3403,7 @@ static void objprop_set_extviewer(struct objprop *op,
   op->extviewer = ev;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the stored extviewer, or NULL if none exists.
 ****************************************************************************/
 static struct extviewer *objprop_get_extviewer(struct objprop *op)
@@ -3439,7 +3414,7 @@ static struct extviewer *objprop_get_extviewer(struct objprop *op)
   return op->extviewer;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get the property page in which this property is installed.
 ****************************************************************************/
 static struct property_page *objprop_get_property_page(const struct objprop *op)
@@ -3450,7 +3425,7 @@ static struct property_page *objprop_get_property_page(const struct objprop *op)
   return op->parent_page;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a new object property.
 ****************************************************************************/
 static struct objprop *objprop_new(int id,
@@ -3474,7 +3449,7 @@ static struct objprop *objprop_new(int id,
   return op;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create "extended property viewer". This is used for viewing/editing
   complex property values (e.g. arrays, bitvectors, etc.).
 ****************************************************************************/
@@ -3762,7 +3737,7 @@ static struct extviewer *extviewer_new(struct objprop *op)
   return ev;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the object property that is displayed by this extviewer.
 ****************************************************************************/
 static struct objprop *extviewer_get_objprop(struct extviewer *ev)
@@ -3773,7 +3748,7 @@ static struct objprop *extviewer_get_objprop(struct extviewer *ev)
   return ev->objprop;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the "panel widget" for this extviewer, i.e. the widget the
   is to be placed into the properties panel.
 ****************************************************************************/
@@ -3785,7 +3760,7 @@ static GtkWidget *extviewer_get_panel_widget(struct extviewer *ev)
   return ev->panel_widget;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the "view widget" for this extviewer, i.e. the widget the
   is to be used for viewing/editing a complex property.
 ****************************************************************************/
@@ -3797,7 +3772,7 @@ static GtkWidget *extviewer_get_view_widget(struct extviewer *ev)
   return ev->view_widget;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set the widgets in the extended property viewer to display the given value.
 ****************************************************************************/
 static void extviewer_refresh_widgets(struct extviewer *ev,
@@ -4019,7 +3994,7 @@ static void extviewer_refresh_widgets(struct extviewer *ev,
     gtk_list_store_clear(store);
     advance_iterate(A_FIRST, padvance) {
       id = advance_index(padvance);
-      present = pv->data.v_inventions[id];
+      present = BV_ISSET(pv->data.v_bv_inventions, id);
       name = advance_name_translation(padvance);
       gtk_list_store_append(store, &iter);
       gtk_list_store_set(store, &iter, 0, present, 1, id, 2, name, -1);
@@ -4060,7 +4035,7 @@ static void extviewer_refresh_widgets(struct extviewer *ev,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Clear the display widgets.
 ****************************************************************************/
 static void extviewer_clear_widgets(struct extviewer *ev)
@@ -4114,7 +4089,7 @@ static void extviewer_clear_widgets(struct extviewer *ev)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle the extviewer's panel button click. This should set the property
   page to display the view widget for this complex property.
 ****************************************************************************/
@@ -4135,7 +4110,7 @@ static void extviewer_panel_button_clicked(GtkButton *button,
   property_page_show_extviewer(pp, ev);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle toggling of a boolean cell value in the extviewer's tree view.
 ****************************************************************************/
 static void extviewer_view_cell_toggled(GtkCellRendererToggle *cell,
@@ -4328,7 +4303,11 @@ static void extviewer_view_cell_toggled(GtkCellRendererToggle *cell,
     if (!(A_FIRST <= id && id < advance_count())) {
       return;
     }
-    pv->data.v_inventions[id] = present;
+    if (present) {
+      BV_SET(pv->data.v_bv_inventions, id);
+    } else {
+      BV_CLR(pv->data.v_bv_inventions, id);
+    }
     gtk_list_store_set(ev->store, &iter, 0, present, -1);
     buf = propval_as_string(pv);
     gtk_label_set_text(GTK_LABEL(ev->panel_label), buf);
@@ -4346,7 +4325,7 @@ static void extviewer_view_cell_toggled(GtkCellRendererToggle *cell,
   property_page_change_value(pp, op, pv);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a change in the extviewer's text buffer.
 ****************************************************************************/
 static void extviewer_textbuf_changed(GtkTextBuffer *textbuf,
@@ -4395,7 +4374,7 @@ static void extviewer_textbuf_changed(GtkTextBuffer *textbuf,
   g_free(text);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Install all object properties that this page type can view/edit.
 ****************************************************************************/
 static void property_page_setup_objprops(struct property_page *pp)
@@ -4494,6 +4473,8 @@ static void property_page_setup_objprops(struct property_page *pp)
             OPF_IN_LISTVIEW | OPF_HAS_WIDGET | OPF_EDITABLE, VALTYPE_INT);
     ADDPROP(OPID_UNIT_VETERAN, _("Veteran"), NULL,
             OPF_IN_LISTVIEW | OPF_HAS_WIDGET | OPF_EDITABLE, VALTYPE_INT);
+    ADDPROP(OPID_UNIT_STAY, _("Stay put"), NULL,
+            OPF_HAS_WIDGET | OPF_EDITABLE, VALTYPE_BOOL);
     return;
 
   case OBJTYPE_CITY:
@@ -4551,9 +4532,6 @@ static void property_page_setup_objprops(struct property_page *pp)
     return;
 
   case OBJTYPE_GAME:
-    ADDPROP(OPID_GAME_YEAR, _("Year"), NULL,
-            OPF_IN_LISTVIEW | OPF_HAS_WIDGET | OPF_EDITABLE,
-            VALTYPE_INT);
     ADDPROP(OPID_GAME_SCENARIO, _("Scenario"), NULL,
             OPF_IN_LISTVIEW | OPF_HAS_WIDGET | OPF_EDITABLE,
             VALTYPE_BOOL);
@@ -4599,7 +4577,7 @@ static void property_page_setup_objprops(struct property_page *pp)
 #undef ADDPROP
 }
 
-/****************************************************************************
+/************************************************************************//**
   Callback for when a property page's listview's selection changes.
 ****************************************************************************/
 static void property_page_selection_changed(GtkTreeSelection *sel,
@@ -4623,7 +4601,7 @@ static void property_page_selection_changed(GtkTreeSelection *sel,
   } property_page_objprop_iterate_end;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Monitor which rows are to be selected, so we know which objbind to display
   in the properties panel.
 ****************************************************************************/
@@ -4679,7 +4657,7 @@ static gboolean property_page_selection_func(GtkTreeSelection *sel,
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Callback to handle text changing in the quick find entry widget.
 ****************************************************************************/
 static void property_page_quick_find_entry_changed(GtkWidget *entry,
@@ -4693,7 +4671,7 @@ static void property_page_quick_find_entry_changed(GtkWidget *entry,
   bool matched;
 
   pp = userdata;
-  text = gtk_entry_get_text(GTK_ENTRY(entry));
+  text = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(entry)));
   pf = property_filter_new(text);
 
   property_page_objprop_iterate(pp, op) {
@@ -4719,7 +4697,7 @@ static void property_page_quick_find_entry_changed(GtkWidget *entry,
   property_filter_free(pf);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create and return a property page of the given object type.
   Returns NULL if the page could not be created.
 ****************************************************************************/
@@ -4741,7 +4719,7 @@ property_page_new(enum editor_object_type objtype,
   const char *attr_type_str, *name, *tooltip;
   gchar *title;
 
-  if (!(0 <= objtype && objtype < NUM_OBJTYPES)) {
+  if (!(objtype < NUM_OBJTYPES)) {
     return NULL;
   }
 
@@ -4938,10 +4916,10 @@ property_page_new(enum editor_object_type objtype,
   gtk_widget_set_margin_bottom(hbox2, 4);
   gtk_container_add(GTK_CONTAINER(vbox2), hbox2);
 
-  button = gtk_button_new_with_label(_("Close"));
+  button = gtk_button_new_with_mnemonic(_("_Close"));
   gtk_size_group_add_widget(sizegroup, button);
   g_signal_connect_swapped(button, "clicked",
-      G_CALLBACK(gtk_widget_hide_on_delete), pe->widget);
+      G_CALLBACK(gtk_widget_hide), pe->widget);
   gtk_container_add(GTK_CONTAINER(hbox2), button);
 
   /* Now create the properties panel. */
@@ -5012,7 +4990,7 @@ property_page_new(enum editor_object_type objtype,
   gtk_grid_set_column_spacing(GTK_GRID(hbox2), 4);
   gtk_container_add(GTK_CONTAINER(vbox), hbox2);
 
-  button = gtk_button_new_with_label(_("Refresh"));
+  button = gtk_button_new_with_mnemonic(_("_Refresh"));
   gtk_size_group_add_widget(sizegroup, button);
   gtk_widget_set_tooltip_text(button,
       _("Pressing this button will reset all modified properties of "
@@ -5022,7 +5000,7 @@ property_page_new(enum editor_object_type objtype,
                    G_CALLBACK(property_page_refresh_button_clicked), pp);
   gtk_container_add(GTK_CONTAINER(hbox2), button);
 
-  button = gtk_button_new_with_label(_("Apply"));
+  button = gtk_button_new_with_mnemonic(_("_Apply"));
   gtk_size_group_add_widget(sizegroup, button);
   gtk_widget_set_tooltip_text(button,
       _("Pressing this button will send all modified properties of "
@@ -5036,7 +5014,7 @@ property_page_new(enum editor_object_type objtype,
   return pp;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the translated name of the property page's object type.
 ****************************************************************************/
 static const char *property_page_get_name(const struct property_page *pp)
@@ -5047,7 +5025,7 @@ static const char *property_page_get_name(const struct property_page *pp)
   return objtype_get_name(property_page_get_objtype(pp));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the object type for this property page, or -1 if none.
 ****************************************************************************/
 static enum editor_object_type
@@ -5059,7 +5037,7 @@ property_page_get_objtype(const struct property_page *pp)
   return pp->objtype;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a pixbuf containing an image of the given tile. The image will
   only be of the layers containing terrains, resources and specials.
 
@@ -5072,7 +5050,7 @@ static GdkPixbuf *create_tile_pixbuf(const struct tile *ptile)
   return create_pixbuf_from_layers(ptile, NULL, NULL, LAYER_CATEGORY_TILE);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a pixbuf containing an image of the given unit.
 
   May return NULL on error or bad input.
@@ -5084,7 +5062,7 @@ static GdkPixbuf *create_unit_pixbuf(const struct unit *punit)
   return create_pixbuf_from_layers(NULL, punit, NULL, LAYER_CATEGORY_UNIT);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a pixbuf containing an image of the given city.
 
   May return NULL on error or bad input.
@@ -5097,7 +5075,7 @@ static GdkPixbuf *create_city_pixbuf(const struct city *pcity)
                                    LAYER_CATEGORY_CITY);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a pixbuf containing an image of the given tile, unit or city
   restricted to the layer category 'cat'.
 
@@ -5144,7 +5122,7 @@ static GdkPixbuf *create_pixbuf_from_layers(const struct tile *ptile,
   return pixbuf;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Remove all object binds (i.e. objects listed) in the property page.
 ****************************************************************************/
 static void property_page_clear_objbinds(struct property_page *pp)
@@ -5158,7 +5136,7 @@ static void property_page_clear_objbinds(struct property_page *pp)
   property_page_set_focused_objbind(pp, NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a new object bind to the given object and register it with the
   given property page.
 ****************************************************************************/
@@ -5194,7 +5172,7 @@ static void property_page_add_objbind(struct property_page *pp,
   objbind_hash_insert(pp->objbind_table, ob->object_id, ob);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create zero or more object binds from the objects on the given tile to
   the properties contained in the given property page.
 ****************************************************************************/
@@ -5246,7 +5224,7 @@ static void property_page_add_objbinds_from_tile(struct property_page *pp,
             property_page_get_objtype(pp));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set the column value in the list store of the property page.
   Returns TRUE if data was enetered into the store.
 
@@ -5343,7 +5321,7 @@ static bool property_page_set_store_value(struct property_page *pp,
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Inserts any objbinds owned by this proprety page into the page's list
   store if they are not there already and refreshes all property widgets.
 ****************************************************************************/
@@ -5392,7 +5370,7 @@ static void property_page_fill_widgets(struct property_page *pp)
   } property_page_objprop_iterate_end;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get the objbind corresponding to the object that is currently in view
   (i.e. in the information/properties panels) or NULL if none.
 ****************************************************************************/
@@ -5404,7 +5382,7 @@ static struct objbind *property_page_get_focused_objbind(struct property_page *p
   return pp->focused_objbind;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Set the objbind that should be shown in the properties panel. Does not
   refresh property widgets.
 ****************************************************************************/
@@ -5417,7 +5395,7 @@ static void property_page_set_focused_objbind(struct property_page *pp,
   pp->focused_objbind = ob;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the objbind whose object corresponds to the given id, or NULL
   if no such objbind exists.
 ****************************************************************************/
@@ -5434,7 +5412,7 @@ static struct objbind *property_page_get_objbind(struct property_page *pp,
   return ob;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Removes all of the current objbinds and extracts new ones from the
   supplied list of tiles.
 ****************************************************************************/
@@ -5452,7 +5430,7 @@ static void property_page_load_tiles(struct property_page *pp,
   property_page_fill_widgets(pp);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the number of current bound objects to this property page.
 ****************************************************************************/
 static int property_page_get_num_objbinds(const struct property_page *pp)
@@ -5463,7 +5441,7 @@ static int property_page_get_num_objbinds(const struct property_page *pp)
   return objbind_hash_size(pp->objbind_table);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Called when a user sets a new value for the given property via the GUI.
   Refreshes the properties widget if anything changes.
 ****************************************************************************/
@@ -5503,7 +5481,7 @@ static void property_page_change_value(struct property_page *pp,
   objprop_refresh_widget(op, ob);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Send all modified values of all selected properties.
 ****************************************************************************/
 static void property_page_send_values(struct property_page *pp)
@@ -5556,7 +5534,7 @@ static void property_page_send_values(struct property_page *pp)
   property_page_free_packet(pp, packet);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns pointer to a packet suitable for this page's object type. Result
   should be freed using property_page_free_packet when no longer needed.
 ****************************************************************************/
@@ -5598,7 +5576,7 @@ static union packetdata property_page_new_packet(struct property_page *pp)
   return packet;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Sends the given packet.
 ****************************************************************************/
 static void property_page_send_packet(struct property_page *pp,
@@ -5639,7 +5617,7 @@ static void property_page_send_packet(struct property_page *pp,
             property_page_get_objtype(pp));
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free any resources being used by the packet.
 ****************************************************************************/
 static void property_page_free_packet(struct property_page *pp,
@@ -5658,7 +5636,7 @@ static void property_page_free_packet(struct property_page *pp,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Reload the displayed values of all properties for the selected bound
   objects. Hence, deletes all their stored modified values.
 ****************************************************************************/
@@ -5700,7 +5678,7 @@ static void property_page_reset_objbinds(struct property_page *pp)
   } property_page_objprop_iterate_end;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Destroy all selected objects in the current property page.
 ****************************************************************************/
 static void property_page_destroy_objects(struct property_page *pp)
@@ -5736,7 +5714,7 @@ static void property_page_destroy_objects(struct property_page *pp)
   g_list_free(rows);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create objects corresponding to the type of this property page. Parameters
   such as the type, count, size and player owner are taken from the current
   editor state. The 'hint_tiles' argument is a list of tiles where the
@@ -5861,7 +5839,7 @@ static void property_page_create_objects(struct property_page *pp,
   property_page_store_creation_tag(pp, tag, count);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Update objbinds and widgets according to how the object given by
   'object_id' has changed. If the object no longer exists then the
   objbind is removed from the property page.
@@ -5912,7 +5890,7 @@ static void property_page_object_changed(struct property_page *pp,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a notification of object creation sent back from the server. If
   this is something we previously requested, then 'tag' should be found in
   the tag table. In this case we create a new objbind for the object given
@@ -5940,7 +5918,7 @@ static void property_page_object_created(struct property_page *pp,
   property_page_fill_widgets(pp);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Add the extviewer's view widget to the property page so that it can
   be shown in the extended property view panel.
 ****************************************************************************/
@@ -5960,7 +5938,7 @@ static void property_page_add_extviewer(struct property_page *pp,
   gtk_notebook_append_page(GTK_NOTEBOOK(pp->extviewer_notebook), w, NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Make the given extended property viewer's view widget visible in the
   property page.
 ****************************************************************************/
@@ -5985,7 +5963,7 @@ static void property_page_show_extviewer(struct property_page *pp,
   gtk_notebook_set_current_page(notebook, page);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Store the given object creation tag so that when the server notifies
   us about it we know what to do, up to 'count' times.
 ****************************************************************************/
@@ -6007,7 +5985,7 @@ static void property_page_store_creation_tag(struct property_page *pp,
   stored_tag_hash_insert(pp->tag_table, tag, count);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Decrease the tag count and remove the object creation tag if it is no
   longer needed.
 ****************************************************************************/
@@ -6027,7 +6005,7 @@ static void property_page_remove_creation_tag(struct property_page *pp,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Check if the given tag is one that we previously stored.
 ****************************************************************************/
 static bool property_page_tag_is_known(struct property_page *pp, int tag)
@@ -6038,7 +6016,7 @@ static bool property_page_tag_is_known(struct property_page *pp, int tag)
   return stored_tag_hash_lookup(pp->tag_table, tag, NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Remove all tags in the tag table.
 ****************************************************************************/
 static void property_page_clear_tags(struct property_page *pp)
@@ -6049,7 +6027,7 @@ static void property_page_clear_tags(struct property_page *pp)
   stored_tag_hash_clear(pp->tag_table);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handles the 'clicked' signal for the "Apply" button in the property page.
 ****************************************************************************/
 static void property_page_apply_button_clicked(GtkButton *button,
@@ -6059,7 +6037,7 @@ static void property_page_apply_button_clicked(GtkButton *button,
   property_page_send_values(pp);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handles the 'clicked' signal for the "Refresh" button in the
   property page.
 ****************************************************************************/
@@ -6070,7 +6048,7 @@ static void property_page_refresh_button_clicked(GtkButton *button,
   property_page_reset_objbinds(pp);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a request to create a new object in the property page.
 ****************************************************************************/
 static void property_page_create_button_clicked(GtkButton *button,
@@ -6098,7 +6076,7 @@ static void property_page_create_button_clicked(GtkButton *button,
   tile_list_destroy(tiles);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a click on the "destroy" button.
 ****************************************************************************/
 static void property_page_destroy_button_clicked(GtkButton *button,
@@ -6108,7 +6086,7 @@ static void property_page_destroy_button_clicked(GtkButton *button,
   property_page_destroy_objects(pp);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create and add a property page for the given object type
   to the property editor. Returns TRUE if successful.
 ****************************************************************************/
@@ -6123,7 +6101,7 @@ static bool property_editor_add_page(struct property_editor *pe,
     return FALSE;
   }
 
-  if (!(0 <= objtype && objtype < NUM_OBJTYPES)) {
+  if (!(objtype < NUM_OBJTYPES)) {
     return FALSE;
   }
 
@@ -6142,21 +6120,21 @@ static bool property_editor_add_page(struct property_editor *pe,
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns the property page for the given object type.
 ****************************************************************************/
 static struct property_page *
 property_editor_get_page(struct property_editor *pe,
-                         enum editor_object_type objtype)
+			 enum editor_object_type objtype)
 {
-  if (!pe || !(0 <= objtype && objtype < NUM_OBJTYPES)) {
+  if (!pe || !(objtype < NUM_OBJTYPES)) {
     return NULL;
   }
 
   return pe->property_pages[objtype];
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create and return the property editor widget bundle.
 ****************************************************************************/
 static struct property_editor *property_editor_new(void)
@@ -6176,13 +6154,12 @@ static struct property_editor *property_editor_new(void)
   gtk_window_set_position(GTK_WINDOW(win), GTK_WIN_POS_CENTER_ON_PARENT);
   gtk_window_set_transient_for(GTK_WINDOW(win), GTK_WINDOW(toplevel));
   gtk_window_set_destroy_with_parent(GTK_WINDOW(win), TRUE);
-  gtk_window_set_type_hint(GTK_WINDOW(win), GDK_WINDOW_TYPE_HINT_DIALOG);
+  gtk_window_set_type_hint(GTK_WINDOW(win), GDK_SURFACE_TYPE_HINT_DIALOG);
   gtk_widget_set_margin_start(win, 4);
   gtk_widget_set_margin_end(win, 4);
   gtk_widget_set_margin_top(win, 4);
   gtk_widget_set_margin_bottom(win, 4);
-  g_signal_connect(win, "delete-event",
-                   G_CALLBACK(gtk_widget_hide_on_delete), NULL);
+  gtk_window_set_hide_on_close(GTK_WINDOW(win), TRUE);
   pe->widget = win;
 
   vbox = gtk_grid_new();
@@ -6202,7 +6179,7 @@ static struct property_editor *property_editor_new(void)
   return pe;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Get the property editor for the client's GUI.
 ****************************************************************************/
 struct property_editor *editprop_get_property_editor(void)
@@ -6213,7 +6190,7 @@ struct property_editor *editprop_get_property_editor(void)
   return the_property_editor;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Refresh the given property editor according to the given list of tiles.
 ****************************************************************************/
 void property_editor_load_tiles(struct property_editor *pe,
@@ -6248,7 +6225,7 @@ void property_editor_load_tiles(struct property_editor *pe,
   gtk_notebook_set_current_page(GTK_NOTEBOOK(pe->notebook), objtype);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Show the property editor to the user, with given page corresponding to
   'objtype' in front (if a valid object type).
 ****************************************************************************/
@@ -6262,12 +6239,12 @@ void property_editor_popup(struct property_editor *pe,
   gtk_widget_show(pe->widget);
 
   gtk_window_present(GTK_WINDOW(pe->widget));
-  if (0 <= objtype && objtype < NUM_OBJTYPES) {
+  if (objtype < NUM_OBJTYPES) {
     gtk_notebook_set_current_page(GTK_NOTEBOOK(pe->notebook), objtype);
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Hide the property editor window.
 ****************************************************************************/
 void property_editor_popdown(struct property_editor *pe)
@@ -6278,7 +6255,7 @@ void property_editor_popdown(struct property_editor *pe)
   gtk_widget_hide(pe->widget);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a notification from the client core that some object has changed
   state at the server side (including being removed).
 ****************************************************************************/
@@ -6293,7 +6270,7 @@ void property_editor_handle_object_changed(struct property_editor *pe,
     return;
   }
 
-  if (!(0 <= objtype && objtype < NUM_OBJTYPES)) {
+  if (!(objtype < NUM_OBJTYPES)) {
     return;
   }
 
@@ -6301,7 +6278,7 @@ void property_editor_handle_object_changed(struct property_editor *pe,
   property_page_object_changed(pp, object_id, remove);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Handle a notification that an object was created under the given tag.
 ****************************************************************************/
 void property_editor_handle_object_created(struct property_editor *pe,
@@ -6319,7 +6296,7 @@ void property_editor_handle_object_created(struct property_editor *pe,
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Clear all property pages in the given property editor.
 ****************************************************************************/
 void property_editor_clear(struct property_editor *pe)
@@ -6338,7 +6315,7 @@ void property_editor_clear(struct property_editor *pe)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Clear and load objects into the property page corresponding to the given
   object type. Also, make it the current shown notebook page.
 ****************************************************************************/
@@ -6379,7 +6356,7 @@ void property_editor_reload(struct property_editor *pe,
   gtk_notebook_set_current_page(GTK_NOTEBOOK(pe->notebook), objtype);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Create a new property filter from the given filter string. Result
   should be freed by property_filter_free when no longed needed.
 
@@ -6447,7 +6424,7 @@ static struct property_filter *property_filter_new(const char *filter)
   return pf;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns TRUE if the filter matches the given object property.
 
   The filter matches if its truth value is TRUE. That is, it has at least
@@ -6515,7 +6492,7 @@ static bool property_filter_match(struct property_filter *pf,
   return or_result;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Frees all memory used by the property filter.
 ****************************************************************************/
 static void property_filter_free(struct property_filter *pf)
@@ -6543,7 +6520,7 @@ static void property_filter_free(struct property_filter *pf)
   free(pf);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Returns a translated string name for the given "vision layer".
 ****************************************************************************/
 const char *vision_layer_get_name(enum vision_layer vl)

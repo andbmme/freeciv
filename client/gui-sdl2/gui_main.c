@@ -106,8 +106,13 @@ bool RSHIFT;
 bool LCTRL;
 bool RCTRL;
 bool LALT;
-int city_names_font_size = 12;
-int city_productions_font_size = 12;
+static int city_names_font_size = 10;
+static int city_productions_font_size = 10;
+int *client_font_sizes[FONT_COUNT] = {
+  &city_names_font_size,       /* FONT_CITY_NAME */
+  &city_productions_font_size, /* FONT_CITY_PROD */
+  &city_productions_font_size  /* FONT_REQTREE_TEXT; not used yet */
+};
 
 /* ================================ Private ============================ */
 static int net_socket = -1;
@@ -115,6 +120,7 @@ static bool autoconnect = FALSE;
 static bool is_map_scrolling = FALSE;
 static enum direction8 scroll_dir;
 
+static struct finger_behavior finger_behavior;
 static struct mouse_button_behavior button_behavior;
 
 static SDL_Event *pNet_User_Event = NULL;
@@ -148,22 +154,11 @@ struct callback {
 #define SPECLIST_TYPE struct callback
 #include "speclist.h"
 
-struct callback_list *callbacks;
+struct callback_list *callbacks = NULL;
 
 /* =========================================================== */
 
-/****************************************************************************
-  Called by the tileset code to set the font size that should be used to
-  draw the city names and productions.
-****************************************************************************/
-void set_city_names_font_sizes(int my_city_names_font_size,
-                               int my_city_productions_font_size)
-{
-  city_names_font_size = my_city_names_font_size;
-  city_productions_font_size = my_city_productions_font_size;
-}
-
-/**************************************************************************
+/**********************************************************************//**
   Print extra usage information, including one line help on each option,
   to stderr.
 **************************************************************************/
@@ -178,7 +173,7 @@ static void print_usage(void)
   fc_fprintf(stderr, _("Report bugs at %s\n"), BUG_URL);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Search for command line options. right now, it's just help
   semi-useless until we have options that aren't the same across all clients.
 **************************************************************************/
@@ -205,7 +200,7 @@ static void parse_options(int argc, char **argv)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Main handler for key presses
 **************************************************************************/
 static Uint16 main_key_down_handler(SDL_Keysym key, void *data)
@@ -286,7 +281,7 @@ static Uint16 main_key_down_handler(SDL_Keysym key, void *data)
   return ID_ERROR;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Main key release handler.
 **************************************************************************/
 static Uint16 main_key_up_handler(SDL_Keysym Key, void *pData)
@@ -297,8 +292,59 @@ static Uint16 main_key_up_handler(SDL_Keysym Key, void *pData)
 
   return ID_ERROR;
 }
+/**********************************************************************//**
+  Main finger down handler.
+**************************************************************************/
+static Uint16 main_finger_down_handler(SDL_TouchFingerEvent *pTouchEvent,
+                                       void *pData)
+{
+  struct widget *pWidget;
+  /* Touch event coordinates are normalized (0...1). */
+  int x = pTouchEvent->x * main_window_width();
+  int y = pTouchEvent->y * main_window_height();
 
-/**************************************************************************
+  if ((pWidget = find_next_widget_at_pos(NULL, x, y)) != NULL) {
+    if (get_wstate(pWidget) != FC_WS_DISABLED) {
+      return widget_pressed_action(pWidget);
+    }
+  } else {
+    /* No visible widget at this position; map pressed. */
+    if (!finger_behavior.counting) {
+      /* Start counting. */
+      finger_behavior.counting = TRUE;
+      finger_behavior.finger_down_ticks = SDL_GetTicks();
+      finger_behavior.event = *pTouchEvent;
+      finger_behavior.hold_state = MB_HOLD_SHORT;
+      finger_behavior.ptile = canvas_pos_to_tile(x, y);
+    }
+  }
+  return ID_ERROR;
+}
+/**********************************************************************//**
+  Main finger release handler.
+**************************************************************************/
+static Uint16 main_finger_up_handler(SDL_TouchFingerEvent *pTouchEvent,
+                                     void *pData)
+{
+  /* Touch event coordinates are normalized (0...1). */
+  int x = pTouchEvent->x * main_window_width();
+  int y = pTouchEvent->y * main_window_height();
+  /* Screen wasn't pressed over a widget. */
+  if (finger_behavior.finger_down_ticks
+      && !find_next_widget_at_pos(NULL, x, y)) {
+    finger_behavior.event = *pTouchEvent;
+    finger_up_on_map(&finger_behavior);
+  }
+
+  finger_behavior.counting = FALSE;
+  finger_behavior.finger_down_ticks = 0;
+
+  is_map_scrolling = FALSE;
+
+  return ID_ERROR;
+}
+
+/**********************************************************************//**
   Main mouse click handler.
 **************************************************************************/
 static Uint16 main_mouse_button_down_handler(SDL_MouseButtonEvent *pButtonEvent,
@@ -332,7 +378,7 @@ static Uint16 main_mouse_button_down_handler(SDL_MouseButtonEvent *pButtonEvent,
   return ID_ERROR;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Main mouse button release handler.
 **************************************************************************/
 static Uint16 main_mouse_button_up_handler(SDL_MouseButtonEvent *pButtonEvent,
@@ -358,7 +404,7 @@ static Uint16 main_mouse_button_up_handler(SDL_MouseButtonEvent *pButtonEvent,
   #define SCROLL_MAP_AREA       1 
 #endif
 
-/**************************************************************************
+/**********************************************************************//**
   Main handler for mouse movement handling.
 **************************************************************************/
 static Uint16 main_mouse_motion_handler(SDL_MouseMotionEvent *pMotionEvent,
@@ -406,9 +452,9 @@ static Uint16 main_mouse_motion_handler(SDL_MouseMotionEvent *pMotionEvent,
   return ID_ERROR;
 }
 
-/**************************************************************************
- This is called every TIMER_INTERVAL milliseconds whilst we are in
- gui_main_loop() (which is all of the time) TIMER_INTERVAL needs to be .5s
+/**********************************************************************//**
+  This is called every TIMER_INTERVAL milliseconds whilst we are in
+  gui_main_loop() (which is all of the time) TIMER_INTERVAL needs to be .5s
 **************************************************************************/
 static void update_button_hold_state(void)
 {
@@ -435,11 +481,11 @@ static void update_button_hold_state(void)
   return;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Check if coordinate is in scroll area.
 **************************************************************************/
 static int check_scroll_area(int x, int y)
-{  
+{
   SDL_Rect rect_north = {0, 0, Main.map->w, SCROLL_MAP_AREA};
   SDL_Rect rect_east = {Main.map->w - SCROLL_MAP_AREA, 0, SCROLL_MAP_AREA, Main.map->h};
   SDL_Rect rect_south = {0, Main.map->h - SCROLL_MAP_AREA, Main.map->w, SCROLL_MAP_AREA};
@@ -478,7 +524,7 @@ static int check_scroll_area(int x, int y)
 
 /* ============================ Public ========================== */
 
-/**************************************************************************
+/**********************************************************************//**
   Instruct event loop to exit.
 **************************************************************************/
 void force_exit_from_event_loop(void)
@@ -493,7 +539,7 @@ void force_exit_from_event_loop(void)
   SDL_PushEvent(&Event);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Filter out mouse motion events for too small movement to react to.
   This function may run in a separate event thread.
 **************************************************************************/
@@ -514,7 +560,7 @@ int FilterMouseMotionEvents(void *data, SDL_Event *event)
   return 1;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   SDL2-client main loop.
 **************************************************************************/
 Uint16 gui_event_loop(void *pData,
@@ -522,6 +568,10 @@ Uint16 gui_event_loop(void *pData,
                       Uint16 (*key_down_handler)(SDL_Keysym Key, void *pData),
                       Uint16 (*key_up_handler)(SDL_Keysym Key, void *pData),
                       Uint16 (*textinput_handler)(char *text, void *pData),
+                      Uint16 (*finger_down_handler)(SDL_TouchFingerEvent *pTouchEvent, void *pData),
+                      Uint16 (*finger_up_handler)(SDL_TouchFingerEvent *pTouchEvent, void *pData),
+                      Uint16 (*finger_motion_handler)(SDL_TouchFingerEvent *pTouchEvent,
+                                                      void *pData),
                       Uint16 (*mouse_button_down_handler)(SDL_MouseButtonEvent *pButtonEvent,
                                                           void *pData),
                       Uint16 (*mouse_button_up_handler)(SDL_MouseButtonEvent *pButtonEvent,
@@ -612,7 +662,7 @@ Uint16 gui_event_loop(void *pData,
     while (SDL_PollEvent(&Main.event) == 1) {
 
       if (Main.event.type == user_event_type) {
-        switch(Main.event.user.code) {
+        switch (Main.event.user.code) {
         case NET:
           input_from_server(net_socket);
           break;
@@ -678,44 +728,44 @@ Uint16 gui_event_loop(void *pData,
           break;
 
         case SDL_KEYDOWN:
-          switch(Main.event.key.keysym.sym) {
+          switch (Main.event.key.keysym.sym) {
 #if 0
-            case SDLK_PRINT:
-              fc_snprintf(schot, sizeof(schot), "fc_%05d.bmp", schot_nr++);
-              log_normal(_("Making screenshot %s"), schot);
-              SDL_SaveBMP(Main.screen, schot);
+          case SDLK_PRINT:
+            fc_snprintf(schot, sizeof(schot), "fc_%05d.bmp", schot_nr++);
+            log_normal(_("Making screenshot %s"), schot);
+            SDL_SaveBMP(Main.screen, schot);
             break;
 #endif
 
-            case SDLK_RSHIFT:
-              /* Right Shift is Pressed */
-              RSHIFT = TRUE;
+          case SDLK_RSHIFT:
+            /* Right Shift is Pressed */
+            RSHIFT = TRUE;
             break;
 
-            case SDLK_LSHIFT:
-              /* Left Shift is Pressed */
-              LSHIFT = TRUE;
+          case SDLK_LSHIFT:
+            /* Left Shift is Pressed */
+            LSHIFT = TRUE;
             break;
 
-            case SDLK_LCTRL:
-              /* Left CTRL is Pressed */
-              LCTRL = TRUE;
+          case SDLK_LCTRL:
+            /* Left CTRL is Pressed */
+            LCTRL = TRUE;
             break;
 
-            case SDLK_RCTRL:
-              /* Right CTRL is Pressed */
-              RCTRL = TRUE;
+          case SDLK_RCTRL:
+            /* Right CTRL is Pressed */
+            RCTRL = TRUE;
             break;
 
-            case SDLK_LALT:
-              /* Left ALT is Pressed */
-              LALT = TRUE;
+          case SDLK_LALT:
+            /* Left ALT is Pressed */
+            LALT = TRUE;
             break;
 
-            default:
-              if (key_down_handler) {
-                ID = key_down_handler(Main.event.key.keysym, pData);
-              }
+          default:
+            if (key_down_handler) {
+              ID = key_down_handler(Main.event.key.keysym, pData);
+            }
             break;
           }
           break;
@@ -723,6 +773,24 @@ Uint16 gui_event_loop(void *pData,
         case SDL_TEXTINPUT:
           if (textinput_handler) {
             ID = textinput_handler(Main.event.text.text, pData);
+          }
+          break;
+
+        case SDL_FINGERDOWN:
+          if (finger_down_handler) {
+            ID = finger_down_handler(&Main.event.tfinger, pData);
+          }
+          break;
+
+        case SDL_FINGERUP:
+          if (finger_up_handler) {
+            ID = finger_up_handler(&Main.event.tfinger, pData);
+          }
+          break;
+
+        case SDL_FINGERMOTION:
+          if (finger_motion_handler) {
+            ID = finger_motion_handler(&Main.event.tfinger, pData);
           }
           break;
 
@@ -765,7 +833,7 @@ Uint16 gui_event_loop(void *pData,
 
 /* ============ Freeciv native game function =========== */
 
-/**************************************************************************
+/**********************************************************************//**
   Do any necessary pre-initialization of the UI, if necessary.
 **************************************************************************/
 void ui_init(void)
@@ -786,9 +854,9 @@ void ui_init(void)
   init_sdl(iSDL_Flags);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Really resize the main window.
-****************************************************************************/
+**************************************************************************/
 static void real_resize_window_callback(void *data)
 {
   struct widget *widget;
@@ -820,18 +888,18 @@ static void real_resize_window_callback(void *data)
   flush_all();
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Resize the main window after option changed.
-****************************************************************************/
+**************************************************************************/
 static void resize_window_callback(struct option *poption)
 {
   update_queue_add(real_resize_window_callback, NULL);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Extra initializers for client options. Here we make set the callback
   for the specific gui-sdl2 options.
-****************************************************************************/
+**************************************************************************/
 void options_extra_init(void)
 {
   struct option *poption;
@@ -848,7 +916,7 @@ void options_extra_init(void)
 #undef option_var_set_callback
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Remove double messages caused by message configured to both MW_MESSAGES
   and MW_OUTPUT.
 **************************************************************************/
@@ -864,7 +932,7 @@ static void clear_double_messages_call(void)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Entry point for freeciv client program. SDL has macro magic to turn
   this in to function named SDL_main() and it provides actual main()
   itself.
@@ -874,7 +942,7 @@ int main(int argc, char **argv)
   return client_main(argc, argv);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Migrate sdl2 client specific options from sdl client options.
 **************************************************************************/
 static void migrate_options_from_sdl(void)
@@ -894,7 +962,7 @@ static void migrate_options_from_sdl(void)
   gui_options.gui_sdl2_migrated_from_sdl = TRUE;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   The main loop for the UI.  This is called from main(), and when it
   exits the client will exit.
 **************************************************************************/
@@ -990,15 +1058,16 @@ void ui_main(int argc, char *argv[])
 
   /* Main game loop */
   gui_event_loop(NULL, NULL, main_key_down_handler, main_key_up_handler, NULL,
+                 main_finger_down_handler, main_finger_up_handler, NULL,
                  main_mouse_button_down_handler, main_mouse_button_up_handler,
                  main_mouse_motion_handler);
   start_quitting();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Do any necessary UI-specific cleanup
 **************************************************************************/
-void ui_exit()
+void ui_exit(void)
 {
 
 #if defined UNDER_CE && defined SMALL_SCREEN
@@ -1015,6 +1084,7 @@ void ui_exit()
   intel_dialog_done();
 
   callback_list_destroy(callbacks);
+  callbacks = NULL;
 
   unload_cursors();
 
@@ -1031,7 +1101,7 @@ void ui_exit()
   quit_sdl();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Return our GUI type
 **************************************************************************/
 enum gui_type get_gui_type(void)
@@ -1039,7 +1109,7 @@ enum gui_type get_gui_type(void)
   return GUI_SDL2;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Make a bell noise (beep).  This provides low-level sound alerts even
   if there is no real sound support.
 **************************************************************************/
@@ -1048,7 +1118,7 @@ void sound_bell(void)
   log_debug("sound_bell : PORT ME");
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Show Focused Unit Animation.
 **************************************************************************/
 void enable_focus_animation(void)
@@ -1057,7 +1127,7 @@ void enable_focus_animation(void)
   SDL_Client_Flags |= CF_FOCUS_ANIMATION;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Don't show Focused Unit Animation.
 **************************************************************************/
 void disable_focus_animation(void)
@@ -1065,7 +1135,7 @@ void disable_focus_animation(void)
   SDL_Client_Flags &= ~CF_FOCUS_ANIMATION;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Wait for data on the given socket.  Call input_from_server() when data
   is ready to be read.
 **************************************************************************/
@@ -1077,7 +1147,7 @@ void add_net_input(int sock)
   enable_focus_animation();
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Stop waiting for any server network data.  See add_net_input().
 **************************************************************************/
 void remove_net_input(void)
@@ -1089,77 +1159,87 @@ void remove_net_input(void)
   update_mouse_cursor(CURSOR_DEFAULT);
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Enqueue a callback to be called during an idle moment.  The 'callback'
   function should be called sometimes soon, and passed the 'data' pointer
   as its data.
-****************************************************************************/
+**************************************************************************/
 void add_idle_callback(void (callback)(void *), void *data)
 {
-  struct callback *cb = fc_malloc(sizeof(*cb));
+  if (callbacks != NULL) {
+    struct callback *cb = fc_malloc(sizeof(*cb));
 
-  cb->callback = callback;
-  cb->data = data;
+    cb->callback = callback;
+    cb->data = data;
 
-  callback_list_prepend(callbacks, cb);
+    callback_list_prepend(callbacks, cb);
+  }
 }
 
-/****************************************************************************
+/**********************************************************************//**
   Stub for editor function
-****************************************************************************/
+**************************************************************************/
 void editgui_tileset_changed(void)
 {}
 
-/****************************************************************************
+/**********************************************************************//**
   Stub for editor function
-****************************************************************************/
+**************************************************************************/
 void editgui_refresh(void)
 {}
 
-/****************************************************************************
+/**********************************************************************//**
   Stub for editor function
-****************************************************************************/
+**************************************************************************/
 void editgui_popup_properties(const struct tile_list *tiles, int objtype)
 {}
 
-/****************************************************************************
+/**********************************************************************//**
   Stub for editor function
-****************************************************************************/
+**************************************************************************/
 void editgui_popdown_all(void)
 {}
 
-/****************************************************************************
+/**********************************************************************//**
   Stub for editor function
-****************************************************************************/
+**************************************************************************/
 void editgui_notify_object_changed(int objtype, int object_id, bool removal)
 {}
 
-/****************************************************************************
+/**********************************************************************//**
   Stub for editor function
-****************************************************************************/
+**************************************************************************/
 void editgui_notify_object_created(int tag, int id)
 {}
 
-/**************************************************************************
+/**********************************************************************//**
   Updates a gui font style.
 **************************************************************************/
 void gui_update_font(const char *font_name, const char *font_value)
 {
-  /* PORTME */
+#define CHECK_FONT(client_font, action) \
+  do { \
+    if (strcmp(#client_font, font_name) == 0) { \
+      char *end; \
+      long size = strtol(font_value, &end, 10); \
+      if (end && *end == '\0' && size > 0) { \
+        *client_font_sizes[client_font] = size; \
+        action; \
+      } \
+    } \
+  } while (FALSE)
+
+  CHECK_FONT(FONT_CITY_NAME, update_city_descriptions());
+  CHECK_FONT(FONT_CITY_PROD, update_city_descriptions());
+  /* FONT_REQTREE_TEXT not used yet */
+
+#undef CHECK_FONT
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Insert build information to help
 **************************************************************************/
 void insert_client_build_info(char *outbuf, size_t outlen)
 {
   /* PORTME */
-}
-
-/**************************************************************************
-  Make dynamic adjustments to first-launch default options.
-**************************************************************************/
-void adjust_default_options(void)
-{
-  /* Nothing in case of this gui */
 }

@@ -79,7 +79,7 @@ static bool fcdb_set_option(const char *key, const char *value,
 static bool fcdb_load_config(const char *filename);
 
 
-/****************************************************************************
+/************************************************************************//**
   Set one fcdb option (or delete it if value == NULL).
   Replaces any previous setting.
 ****************************************************************************/
@@ -110,7 +110,7 @@ static bool fcdb_set_option(const char *key, const char *value,
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Load fcdb configuration from file.
   We deliberately don't search datadirs for filename, as we don't want this
   overridden by modpacks etc.
@@ -130,11 +130,11 @@ static bool fcdb_load_config(const char *filename)
   entry_list_iterate(section_entries(secfile_section_by_name(secfile,
                                                              "fcdb")),
                      pentry) {
-    if (entry_type(pentry) == ENTRY_STR) {
+    if (entry_type_get(pentry) == ENTRY_STR) {
       const char *value;
 #ifndef FREECIV_NDEBUG
       bool entry_str_get_success =
-#endif
+#endif /* FREECIV_NDEBUG */
         entry_str_get(pentry, &value);
 
       fc_assert(entry_str_get_success);
@@ -152,7 +152,7 @@ static bool fcdb_load_config(const char *filename)
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Initialize freeciv database system
 ****************************************************************************/
 bool fcdb_init(const char *conf_file)
@@ -171,7 +171,7 @@ bool fcdb_init(const char *conf_file)
   return script_fcdb_init(NULL);
 }
 
-/****************************************************************************
+/************************************************************************//**
   Return the selected fcdb config value.
 ****************************************************************************/
 const char *fcdb_option_get(const char *type)
@@ -185,7 +185,7 @@ const char *fcdb_option_get(const char *type)
   }
 }
 
-/****************************************************************************
+/************************************************************************//**
   Free resources allocated by fcdb system.
 ****************************************************************************/
 void fcdb_free(void)
@@ -203,7 +203,7 @@ void fcdb_free(void)
 
 #else  /* HAVE_FCDB */
 
-/****************************************************************************
+/************************************************************************//**
   Dummy function - Initialize freeciv database system
 ****************************************************************************/
 bool fcdb_init(const char *conf_file)
@@ -211,7 +211,7 @@ bool fcdb_init(const char *conf_file)
   return TRUE;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Dummy function - Return the selected fcdb config value.
 ****************************************************************************/
 const char *fcdb_option_get(const char *type)
@@ -219,7 +219,7 @@ const char *fcdb_option_get(const char *type)
   return NULL;
 }
 
-/****************************************************************************
+/************************************************************************//**
   Dummy function - Free resources allocated by fcdb system.
 ****************************************************************************/
 void fcdb_free(void)

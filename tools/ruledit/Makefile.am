@@ -16,6 +16,7 @@ AM_CPPFLAGS = \
 	$(ruledit_cppflags) \
 	-I$(top_srcdir)/utility \
 	-I$(top_srcdir)/common \
+	-I$(top_srcdir)/common/aicore \
 	-I$(top_srcdir)/common/networking \
 	-I$(top_srcdir)/server \
 	-I$(top_srcdir)/tools/shared \
@@ -25,6 +26,7 @@ AM_CPPFLAGS = \
 freeciv_ruledit_CXXFLAGS = $(ruledit_cxxflags)
 
 MOC_FILES = \
+            meta_conversion_log.cpp \
             meta_edit_utype.cpp \
 	    meta_effect_edit.cpp \
 	    meta_req_edit.cpp	\
@@ -33,6 +35,7 @@ MOC_FILES = \
             meta_tab_enablers.cpp \
 	    meta_tab_extras.cpp	\
             meta_tab_misc.cpp	\
+            meta_tab_multiplier.cpp \
             meta_tab_nation.cpp	\
             meta_tab_tech.cpp	\
 	    meta_tab_terrains.cpp \
@@ -42,6 +45,8 @@ MOC_FILES = \
             meta_tab_unit.cpp
 
 freeciv_ruledit_SOURCES =	\
+		conversion_log.cpp \
+		conversion_log.h \
 		edit_utype.cpp	\
 		edit_utype.h	\
 		effect_edit.cpp	\
@@ -58,6 +63,8 @@ freeciv_ruledit_SOURCES =	\
 		tab_gov.h	\
 		tab_misc.cpp	\
 		tab_misc.h	\
+		tab_multiplier.cpp \
+		tab_multiplier.h \
 		tab_nation.cpp	\
 		tab_nation.h	\
                 tab_tech.cpp	\

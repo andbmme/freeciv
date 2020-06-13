@@ -1,4 +1,4 @@
-/**********************************************************************
+/***********************************************************************
  Freeciv - Copyright (C) 1996-2005 - Freeciv Development Team
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,8 @@
 
 // Qt
 #include <QAction>
+#include <QApplication>
+#include <QDesktopWidget>
 #include <QHBoxLayout>
 #include <QMenu>
 #include <QPainter>
@@ -41,7 +43,7 @@ extern void pixmap_copy(QPixmap *dest, QPixmap *src, int src_x, int src_y,
 
 static void reduce_mod(int &val,  int &mod);
 
-/***************************************************************************
+/***********************************************************************//**
   Helper function to fit tax sprites, reduces modulo, increasing value
 ***************************************************************************/
 void reduce_mod(int &mod,  int &val)
@@ -54,7 +56,7 @@ void reduce_mod(int &mod,  int &val)
   return;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Sidewidget constructor
 ***************************************************************************/
 fc_sidewidget::fc_sidewidget(QPixmap *pix, QString label, QString pg,
@@ -90,7 +92,7 @@ fc_sidewidget::fc_sidewidget(QPixmap *pix, QString label, QString pg,
   connect(timer, &QTimer::timeout, this, &fc_sidewidget::sblink);
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Sidewidget destructor
 ***************************************************************************/
 fc_sidewidget::~fc_sidewidget()
@@ -111,7 +113,7 @@ fc_sidewidget::~fc_sidewidget()
   delete info_font;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Sets default pixmap for sidewidget
 ***************************************************************************/
 void fc_sidewidget::set_pixmap(QPixmap *pm)
@@ -123,7 +125,7 @@ void fc_sidewidget::set_pixmap(QPixmap *pm)
   def_pixmap = pm;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Sets custom text visible on top of sidewidget
 ***************************************************************************/
 void fc_sidewidget::set_custom_labels(QString l)
@@ -131,7 +133,7 @@ void fc_sidewidget::set_custom_labels(QString l)
   custom_label = l;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Sets tooltip for sidewidget
 ***************************************************************************/
 void fc_sidewidget::set_tooltip(QString tooltip)
@@ -139,15 +141,15 @@ void fc_sidewidget::set_tooltip(QString tooltip)
   setToolTip(tooltip);
 }
 
-/***************************************************************************
-  Reeturns scaled (not default) pixmap for sidewidget
+/***********************************************************************//**
+  Returns scaled (not default) pixmap for sidewidget
 ***************************************************************************/
 QPixmap *fc_sidewidget::get_pixmap()
 {
   return scaled_pixmap;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Sets default label on bottom of sidewidget
 ***************************************************************************/
 void fc_sidewidget::set_label(QString str)
@@ -155,7 +157,7 @@ void fc_sidewidget::set_label(QString str)
   desc = str;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Resizes default_pixmap to scaled_pixmap to fit current width,
   leaves default_pixmap unchanged
 ***************************************************************************/
@@ -175,7 +177,7 @@ void fc_sidewidget::resize_pixmap(int width, int height)
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Paint event for sidewidget
 ***************************************************************************/
 void fc_sidewidget::paintEvent(QPaintEvent *event)
@@ -187,24 +189,23 @@ void fc_sidewidget::paintEvent(QPaintEvent *event)
   painter.end();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Paints final pixmap on screeen
 ***************************************************************************/
 void fc_sidewidget::paint(QPainter *painter, QPaintEvent *event)
 {
-
   if (final_pixmap) {
     painter->drawPixmap(event->rect(), *final_pixmap,
                         event->rect());
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Mouse entered on widget area
 ***************************************************************************/
 void fc_sidewidget::enterEvent(QEvent *event)
 {
-  if (hover == false) {
+  if (!hover) {
     hover = true;
     update_final_pixmap();
     QWidget::enterEvent(event);
@@ -212,7 +213,7 @@ void fc_sidewidget::enterEvent(QEvent *event)
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Mouse left widget area
 ***************************************************************************/
 void fc_sidewidget::leaveEvent(QEvent *event)
@@ -226,7 +227,7 @@ void fc_sidewidget::leaveEvent(QEvent *event)
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Context menu requested
 ***************************************************************************/
 void fc_sidewidget::contextMenuEvent(QContextMenuEvent *event)
@@ -239,7 +240,7 @@ void fc_sidewidget::contextMenuEvent(QContextMenuEvent *event)
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Sets callback for mouse left click
 ***************************************************************************/
 void fc_sidewidget::set_left_click(pfcn_bool func)
@@ -247,7 +248,7 @@ void fc_sidewidget::set_left_click(pfcn_bool func)
   left_click = func;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Sets callback for mouse right click
 ***************************************************************************/
 void fc_sidewidget::set_right_click(pfcn func)
@@ -255,7 +256,7 @@ void fc_sidewidget::set_right_click(pfcn func)
   right_click = func;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Sets callback for mouse wheel down
 ***************************************************************************/
 void fc_sidewidget::set_wheel_down(pfcn func)
@@ -263,7 +264,7 @@ void fc_sidewidget::set_wheel_down(pfcn func)
   wheel_down = func;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Sets callback for mouse wheel up
 ***************************************************************************/
 void fc_sidewidget::set_wheel_up(pfcn func)
@@ -271,8 +272,7 @@ void fc_sidewidget::set_wheel_up(pfcn func)
   wheel_up = func;
 }
 
-
-/***************************************************************************
+/***********************************************************************//**
   Mouse press event for sidewidget
 ***************************************************************************/
 void fc_sidewidget::mousePressEvent(QMouseEvent *event)
@@ -288,7 +288,7 @@ void fc_sidewidget::mousePressEvent(QMouseEvent *event)
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Mouse wheel event
 ***************************************************************************/
 void fc_sidewidget::wheelEvent(QWheelEvent *event)
@@ -302,14 +302,13 @@ void fc_sidewidget::wheelEvent(QWheelEvent *event)
   event->accept();
 }
 
-
-/***************************************************************************
+/***********************************************************************//**
   Blinks current sidebar widget
 ***************************************************************************/
 void fc_sidewidget::sblink()
 {
   if (keep_blinking) {
-    if (timer->isActive() == false) {
+    if (!timer->isActive()) {
       timer->start();
     }
     blink = !blink;
@@ -322,7 +321,7 @@ void fc_sidewidget::sblink()
   update_final_pixmap();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Miscelanous slot, helping observe players currently, and changing science
   extra functionality might be added,
   eg by setting properties
@@ -336,11 +335,11 @@ void fc_sidewidget::some_slot()
   act = qobject_cast<QAction *>(sender());
   qvar = act->data();
 
-  if (qvar.isValid() == false) {
+  if (!qvar.isValid()) {
     return;
   }
 
-  if (act->property("scimenu") == true) {
+  if (act->property("scimenu").toBool()) {
     dsend_packet_player_research(&client.conn, qvar.toInt());
     return;
   }
@@ -353,12 +352,15 @@ void fc_sidewidget::some_slot()
   obs_player = reinterpret_cast<struct player *>(qvar.value<void *>());
   if (obs_player != nullptr) {
     QString s;
+    QByteArray cn_bytes;
+
     s = QString("/observe \"%1\"").arg(obs_player->name);
-    send_chat(s.toLocal8Bit().data());
+    cn_bytes = s.toLocal8Bit();
+    send_chat(cn_bytes.data());
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Updates final pixmap and draws it on screen
 ***************************************************************************/
 void fc_sidewidget::update_final_pixmap()
@@ -389,7 +391,7 @@ void fc_sidewidget::update_final_pixmap()
   pen.setColor(QColor(232, 255, 0));
   p.setPen(pen);
 
-  if (standard == SW_TAX && client_is_global_observer() == false) {
+  if (standard == SW_TAX && !client_is_global_observer()) {
     pos = 0;
     int d, modulo;
     sprite = get_tax_sprite(tileset, O_GOLD);
@@ -446,7 +448,7 @@ void fc_sidewidget::update_final_pixmap()
   }
 
   p.setPen(palette().color(QPalette::Text));
-  if (custom_label.isEmpty() == false) {
+  if (!custom_label.isEmpty()) {
     p.setFont(*info_font);
     p.drawText(0, 0, width(), height(), Qt::AlignLeft | Qt::TextWordWrap,
                custom_label);
@@ -482,7 +484,7 @@ void fc_sidewidget::update_final_pixmap()
   update();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Sidebar constructor
 ***************************************************************************/
 fc_sidebar::fc_sidebar()
@@ -494,14 +496,14 @@ fc_sidebar::fc_sidebar()
   setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Ignored);
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Sidebar destructor
 ***************************************************************************/
 fc_sidebar::~fc_sidebar()
 {
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Adds new sidebar widget
 ***************************************************************************/
 void fc_sidebar::add_widget(fc_sidewidget *fsw)
@@ -511,7 +513,7 @@ void fc_sidebar::add_widget(fc_sidewidget *fsw)
   return;
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Paint event for sidebar
 ***************************************************************************/
 void fc_sidebar::paintEvent(QPaintEvent *event)
@@ -523,8 +525,7 @@ void fc_sidebar::paintEvent(QPaintEvent *event)
   painter.end();
 }
 
-
-/***************************************************************************
+/***********************************************************************//**
   Paints dark rectangle as background for sidebar
 ***************************************************************************/
 void fc_sidebar::paint(QPainter *painter, QPaintEvent *event)
@@ -534,17 +535,22 @@ void fc_sidebar::paint(QPainter *painter, QPaintEvent *event)
 }
 
 /**************************************************************************
-  Resize sidebar to take 100 pixels or 10% of given width, and all
-  widgets inside sidebar
+  Resize sidebar to take at least 80 pixels width and 100 pixels for FullHD
+  desktop and scaled accordingly for bigger resolutions eg 200 pixels for 4k
+  desktop.
 **************************************************************************/
-void fc_sidebar::resize_me(int wdth, int hght, bool force)
+void fc_sidebar::resize_me(int hght, bool force)
 {
-  int w, h, non_std, non_std_count;
-  w = wdth / 10;
-  h = hght;
-  w = qMin(100, w);
+  int w, h, non_std, non_std_count, screen_hres;
+  QDesktopWidget *qdp;
 
-  if (force == false && w == width() && h == height()) {
+  h = hght;
+  qdp = QApplication::desktop();
+  screen_hres = qdp->availableGeometry(gui()->central_wdg).width();
+  w = (100 * screen_hres) / 1920;
+  w = qMax(w, 80);
+
+  if (!force && w == width() && h == height()) {
     return;
   }
 
@@ -575,7 +581,7 @@ void fc_sidebar::resize_me(int wdth, int hght, bool force)
 }
 
 
-/***************************************************************************
+/***********************************************************************//**
   Callback to show map
 ***************************************************************************/
 void side_show_map(bool nothing)
@@ -583,7 +589,7 @@ void side_show_map(bool nothing)
   gui()->game_tab_widget->setCurrentIndex(0);
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Callback for finishing turn
 ***************************************************************************/
 void side_finish_turn(bool nothing)
@@ -591,17 +597,17 @@ void side_finish_turn(bool nothing)
   key_end_turn();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Callback to popup rates dialog
 ***************************************************************************/
 void side_rates_wdg(bool nothing)
 {
-  if (client_is_observer() == false) {
+  if (!client_is_observer()) {
     popup_rates_dialog();
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Callback to center on current unit
 ***************************************************************************/
 void side_center_unit()
@@ -610,7 +616,7 @@ void side_center_unit()
   request_center_focus_unit();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Disables end turn button if asked
 ***************************************************************************/
 void side_disable_endturn(bool do_restore)
@@ -622,7 +628,7 @@ void side_disable_endturn(bool do_restore)
   gui()->sw_endturn->update_final_pixmap();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Changes background of endturn widget if asked
 ***************************************************************************/
 void side_blink_endturn(bool do_restore)
@@ -634,18 +640,19 @@ void side_blink_endturn(bool do_restore)
   gui()->sw_endturn->update_final_pixmap();
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Popups menu on indicators widget
 ***************************************************************************/
 void side_indicators_menu()
 {
-  gov_menu *menu= new gov_menu(gui()->sidebar_wdg);
+  gov_menu *menu = new gov_menu(gui()->sidebar_wdg);
+
   menu->create();
   menu->update();
   menu->popup(QCursor::pos());
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Right click for diplomacy 
   Opens diplomacy meeting for player
   For observer popups menu
@@ -671,7 +678,7 @@ void side_right_click_diplomacy(void)
       menu->addAction(eiskalt);
     } players_iterate_end
 
-    if (client_is_global_observer() == false) {
+    if (!client_is_global_observer()) {
       eiskalt = new QAction(_("Observe globally"), gui()->mapview_wdg);
       eiskalt->setData(-1);
       menu->addAction(eiskalt);
@@ -679,7 +686,8 @@ void side_right_click_diplomacy(void)
                        &fc_sidewidget::some_slot);
     }
 
-    menu->exec(QCursor::pos());
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+    menu->popup(QCursor::pos());
   } else {
     int i;
     i = gui()->gimme_index_of("DDI");
@@ -690,7 +698,7 @@ void side_right_click_diplomacy(void)
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Right click for science, allowing to choose current tech
 ***************************************************************************/
 void side_right_click_science(void)
@@ -701,7 +709,7 @@ void side_right_click_science(void)
   QList<qlist_item> curr_list;
   qlist_item item;
 
-  if (client_is_observer() == false) {
+  if (!client_is_observer()) {
     struct research *research = research_get(client_player());
 
     advance_index_iterate(A_FIRST, i) {
@@ -719,21 +727,29 @@ void side_right_click_science(void)
     std::sort(curr_list.begin(), curr_list.end(), comp_less_than);
     menu = new QMenu(gui()->central_wdg);
     for (int i = 0; i < curr_list.count(); i++) {
+      QIcon ic;
+      struct sprite *sp;
+
       qvar = curr_list.at(i).id;
-      act = new QAction(curr_list.at(i).tech_str, gui()->mapview_wdg);
+      sp = get_tech_sprite(tileset, curr_list.at(i).id);
+      if (sp) {
+        ic = QIcon(*sp->pm);
+      }
+      act = new QAction(ic, curr_list.at(i).tech_str, gui()->mapview_wdg);
       act->setData(qvar);
       act->setProperty("scimenu", true);
       menu->addAction(act);
       QObject::connect(act, &QAction::triggered, gui()->sw_science,
                        &fc_sidewidget::some_slot);
     }
-    menu->exec(QCursor::pos());
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+    menu->popup(QCursor::pos());
   }
 }
 
-/***************************************************************************
+/***********************************************************************//**
   Left click for science, allowing to close/open
-****************************************************************************/
+***************************************************************************/
 void side_left_click_science(bool nothing)
 {
   science_report *sci_rep;
@@ -749,7 +765,7 @@ void side_left_click_science(bool nothing)
   } else {
     i = gui()->gimme_index_of("SCI");
     w = gui()->game_tab_widget->widget(i);
-    if (w->isVisible() == true) {
+    if (w->isVisible()) {
       gui()->game_tab_widget->setCurrentIndex(0);
       return;
     }
@@ -757,4 +773,3 @@ void side_left_click_science(bool nothing)
     gui()->game_tab_widget->setCurrentWidget(sci_rep);
   }
 }
-

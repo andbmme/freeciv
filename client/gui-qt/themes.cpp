@@ -1,4 +1,4 @@
-/********************************************************************** 
+/***********************************************************************
  Freeciv - Copyright (C) 2005 The Freeciv Team
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -37,10 +37,9 @@ extern QApplication *current_app();
 extern QApplication *qapp;
 extern QString current_theme;
 static QString def_app_style;
-static QString real_data_dir;
 static QString stylestring;
 
-/*****************************************************************************
+/*************************************************************************//**
   Loads a qt theme directory/theme_name
 *****************************************************************************/
 void qtg_gui_load_theme(const char *directory, const char *theme_name)
@@ -48,6 +47,7 @@ void qtg_gui_load_theme(const char *directory, const char *theme_name)
   QString name;
   QString path;
   QString fake_dir;
+  QString data_dir;
   QDir dir;
   QFile f;
   QString lnb = "LittleFinger";
@@ -57,12 +57,9 @@ void qtg_gui_load_theme(const char *directory, const char *theme_name)
     def_app_style = QApplication::style()->objectName();
   }
 
-  if (real_data_dir.isEmpty()) {
-    real_data_dir = QString(directory);
-  }
-  
-  path = real_data_dir + DIR_SEPARATOR + theme_name + DIR_SEPARATOR;
-  name = dir.absolutePath() + QDir::separator() + real_data_dir;
+  data_dir = QString(directory);
+
+  path = data_dir + DIR_SEPARATOR + theme_name + DIR_SEPARATOR;
   name = path + "resource.qss";
   f.setFileName(name);
 
@@ -73,7 +70,7 @@ void qtg_gui_load_theme(const char *directory, const char *theme_name)
     return;
   }
   /* Stylesheet uses UNIX separators */
-  fake_dir = real_data_dir;
+  fake_dir = data_dir;
   fake_dir.replace(QString(DIR_SEPARATOR), "/");
   QTextStream in(&f);
   stylestring = in.readAll();
@@ -92,6 +89,7 @@ void qtg_gui_load_theme(const char *directory, const char *theme_name)
   }
 
   current_theme = theme_name;
+  QPixmapCache::clear();
   current_app()->setStyleSheet(stylestring);
   if (gui()) {
     gui()->reload_sidebar_icons();
@@ -101,19 +99,20 @@ void qtg_gui_load_theme(const char *directory, const char *theme_name)
   QApplication::setPalette(pal);
 }
 
-/*****************************************************************************
+/*************************************************************************//**
   Clears a theme (sets default system theme)
 *****************************************************************************/
 void qtg_gui_clear_theme()
 {
-  QString name, str;
-
-  str = QString("themes") + DIR_SEPARATOR + "gui-qt" + DIR_SEPARATOR;
-  name = fileinfoname(get_data_dirs(), str.toLocal8Bit().data());
-  qtg_gui_load_theme(name.toLocal8Bit().data(), FC_QT_DEFAULT_THEME_NAME);
+  if (!load_theme(FC_QT_DEFAULT_THEME_NAME)) {
+    /* TRANS: No full stop after the URL, could cause confusion. */
+    log_fatal(_("No Qt-client theme was found. For instructions on how to "
+                "get one, please visit %s"), WIKI_URL);
+    exit(EXIT_FAILURE);
+  }
 }
 
-/*****************************************************************************
+/*************************************************************************//**
   Each gui has its own themes directories.
 
   Returns an array containing these strings and sets array size in count.
@@ -121,25 +120,24 @@ void qtg_gui_clear_theme()
 *****************************************************************************/
 char **qtg_get_gui_specific_themes_directories(int *count)
 {
-  char **array;
-  char *persistent;
-  const char *data_dir;
-  size_t ddname_len;
+  const struct strvec *data_dirs = get_data_dirs();
+  char **directories = (char **)fc_malloc(strvec_size(data_dirs)
+                                          * sizeof(char *));
+  int i = 0;
 
-  *count = 1;
-  /* array is deleted in C client code and shouln't
-     be allocated with new[] */
-  array = static_cast<char **>(fc_malloc((*count) * sizeof(char *)));
-  data_dir = fileinfoname(get_data_dirs(),
-                          "themes" DIR_SEPARATOR "gui-qt");
-  ddname_len = strlen(data_dir) + 1;
-  persistent = static_cast<char*>(fc_malloc(ddname_len));
-  strncpy(persistent, data_dir, ddname_len);
-  array[0] = persistent;
-  return array;
+  *count = strvec_size(data_dirs);
+  strvec_iterate(data_dirs, data_dir) {
+    char buf[strlen(data_dir) + strlen("/themes/gui-qt") + 1];
+
+    fc_snprintf(buf, sizeof(buf), "%s/themes/gui-qt", data_dir);
+
+    directories[i++] = fc_strdup(buf);
+  } strvec_iterate_end;
+
+  return directories;
 }
 
-/*****************************************************************************
+/*************************************************************************//**
   Return an array of names of usable themes in the given directory.
   Array size is stored in count.
   The caller is responsible for freeing the array and the names
@@ -163,7 +161,7 @@ char **qtg_get_useable_themes_in_directory(const char *directory, int *count)
   foreach(str, sl) {
     f.setFileName(name + DIR_SEPARATOR + str
                   + DIR_SEPARATOR + "resource.qss");
-    if (f.exists() == false) {
+    if (!f.exists()) {
       continue;
     }
     theme_list << str;
@@ -179,9 +177,12 @@ char **qtg_get_useable_themes_in_directory(const char *directory, int *count)
   *count = theme_list.count();
 
   for (int i = 0; i < *count; i++) {
+    QByteArray tn_bytes;
+
     qba = theme_list[i].toLocal8Bit();
     data = new char[theme_list[i].toLocal8Bit().count() + 1];
-    strcpy(data, theme_list[i].toLocal8Bit().data());
+    tn_bytes = theme_list[i].toLocal8Bit();
+    strcpy(data, tn_bytes.data());
     array[i] = data;
   }
 

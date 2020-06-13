@@ -1,4 +1,4 @@
-/********************************************************************** 
+/***********************************************************************
  Freeciv - Copyright (C) 1996 - A Kjeldberg, L Gregersen, P Unold
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -102,7 +102,7 @@ extern "C" {
 #define SPECENUM_VALUE78  E_UNIT_BUY
 #define SPECENUM_VALUE79  E_UNIT_BUILT
 #define SPECENUM_VALUE80  E_UNIT_LOST_DEF
-#define SPECENUM_VALUE81  E_UNIT_WIN
+#define SPECENUM_VALUE81  E_UNIT_WIN_DEF
 #define SPECENUM_VALUE82  E_UNIT_BECAME_VET
 #define SPECENUM_VALUE83  E_UNIT_UPGRADED
 #define SPECENUM_VALUE84  E_UNIT_RELOCATED
@@ -164,6 +164,13 @@ extern "C" {
 #define SPECENUM_VALUE126 E_DEPRECATION_WARNING
 /* Used for messages about things experienced players already know. */
 #define SPECENUM_VALUE127 E_BEGINNER_HELP
+#define SPECENUM_VALUE128 E_MY_UNIT_DID_HEAL
+#define SPECENUM_VALUE129 E_MY_UNIT_WAS_HEALED
+#define SPECENUM_VALUE130 E_MULTIPLIER
+#define SPECENUM_VALUE131 E_UNIT_ACTION_ACTOR_SUCCESS
+#define SPECENUM_VALUE132 E_UNIT_ACTION_ACTOR_FAILURE
+#define SPECENUM_VALUE133 E_UNIT_ACTION_TARGET_OTHER
+#define SPECENUM_VALUE134 E_UNIT_ACTION_TARGET_HOSTILE
 /*
  * Note: If you add a new event, make sure you make a similar change
  * to the events array in "common/events.c" using GEN_EV, to
@@ -174,7 +181,7 @@ extern "C" {
 /* The sound system also generates "e_game_quit", although there's no
  * corresponding identifier E_GAME_QUIT. */
 #include "specenum_gen.h"
-/* the maximum number of enumerators is set in generate_specnum.py */
+/* the maximum number of enumerators is set in generate_specenum.py */
 
 extern enum event_type sorted_events[]; /* [E_COUNT], sorted by the
                                            translated message text */

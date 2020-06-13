@@ -207,7 +207,8 @@ static void caravan_search_from(const struct unit *caravan,
                                 int turns_before, int moves_left_before,
                                 bool omniscient,
                                 search_callback callback,
-                                void *callback_data) {
+                                void *callback_data)
+{
   struct pf_map *pfm;
   struct pf_parameter pfparam;
   int end_time;
@@ -392,10 +393,10 @@ static double wonder_benefit(const struct unit *caravan, int arrival_time,
   shields_at_arrival = dest->shield_stock
     + arrival_time * dest->surplus[O_SHIELD];
 
-  costwithout = impr_buy_gold_cost(dest->production.value.building,
+  costwithout = impr_buy_gold_cost(dest, dest->production.value.building,
       shields_at_arrival);
-  costwith = impr_buy_gold_cost(dest->production.value.building,
-      shields_at_arrival + unit_build_shield_cost(caravan));
+  costwith = impr_buy_gold_cost(dest, dest->production.value.building,
+      shields_at_arrival + unit_build_shield_cost_base(caravan));
 
   fc_assert_ret_val(costwithout >= costwith, -1.0);
   return costwithout - costwith;
@@ -482,14 +483,20 @@ static bool get_discounted_reward(const struct unit *caravan,
   }
 
   consider_wonder = parameter->consider_wonders
-    && is_action_enabled_unit_on_city_full(ACTION_HELP_WONDER,
-                                           caravan, dest, src, TRUE);
+    && action_prob_possible(
+        action_speculate_unit_on_city(ACTION_HELP_WONDER,
+                                      caravan, src, city_tile(dest),
+                                      TRUE, dest));
   consider_trade = parameter->consider_trade
-    && is_action_enabled_unit_on_city_full(ACTION_TRADE_ROUTE,
-                                           caravan, dest, src, TRUE);
+    && action_prob_possible(
+        action_speculate_unit_on_city(ACTION_TRADE_ROUTE,
+                                      caravan, src, city_tile(dest),
+                                      TRUE, dest));
   consider_windfall = parameter->consider_windfall
-    && is_action_enabled_unit_on_city_full(ACTION_MARKETPLACE,
-                                           caravan, dest, src, TRUE);
+    && action_prob_possible(
+        action_speculate_unit_on_city(ACTION_MARKETPLACE,
+                                      caravan, src, city_tile(dest),
+                                      TRUE, dest));
 
   if (!consider_wonder && !consider_trade && !consider_windfall) {
     /* No caravan action is possible against this target. */
@@ -579,6 +586,8 @@ static bool cewt_callback(void *vdata, const struct city *dest,
 {
   struct cewt_data *data = vdata;
 
+  fc_assert_ret_val(data->result, FALSE);
+
   if (dest == data->result->dest) {
     data->result->arrival_time = arrival_time;
     get_discounted_reward(data->caravan, data->param, data->result);
@@ -604,6 +613,7 @@ static void caravan_evaluate_withtransit(const struct unit *caravan,
   data.param = param;
   caravan_result_init(result, game_city_by_number(caravan->homecity),
                       dest, 0);
+  data.result = result;
   caravan_search_from(caravan, param, unit_tile(caravan), 0,
                       caravan->moves_left, omniscient, cewt_callback, &data);
 }

@@ -136,6 +136,8 @@ struct civ_game {
       int diplchance;
       int diplbulbcost;
       int diplgoldcost;
+      int incite_gold_loss_chance;
+      int incite_gold_capt_chance;
       int dispersion;
       int end_turn;
       bool endspaceship;
@@ -156,6 +158,7 @@ struct civ_game {
       int mgr_nationchance;
       int mgr_turninterval;
       int mgr_worldchance;
+      bool multiresearch;
       bool migration;
       enum trait_dist_mode trait_dist;
       int min_players;
@@ -170,6 +173,7 @@ struct civ_game {
       int razechance;
       unsigned revealmap;
       int revolution_length;
+      int spaceship_travel_time;
       bool threaded_save;
       int save_compress_level;
       enum fz_method save_compress_type;
@@ -182,7 +186,6 @@ struct civ_game {
       char start_units[MAX_LEN_STARTUNIT];
       bool start_city;
       int start_year;
-      int techloss_forgiveness;
       int techloss_restore;
       int techlost_donor;
       int techlost_recv;
@@ -220,7 +223,9 @@ struct civ_game {
       int seed;
 
       bool global_warming;
+      int global_warming_percent;
       bool nuclear_winter;
+      int nuclear_winter_percent;
 
       bool fogofwar_old; /* as the fog_of_war bit get changed by setting
                           * the server we need to remember the old setting */
@@ -336,6 +341,10 @@ extern struct world wld;
 #define GAME_MIN_GOLD            0
 #define GAME_MAX_GOLD            50000
 
+#define GAME_DEFAULT_INFRA       0
+#define GAME_MIN_INFRA           0
+#define GAME_MAX_INFRA           50000
+
 #define GAME_DEFAULT_START_UNITS  "ccwwx"
 #define GAME_DEFAULT_START_CITY  FALSE
 
@@ -350,7 +359,7 @@ extern struct world wld;
 #define GAME_DEFAULT_ANGRYCITIZEN TRUE
 
 #define GAME_DEFAULT_END_TURN    5000
-#define GAME_MIN_END_TURN        0
+#define GAME_MIN_END_TURN        1
 #define GAME_MAX_END_TURN        32767
 
 #define GAME_DEFAULT_MIN_PLAYERS     1
@@ -387,12 +396,29 @@ extern struct world wld;
 #define GAME_MIN_DIPLGOLDCOST        0
 #define GAME_MAX_DIPLGOLDCOST        100
 
+#define GAME_DEFAULT_INCITE_GOLD_LOSS_CHANCE    0
+#define GAME_MIN_INCITE_GOLD_LOSS_CHANCE        0
+#define GAME_MAX_INCITE_GOLD_LOSS_CHANCE        100
+
+#define GAME_DEFAULT_INCITE_GOLD_CAPT_CHANCE    0
+#define GAME_MIN_INCITE_GOLD_CAPT_CHANCE        0
+#define GAME_MAX_INCITE_GOLD_CAPT_CHANCE        100
+
 #define GAME_DEFAULT_FOGOFWAR        TRUE
 
 #define GAME_DEFAULT_FOGGEDBORDERS   FALSE
 
 #define GAME_DEFAULT_GLOBAL_WARMING  TRUE
+
+#define GAME_DEFAULT_GLOBAL_WARMING_PERCENT 100
+#define GAME_MIN_GLOBAL_WARMING_PERCENT 1
+#define GAME_MAX_GLOBAL_WARMING_PERCENT 10000
+
 #define GAME_DEFAULT_NUCLEAR_WINTER  TRUE
+
+#define GAME_DEFAULT_NUCLEAR_WINTER_PERCENT 100
+#define GAME_MIN_NUCLEAR_WINTER_PERCENT 1
+#define GAME_MAX_NUCLEAR_WINTER_PERCENT 10000
 
 #define GAME_DEFAULT_BORDERS         BORDERS_ENABLED
 
@@ -419,6 +445,10 @@ extern struct world wld;
 #define GAME_DEFAULT_TECHLOSSREST    50
 #define GAME_MIN_TECHLOSSREST        -1
 #define GAME_MAX_TECHLOSSREST        100
+
+#define GAME_DEFAULT_TECHLEAK        100
+#define GAME_MIN_TECHLEAK            0
+#define GAME_MAX_TECHLEAK            300
 
 #define GAME_DEFAULT_CITYMINDIST     2
 #define GAME_MIN_CITYMINDIST         1
@@ -500,6 +530,7 @@ extern struct world wld;
 #define GAME_MAX_TECHLOST_DONOR      100
 
 #define GAME_DEFAULT_TEAM_POOLED_RESEARCH TRUE
+#define GAME_DEFAULT_MULTIRESEARCH   FALSE
 
 #define GAME_DEFAULT_RAZECHANCE      20
 #define GAME_MIN_RAZECHANCE          0
@@ -518,6 +549,10 @@ extern struct world wld;
 
 #define GAME_DEFAULT_VICTORY_CONDITIONS (1 << VC_SPACERACE | 1 << VC_ALLIED)
 #define GAME_DEFAULT_END_SPACESHIP   TRUE
+
+#define GAME_DEFAULT_SPACESHIP_TRAVEL_TIME 100
+#define GAME_MIN_SPACESHIP_TRAVEL_TIME     50
+#define GAME_MAX_SPACESHIP_TRAVEL_TIME     1000
 
 #define GAME_DEFAULT_TURNBLOCK       TRUE
 
@@ -579,9 +614,13 @@ extern struct world wld;
 #define GAME_DEFAULT_TRADING_GOLD    TRUE
 #define GAME_DEFAULT_TRADING_CITY    TRUE
 
+#define GAME_DEFAULT_CARAVAN_BONUS_STYLE CBS_CLASSIC
+
 #define GAME_DEFAULT_TRADEMINDIST    9
 #define GAME_MIN_TRADEMINDIST        1
 #define GAME_MAX_TRADEMINDIST        999
+
+#define GAME_DEFAULT_TRADE_REVENUE_STYLE TRS_CLASSIC
 
 #define GAME_DEFAULT_BARBARIANRATE   BARBS_NORMAL
 
@@ -678,7 +717,7 @@ extern struct world wld;
 
 /* ruleset settings */
 
-#define RS_MAX_VALUE                             10000
+#define RS_MAX_VALUE                             1000000
 
 /* TRANS: year label (Anno Domini) */
 #define RS_DEFAULT_POS_YEAR_LABEL                N_("AD")
@@ -763,15 +802,23 @@ extern struct world wld;
 
 #define RS_DEFAULT_HAPPY_COST                    2
 #define RS_MIN_HAPPY_COST                        0
-#define RS_MAX_HAPPY_COST                        100
+#define RS_MAX_HAPPY_COST                        10000
 
 #define RS_DEFAULT_FOOD_COST                     2
 #define RS_MIN_FOOD_COST                         0
-#define RS_MAX_FOOD_COST                         100
+#define RS_MAX_FOOD_COST                         10000
 
-#define RS_DEFAULT_SLOW_INVASIONS                TRUE
+#define RS_DEFAULT_CIVIL_WAR_CELEB               -5
+#define RS_DEFAULT_CIVIL_WAR_UNHAPPY             5
 
 #define RS_DEFAULT_TIRED_ATTACK                  FALSE
+#define RS_DEFAULT_ONLY_KILLING_VETERAN          FALSE
+#define RS_DEFAULT_NUKE_POP_LOSS_PCT             50
+#define RS_MIN_NUKE_POP_LOSS_PCT                 0
+#define RS_MAX_NUKE_POP_LOSS_PCT                 100
+#define RS_DEFAULT_NUKE_DEFENDER_SURVIVAL_CHANCE_PCT 0
+#define RS_MIN_NUKE_DEFENDER_SURVIVAL_CHANCE_PCT 0
+#define RS_MAX_NUKE_DEFENDER_SURVIVAL_CHANCE_PCT 100
 
 #define RS_DEFAULT_BASE_BRIBE_COST               750
 #define RS_MIN_BASE_BRIBE_COST                   0
@@ -793,7 +840,7 @@ extern struct world wld;
 
 #define RS_DEFAULT_BASE_TECH_COST                20
 #define RS_MIN_BASE_TECH_COST                    0
-#define RS_MAX_BASE_TECH_COST                    200
+#define RS_MAX_BASE_TECH_COST                    20000
 
 #define RS_DEFAULT_FORCE_TRADE_ROUTE             FALSE
 #define RS_DEFAULT_FORCE_CAPTURE_UNITS           FALSE
@@ -801,7 +848,12 @@ extern struct world wld;
 #define RS_DEFAULT_FORCE_EXPLODE_NUCLEAR         FALSE
 
 #define RS_DEFAULT_POISON_EMPTIES_FOOD_STOCK     FALSE
-#define RS_DEFAULT_BOMBARD_MAX_RANGE             1
+#define RS_DEFAULT_STEAL_MAP_REVEALS_CITIES      TRUE
+#define RS_DEFAULT_ACTION_ACTOR_CONSUMING_ALWAYS FALSE
+#define RS_DEFAULT_USER_ACTION_TARGET_KIND       ATK_UNIT
+#define RS_DEFAULT_ACTION_MIN_RANGE              0
+#define RS_DEFAULT_ACTION_MAX_RANGE              1
+#define RS_DEFAULT_EXPLODE_NUCLEAR_MAX_RANGE     0
 
 #define RS_ACTION_NO_MAX_DISTANCE                "unlimited"
 

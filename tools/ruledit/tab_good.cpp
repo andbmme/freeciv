@@ -33,7 +33,6 @@
 #include "improvement.h"
 
 // ruledit
-#include "effect_edit.h"
 #include "req_edit.h"
 #include "ruledit.h"
 #include "ruledit_qt.h"
@@ -41,7 +40,7 @@
 
 #include "tab_good.h"
 
-/**************************************************************************
+/**********************************************************************//**
   Setup tab_good object
 **************************************************************************/
 tab_good::tab_good(ruledit_gui *ui_in) : QWidget()
@@ -90,7 +89,6 @@ tab_good::tab_good(ruledit_gui *ui_in) : QWidget()
   effects_button = new QPushButton(QString::fromUtf8(R__("Effects")), this);
   connect(effects_button, SIGNAL(pressed()), this, SLOT(edit_effects()));
   good_layout->addWidget(effects_button, 3, 2);
-  show_experimental(effects_button);
 
   add_button = new QPushButton(QString::fromUtf8(R__("Add Good")), this);
   connect(add_button, SIGNAL(pressed()), this, SLOT(add_now()));
@@ -109,7 +107,7 @@ tab_good::tab_good(ruledit_gui *ui_in) : QWidget()
   setLayout(main_layout);
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Refresh the information.
 **************************************************************************/
 void tab_good::refresh()
@@ -117,7 +115,7 @@ void tab_good::refresh()
   good_list->clear();
 
   goods_type_iterate(pgood) {
-    if (!pgood->disabled) {
+    if (!pgood->ruledit_disabled) {
       QListWidgetItem *item =
         new QListWidgetItem(QString::fromUtf8(goods_rule_name(pgood)));
 
@@ -126,7 +124,7 @@ void tab_good::refresh()
   } goods_type_iterate_end;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Update info of the good
 **************************************************************************/
 void tab_good::update_good_info(struct goods_type *pgood)
@@ -154,7 +152,7 @@ void tab_good::update_good_info(struct goods_type *pgood)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User selected good from the list.
 **************************************************************************/
 void tab_good::select_good()
@@ -162,19 +160,26 @@ void tab_good::select_good()
   QList<QListWidgetItem *> select_list = good_list->selectedItems();
 
   if (!select_list.isEmpty()) {
-    update_good_info(goods_by_rule_name(select_list.at(0)->text().toUtf8().data()));
+    QByteArray gn_bytes;
+
+    gn_bytes = select_list.at(0)->text().toUtf8();
+    update_good_info(goods_by_rule_name(gn_bytes.data()));
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User entered name for the good
 **************************************************************************/
 void tab_good::name_given()
 {
   if (selected != nullptr) {
+    QByteArray name_bytes;
+    QByteArray rname_bytes;
+
     goods_type_iterate(pgood) {
-      if (pgood != selected && !pgood->disabled) {
-        if (!strcmp(goods_rule_name(pgood), rname->text().toUtf8().data())) {
+      if (pgood != selected && !pgood->ruledit_disabled) {
+        rname_bytes = rname->text().toUtf8();
+        if (!strcmp(goods_rule_name(pgood), rname_bytes.data())) {
           ui->display_msg(R__("A good with that rule name already exists!"));
           return;
         }
@@ -185,14 +190,16 @@ void tab_good::name_given()
       name->setText(rname->text());
     }
 
+    name_bytes = name->text().toUtf8();
+    rname_bytes = rname->text().toUtf8();
     names_set(&(selected->name), 0,
-              name->text().toUtf8().data(),
-              rname->text().toUtf8().data());
+              name_bytes.data(),
+              rname_bytes.data());
     refresh();
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested good deletion 
 **************************************************************************/
 void tab_good::delete_now()
@@ -205,14 +212,14 @@ void tab_good::delete_now()
       return;
     }
 
-    selected->disabled = true;
+    selected->ruledit_disabled = true;
 
     refresh();
-    update_good_info(0);
+    update_good_info(nullptr);
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Initialize new good for use.
 **************************************************************************/
 bool tab_good::initialize_new_good(struct goods_type *pgood)
@@ -226,7 +233,7 @@ bool tab_good::initialize_new_good(struct goods_type *pgood)
   return true;
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User requested new good
 **************************************************************************/
 void tab_good::add_now()
@@ -235,9 +242,9 @@ void tab_good::add_now()
 
   // Try to reuse freed good slot
   goods_type_iterate(pgood) {
-    if (pgood->disabled) {
+    if (pgood->ruledit_disabled) {
       if (initialize_new_good(pgood)) {
-        pgood->disabled = false;
+        pgood->ruledit_disabled = false;
         update_good_info(pgood);
         refresh();
       }
@@ -263,7 +270,7 @@ void tab_good::add_now()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   Toggled whether rule_name and name should be kept identical
 **************************************************************************/
 void tab_good::same_name_toggle(bool checked)
@@ -274,7 +281,7 @@ void tab_good::same_name_toggle(bool checked)
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User wants to edit reqs
 **************************************************************************/
 void tab_good::edit_reqs()
@@ -287,21 +294,18 @@ void tab_good::edit_reqs()
   }
 }
 
-/**************************************************************************
+/**********************************************************************//**
   User wants to edit effects
 **************************************************************************/
 void tab_good::edit_effects()
 {
   if (selected != nullptr) {
-    effect_edit *e_edit;
     struct universal uni;
 
     uni.value.good = selected;
     uni.kind = VUT_GOOD;
 
-    e_edit = new effect_edit(ui, QString::fromUtf8(goods_rule_name(selected)),
-                             &uni);
-
-    e_edit->show();
+    ui->open_effect_edit(QString::fromUtf8(goods_rule_name(selected)),
+                         &uni, EFMC_NORMAL);
   }
 }
